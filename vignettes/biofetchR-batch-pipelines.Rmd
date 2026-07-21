@@ -1,0 +1,885 @@
+---
+title: "Batch occurrence pipelines in biofetchR"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Batch occurrence pipelines in biofetchR}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+params:
+  run_live: false
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  message = TRUE,
+  warning = TRUE
+)
+
+# Read the vignette parameter that controls whether live examples are run.
+# When run_live is FALSE, live GBIF and provider-download examples are skipped.
+# When run_live is TRUE, those examples are executed during rendering.
+run_live <- isTRUE(params$run_live)
+
+# Read GBIF credentials from environment variables.
+# This avoids writing usernames, passwords, or email addresses directly into
+# scripts, vignettes, or shared project files.
+gbif_user <- Sys.getenv("GBIF_USER")
+gbif_pwd <- Sys.getenv("GBIF_PWD")
+gbif_email <- Sys.getenv("GBIF_EMAIL")
+
+# Check whether all three GBIF credential fields are available.
+# Live GBIF examples are only attempted when this is TRUE.
+gbif_ready <- all(nzchar(c(gbif_user, gbif_pwd, gbif_email)))
+
+# Run a live example without stopping the whole vignette if an external service,
+# provider download, or GBIF request fails. The error message is printed so the
+# user can see what happened, and NULL is returned for that example.
+run_live_safely <- function(expr) {
+  tryCatch(
+    force(expr),
+    error = function(e) {
+      message("Live example did not complete: ", conditionMessage(e))
+      NULL
+    }
+  )
+}
+
+# Print a clear message when a live example is skipped because credentials or
+# another required setup step are missing.
+skip_live_message <- function(reason) {
+  message("Live example skipped: ", reason)
+  invisible(NULL)
+}
+```
+
+```{r load-package}
+library(biofetchR)
+```
+
+# Purpose
+
+This vignette introduces the main batch-processing workflows in `biofetchR`.
+It focuses on moving from a simple input table to processed occurrence outputs,
+using examples that can be adapted for small tests or larger data-production
+runs.
+
+The terrestrial and freshwater pipeline starts from a species-country table. In
+most cases, this means one row per target taxon and recipient country, with
+columns such as `species` and `iso2c`. For each row, `biofetchR` can request the
+matching GBIF occurrence records, import the completed download, apply the
+selected cleaning and thinning steps, assign records to the chosen spatial
+context, and return or export the processed data.
+
+For larger batches, outputs can be written directly to a designated folder,
+including separate files for individual species-country combinations. For
+smaller runs, users can also keep the processed records in the R session for
+immediate inspection.
+
+The marine pipeline follows a similar batch structure, but uses species-level
+marine input rather than species-country rows. Marine records can be assigned to
+a selected marine overlay, such as an EEZ-style layer, Marine Ecoregions of the
+World, IHO sea areas, or Large Marine Ecosystem (LME) polygons, which represent
+broad coastal and ocean regions used for ecosystem-scale marine summaries.
+
+This vignette covers two high-level functions:
+
+- `process_gbif_terrestrial_freshwater_pipeline()` for terrestrial and
+  freshwater species-country workflows;
+
+- `process_gbif_marine_pipeline()` for marine occurrence workflows.
+
+The examples show how to prepare input tables, provide GBIF credentials, choose
+the main spatial-attribution setting, control cleaning and thinning, and inspect
+the summary outputs produced by the pipeline.
+
+Other vignettes cover specialist topics in more detail. Use the origin-evidence
+guide when the main focus is native-range, introduced-status or invasive-status
+classification; use the spatial-overlays guide for a wider comparison of overlay
+options; and use the auditing-and-scaling guide when planning larger runs.
+
+# Using the examples
+
+The examples in this vignette are written as project templates. They can be
+copied into an analysis script and adapted to different input tables, output
+folders, spatial settings, cleaning options and batch sizes.
+
+Some examples can submit live GBIF downloads or retrieve external spatial
+resources. These steps require internet access, GBIF credentials and access to
+the relevant provider sources. To keep the examples safe to read and render,
+live code is controlled by the `run_live` parameter.
+
+When `run_live = FALSE`, the vignette shows the workflow structure without
+submitting downloads or retrieving remote resources. When `run_live = TRUE`, the
+same examples are run against GBIF and the selected spatial-data providers.
+
+To run the live examples while rendering this vignette locally, use:
+
+```{r render-live-version, eval = FALSE}
+rmarkdown::render(
+  "vignettes/biofetchR-batch-pipelines.Rmd",
+  params = list(run_live = TRUE)
+)
+```
+
+This lets users choose how to use the vignette: as a static guide to the pipeline
+structure, or as a live workflow template for testing the package with real
+downloads and provider data.
+
+# Batch input tables
+
+The terrestrial and freshwater pipeline uses a species-country input table. Each
+row defines one taxon-country combination to process.
+
+The minimal input has two columns:
+
+- `species`: scientific name to resolve and submit to GBIF;
+- `iso2c`: two-letter ISO country code for the country to search.
+
+```{r terrestrial-batch-input}
+terrestrial_batch <- data.frame(
+  species = c(
+    "Xenopus laevis",
+    "Trachemys scripta",
+    "Rattus rattus",
+    "Sturnus vulgaris"
+  ),
+  iso2c = c(
+    "FR",
+    "GB",
+    "GB",
+    "DE"
+  ),
+  stringsAsFactors = FALSE
+)
+
+terrestrial_batch
+```
+
+Project-specific columns can also be included in the input table. For example,
+users may want to keep taxonomic group, habitat, pathway, evidence source or
+review notes alongside the required `species` and `iso2c` columns. These fields
+can help organise larger batch files and may be carried into summaries or audit
+outputs where supported by the workflow.
+
+```{r terrestrial-batch-input-with-metadata}
+terrestrial_batch_metadata <- data.frame(
+  species = c(
+    "Xenopus laevis",
+    "Trachemys scripta"
+  ),
+  iso2c = c(
+    "FR",
+    "GB"
+  ),
+  taxon_group = c(
+    "Amphibian",
+    "Reptile"
+  ),
+  notes = c(
+    "low-memory smoke test",
+    "small batch example"
+  ),
+  stringsAsFactors = FALSE
+)
+
+terrestrial_batch_metadata
+```
+
+Marine workflows use a simpler species-level input table. The marine pipeline
+downloads records by species first, then assigns the returned coordinates to the
+selected marine overlay.
+
+```{r marine-batch-input}
+marine_batch <- data.frame(
+  species = c(
+    "Carcinus maenas",
+    "Mnemiopsis leidyi",
+    "Undaria pinnatifida"
+  ),
+  stringsAsFactors = FALSE
+)
+
+marine_batch
+```
+
+This distinction matters when preparing batch files. Terrestrial and freshwater
+runs are usually organised around species-country combinations, whereas marine
+runs are usually organised around species and the marine overlay selected later
+in the workflow.
+
+# Credential and output setup
+
+GBIF downloads require user credentials. In project scripts, it is best to read
+these from environment variables rather than writing usernames, passwords or
+email addresses directly into the code.
+
+The examples in this vignette use three environment variables:
+
+- `GBIF_USER`
+- `GBIF_PWD`
+- `GBIF_EMAIL`
+
+The code below also creates an output folder for the vignette run. Here,
+`tempdir()` is used so the example can run without writing files into the
+working directory. For a real analysis, use a stable project folder instead,
+such as `outputs/gbif_batches`.
+
+```{r credentials-and-output}
+# Create a temporary output folder for this vignette run.
+# In a real project, replace tempdir() with a stable project directory,
+# such as "outputs/gbif_batches".
+output_root <- file.path(tempdir(), "biofetchR_batch_vignette")
+
+# Create the output folder if it does not already exist.
+# recursive = TRUE also creates any missing parent folders.
+# showWarnings = FALSE avoids unnecessary messages if the folder already exists.
+dir.create(output_root, recursive = TRUE, showWarnings = FALSE)
+
+# Create a small credential-check table.
+# This does not print the credential values themselves; it only reports whether
+# each required environment variable is available.
+credential_status <- data.frame(
+  variable = c("GBIF_USER", "GBIF_PWD", "GBIF_EMAIL"),
+  available = nzchar(c(gbif_user, gbif_pwd, gbif_email)),
+  stringsAsFactors = FALSE
+)
+
+# Display the credential check and the output folder being used for this run.
+credential_status
+output_root
+```
+
+Before running a live batch, check that all three credential fields return
+`TRUE`. The output folder should also be changed from the temporary vignette
+location to a project directory that can be inspected later.
+
+For larger runs, keep the main files produced by the workflow together: the
+input table, exported occurrence files, `gbif_summary.csv`, any evidence or
+diagnostic outputs, and the package version used for the run.
+
+# Coordinate cleaning and spatial thinning
+
+Most batch workflows should apply coordinate cleaning before outputs are used for
+spatial interpretation. GBIF occurrence tables can include missing coordinates,
+zero-zero coordinates, impossible coordinates, duplicated points, high
+coordinate uncertainty, country-centroid records, institution coordinates or
+other records that are not suitable for spatial attribution.
+
+In `biofetchR`, coordinate cleaning is controlled with `apply_cleaning`. When
+enabled, the pipeline removes records that fail the selected coordinate-quality
+checks before records are exported.
+
+Spatial thinning is optional and is controlled with `apply_thinning` and
+`dist_km`. Thinning reduces dense clusters of nearby records by retaining
+records separated by a minimum distance. This can be useful when occurrence data
+are strongly concentrated around well-sampled areas, such as cities, roads,
+field stations, protected areas, ports, coastlines or frequently sampled
+localities.
+
+The thinning distance should match the scale of the analysis. A small distance
+may be suitable for local or subnational studies, while a larger distance may be
+more appropriate for regional or macroecological summaries. Thinning should be
+treated as a sampling-bias reduction step, not as a replacement for checking the
+spatial structure of the final dataset.
+
+```{r cleaning-thinning-template, eval = FALSE}
+process_gbif_terrestrial_freshwater_pipeline(
+  df = terrestrial_batch,
+
+  output_dir = file.path(output_root, "cleaned_thinned_batch"),
+
+  user = Sys.getenv("GBIF_USER"),
+  pwd = Sys.getenv("GBIF_PWD"),
+  email = Sys.getenv("GBIF_EMAIL"),
+
+  region_source = "gadm",
+  gadm_unit = 1,
+
+  apply_cleaning = TRUE,
+  apply_thinning = TRUE,
+  dist_km = 5,
+
+  export_summary = TRUE,
+  store_in_memory = FALSE,
+  return_all_results = FALSE
+)
+```
+
+After a run, use `gbif_summary.csv` to compare the number of records returned
+from GBIF, retained after cleaning, and retained after thinning. For analyses
+that will be reported or reused, record whether cleaning was enabled, whether
+thinning was applied, and the thinning distance used.
+
+# A low-memory terrestrial smoke test
+
+Before running a larger batch, start with a small smoke test. This is a short
+run that checks whether the main workflow components are working together before
+processing many species-country combinations.
+
+The example below uses `Xenopus laevis` in France and assigns records to GADM
+level-1 units. It also enables coordinate cleaning, 5 km spatial thinning,
+taxonomy preparation, GRIIS evidence and native-range evidence in audit mode.
+This makes the test small enough to run quickly, while still checking the main
+setup requirements: GBIF credentials, provider access, cache folders, spatial
+attribution and output writing.
+
+```{r low-memory-terrestrial-live, eval = run_live}
+if (!gbif_ready) {
+  skip_live_message(
+    "set GBIF_USER, GBIF_PWD, and GBIF_EMAIL to run the GBIF smoke test"
+  )
+} else {
+
+  # Use one species-country pair for the first test run.
+  # This is enough to check credentials, GBIF access, spatial attribution,
+  # cleaning, thinning, evidence attachment, and output writing.
+  low_memory_input <- data.frame(
+    species = "Xenopus laevis",
+    iso2c = "FR",
+    stringsAsFactors = FALSE
+  )
+
+  low_memory_result <- run_live_safely(
+    process_gbif_terrestrial_freshwater_pipeline(
+      df = low_memory_input,
+
+      # Write all example outputs into the vignette output folder.
+      output_dir = file.path(output_root, "terrestrial_low_memory"),
+
+      # GBIF credentials are read from environment variables above.
+      user = gbif_user,
+      pwd = gbif_pwd,
+      email = gbif_email,
+
+      # Assign records to GADM level-1 administrative units.
+      region_source = "gadm",
+      gadm_unit = 1,
+      cache_dir_gadm = file.path(output_root, "cache", "gadm"),
+
+      # Keep the first run deliberately small and conservative.
+      batch_size = 1,
+
+      # Apply coordinate quality control and then thin clustered records.
+      apply_cleaning = TRUE,
+      apply_thinning = TRUE,
+      dist_km = 5,
+
+      # Prepare taxon names before submitting the GBIF download.
+      prepare_taxonomy = TRUE,
+
+      # Attach GRIIS evidence in audit mode.
+      # Audit mode keeps the records and adds evidence fields for inspection.
+      use_griis_status = TRUE,
+      griis_filter_mode = "audit_only",
+      griis_cache_dir = file.path(output_root, "cache", "griis"),
+
+      # Attach native-range evidence from selected web sources.
+      # For marine workflows, WoRMS can be useful alongside SInAS and GBIF.
+      use_native_status = TRUE,
+      use_native_web = TRUE,
+      native_web_sources = c("sinas", "gbif", "worms"),
+      native_web_cache_dir = file.path(output_root, "cache", "native_web"),
+      native_filter_mode = "audit_only",
+
+      # Write origin-evidence and processing summaries.
+      reconcile_origin_evidence = TRUE,
+      export_origin_audit = TRUE,
+      export_summary = TRUE,
+
+      # Write occurrence outputs to disk, but also return a result object
+      # so the smoke test can be inspected immediately in the R session.
+      return_all_results = TRUE,
+      store_in_memory = FALSE,
+
+      # Show progress messages during the live run.
+      quiet = FALSE
+    )
+  )
+
+  low_memory_result
+}
+```
+
+After a live run, inspect `gbif_summary.csv` first. This file provides a compact
+row-level summary of the run, including record counts, processing status, failure
+messages where relevant and the path to any exported occurrence file.
+
+```{r low-memory-summary-live, eval = run_live}
+# Build the path to the summary file written by the smoke-test run.
+# The summary is stored inside the output directory used for this example.
+summary_path <- file.path(
+  output_root,
+  "terrestrial_low_memory",
+  "gbif_summary.csv"
+)
+
+# Read and inspect the summary only if the file was created.
+# This avoids an error if the previous live example was skipped or did not finish.
+if (file.exists(summary_path)) {
+
+  # Import the summary table as a plain data frame.
+  low_memory_summary <- read.csv(summary_path, stringsAsFactors = FALSE)
+
+  # Display the most useful audit columns.
+  # intersect() is used so the code still works if some optional columns are not
+  # present in a particular pipeline run or package version.
+  low_memory_summary[
+    ,
+    intersect(
+      c(
+        "species",     # taxon processed
+        "region_id",   # spatial unit or recipient-region identifier
+        "region_type", # spatial framework used, such as GADM
+        "n_total",     # records before cleaning
+        "n_cleaned",   # records retained after coordinate cleaning
+        "n_thinned",   # records retained after spatial thinning
+        "status",      # success, failure, or no-record status
+        "fail_stage",  # pipeline stage where a failure occurred, if any
+        "fail_reason", # short explanation of the failure, if any
+        "output_file"  # exported occurrence file written for the row
+      ),
+      names(low_memory_summary)
+    )
+  ]
+} else {
+
+  # This message is shown when the live example was skipped or no summary was
+  # written. It keeps the vignette readable without stopping execution.
+  skip_live_message("summary file was not created by the previous live chunk")
+}
+```
+
+# Example summary output
+
+The table below is a small mock version of `gbif_summary.csv`. It shows the
+kinds of fields users should inspect after a batch run: the taxon processed, the
+region identifier, record counts before and after processing, the row status,
+any failure information and the exported file path.
+
+```{r synthetic-terrestrial-summary}
+# In a real workflow, this information is read from gbif_summary.csv.
+summary_example <- data.frame(
+
+  # Taxon processed by the pipeline.
+  species = c("Xenopus laevis", "Trachemys scripta", "Rattus rattus"),
+
+  # Recipient region or spatial unit associated with each row.
+  # For this terrestrial example, these are ISO2 country codes.
+  region_id = c("FR", "GB", "GB"),
+
+  # Spatial framework used for the exported records.
+  # Here, records are assumed to have been assigned to GADM level-1 units.
+  region_type = c("GADM_1", "GADM_1", "GADM_1"),
+
+  # Number of records returned before coordinate cleaning.
+  n_total = c(1340, 220, 0),
+
+  # Number of records retained after coordinate quality control.
+  n_cleaned = c(1309, 198, 0),
+
+  # Number of records retained after spatial thinning.
+  n_thinned = c(861, 174, 0),
+
+  # Processing outcome for each species-region row.
+  status = c("success", "success", "no_records"),
+
+  # Pipeline stage where a row failed or stopped, if applicable.
+  fail_stage = c(NA, NA, "import"),
+
+  # Short explanation of the failure or stopping reason, if applicable.
+  fail_reason = c(NA, NA, "No records returned"),
+
+  # Path to the exported occurrence file.
+  # Rows with no usable records may not produce an output file.
+  output_file = c(
+    "Xenopus_laevis_FR_gadm1.csv",
+    "Trachemys_scripta_GB_gadm1.csv",
+    NA
+  ),
+
+  stringsAsFactors = FALSE
+)
+
+# Display the example summary table.
+summary_example
+```
+
+A useful first check is the `status` column. Successful rows can usually be
+followed through to their exported occurrence files, while rows marked as failed,
+skipped or `no_records` should be reviewed before the batch output is used in an
+analysis.
+
+```{r inspect-synthetic-terrestrial-summary}
+table(summary_example$status, useNA = "ifany")
+
+summary_example[summary_example$status != "success", ]
+```
+
+# Scaling to a terrestrial or freshwater batch
+
+After the one-row smoke test works, increase the number of species-country rows
+gradually. The `batch_size` argument controls how many species are submitted in
+each batch, which helps pace live GBIF requests and reduces the chance of running
+into provider limits during larger runs. Smaller batches also make it easier to
+identify which species or countries caused a problem if a download, import or
+spatial-attribution step fails.
+
+For larger workflows, `store_in_memory = FALSE` is recommended. This writes
+processed occurrence tables to the output folder instead of keeping every table
+in the active R session. Small batches can still be returned to the session for
+interactive inspection, but disk-based outputs are safer when processing many
+taxa or recipient countries.
+
+```{r terrestrial-batch-live, eval = run_live}
+if (!gbif_ready) {
+  skip_live_message("set GBIF credentials to run the terrestrial batch example")
+} else {
+
+  # Run the same terrestrial/freshwater workflow on a slightly larger
+  # species-country table. This is the next step after the one-row smoke test.
+  terrestrial_batch_result <- run_live_safely(
+    process_gbif_terrestrial_freshwater_pipeline(
+      df = terrestrial_batch,
+
+      # Write this batch into its own output folder so it is easy to inspect
+      # separately from the smoke-test output.
+      output_dir = file.path(output_root, "terrestrial_batch"),
+
+      # GBIF credentials are read from environment variables defined earlier.
+      user = gbif_user,
+      pwd = gbif_pwd,
+      email = gbif_email,
+
+      # Assign records to GADM level-1 administrative units.
+      region_source = "gadm",
+      gadm_unit = 1,
+      cache_dir_gadm = file.path(output_root, "cache", "gadm"),
+
+      # Keep batches small in this example.
+      # For larger projects, increase batch_size gradually after checking
+      # that the first few rows complete successfully.
+      batch_size = 1,
+
+      # Apply coordinate cleaning and 5 km spatial thinning.
+      apply_cleaning = TRUE,
+      apply_thinning = TRUE,
+      dist_km = 5,
+
+      # Standardise and resolve taxon names before GBIF download submission.
+      prepare_taxonomy = TRUE,
+
+      # Attach GRIIS evidence without filtering rows out of this example.
+      # This keeps the evidence available for inspection in the audit outputs.
+      use_griis = TRUE,
+      filter_griis_invasive = FALSE,
+      griis_cache_dir = file.path(output_root, "cache", "griis"),
+
+      # Attach native-range evidence from selected web sources.
+      # audit_only keeps all records and writes evidence for later checking.
+      use_native_range = TRUE,
+      use_native_web = TRUE,
+      native_web_sources = c("sinas", "gbif"),
+      native_web_cache_dir = file.path(output_root, "cache", "native_web"),
+      native_filter_mode = "audit_only",
+
+      # Reconcile GRIIS and native-origin evidence and write audit outputs.
+      reconcile_origin_evidence = TRUE,
+      export_origin_audit = TRUE,
+
+      # Write gbif_summary.csv for the batch.
+      export_summary = TRUE,
+
+      # For batch workflows, write occurrence tables to disk rather than
+      # keeping all processed records in memory.
+      store_in_memory = FALSE,
+
+      # Return only the main run object because outputs are written to disk.
+      return_all_results = FALSE,
+
+      # Print progress messages during the live run.
+      quiet = FALSE
+    )
+  )
+
+  # Display the returned run object.
+  terrestrial_batch_result
+}
+```
+
+For most projects, the key setting is `batch_size`. This controls how many
+species are submitted together in each GBIF batch, helping the workflow avoid
+submitting too many live requests at once. A smaller `batch_size` is usually
+safer for large or provider-dependent runs, while a larger value may be suitable
+once the input table and selected settings are straightforward.
+
+After the run, inspect `gbif_summary.csv` to check which rows completed, which
+rows returned no records, whether any provider or import steps failed, and where
+the exported occurrence files were written. This is usually enough to identify
+problem rows without needing to build the workflow through multiple staged runs.
+
+# Adding terrestrial and freshwater overlays
+
+The terrestrial and freshwater pipeline can assign records to more than one
+spatial framework in the same run. This is useful when one layer is needed for
+administrative reporting and another layer is needed for ecological or
+hydrological interpretation.
+
+In the example below, GADM level 1 is kept as the administrative reference, while
+FEOW is added as a freshwater ecoregion layer. The important change is
+`region_source = c("gadm", "feow")`. Setting `overlay_mode = "dual_separate"`
+keeps the two joins separate, so users can inspect the GADM and FEOW
+attributions independently rather than forcing them into a single combined
+spatial unit.
+
+```{r terrestrial-overlay-live, eval = run_live}
+if (!gbif_ready) {
+  skip_live_message("set GBIF credentials to run the overlay example")
+} else {
+
+  # Run a small overlay example using one species-country pair.
+  # This keeps the example manageable while showing how to combine
+  # administrative and ecological spatial attribution.
+  feow_result <- run_live_safely(
+    process_gbif_terrestrial_freshwater_pipeline(
+
+      # Input table for the example.
+      # The species is processed in France as the recipient country.
+      df = data.frame(
+        species = "Xenopus laevis",
+        iso2c = "FR",
+        stringsAsFactors = FALSE
+      ),
+
+      # Write the overlay example into its own output folder.
+      output_dir = file.path(output_root, "terrestrial_feow"),
+
+      # GBIF credentials are read from environment variables defined earlier.
+      user = gbif_user,
+      pwd = gbif_pwd,
+      email = gbif_email,
+
+      # Use both GADM and FEOW as spatial frameworks.
+      # GADM provides administrative attribution.
+      # FEOW provides freshwater ecoregion attribution.
+      region_source = c("gadm", "feow"),
+
+      # Keep the GADM and FEOW joins as separate outputs.
+      # This is useful when the two spatial frameworks should be inspected
+      # independently rather than merged into one combined unit.
+      overlay_mode = "dual_separate",
+
+      # Use GADM level 1 for subnational administrative attribution.
+      gadm_unit = 1,
+
+      # Cache downloaded or loaded spatial layers so they can be reused.
+      cache_dir_gadm = file.path(output_root, "cache", "gadm"),
+      feow_cache_dir = file.path(output_root, "cache", "feow"),
+
+      # Keep the example to one GBIF request.
+      batch_size = 1,
+
+      # Apply coordinate cleaning and 5 km spatial thinning before export.
+      apply_cleaning = TRUE,
+      apply_thinning = TRUE,
+      dist_km = 5,
+
+      # Write gbif_summary.csv for the overlay run.
+      export_summary = TRUE,
+
+      # Write processed occurrence tables to disk rather than storing
+      # all records in the active R session.
+      store_in_memory = FALSE,
+
+      # Return only the main run object because detailed outputs are written
+      # to the output directory.
+      return_all_results = FALSE,
+
+      # Show progress messages during the live run.
+      quiet = FALSE
+    )
+  )
+
+  # Display the returned run object.
+  feow_result
+}
+```
+
+This pattern can be adapted to other supported overlays by changing
+`region_source` and the relevant cache settings. Use separate overlays when the
+spatial frameworks answer different questions, such as administrative reporting
+versus freshwater ecoregion context.
+
+# Marine batch pipeline
+
+Marine workflows use a separate pipeline because the input table is organised by
+species rather than by species-country combinations. Records are downloaded for
+each species, then assigned to the selected marine overlay after the coordinates
+have been imported.
+
+This is the basic marine batch pattern. Here, records are assigned to EEZ
+polygons, while more detailed marine-overlay options are covered in the
+dedicated marine workflow vignette.
+
+```{r marine-batch-live, eval = run_live}
+if (!gbif_ready) {
+  skip_live_message("set GBIF credentials to run the marine batch example")
+} else {
+
+  # Run a small marine batch example.
+  # Unlike the terrestrial workflow, the marine pipeline starts from a species
+  # list and assigns records to marine regions after the GBIF records are imported.
+  marine_batch_result <- run_live_safely(
+    process_gbif_marine_pipeline(
+      df = marine_batch,
+
+      # Write the marine batch outputs into their own folder.
+      output_dir = file.path(output_root, "marine_batch"),
+
+      # GBIF credentials are read from environment variables defined earlier.
+      user = gbif_user,
+      pwd = gbif_pwd,
+      email = gbif_email,
+
+      # Assign imported occurrence records to Exclusive Economic Zones.
+      # Other marine overlays can be used in the dedicated marine workflow.
+      overlay = "eez",
+
+      # Cache the marine overlay so it can be reused in later runs.
+      overlay_cache_dir = file.path(output_root, "cache", "marine_eez"),
+
+      # Allow the example to continue more flexibly if a remote overlay source
+      # is temporarily unavailable or needs to be resolved from cache.
+      strict_overlay_loading = FALSE,
+
+      # Keep the example small by processing one species at a time.
+      batch_size = 1,
+
+      # Apply coordinate cleaning and 5 km spatial thinning before export.
+      apply_cleaning = TRUE,
+      apply_thinning = TRUE,
+      dist_km = 5,
+
+      # Standardise and resolve taxon names before submitting GBIF downloads.
+      prepare_taxonomy = TRUE,
+
+      # Attach GRIIS evidence in audit mode.
+      # Audit mode keeps the records and adds evidence fields for inspection.
+      use_griis_status = TRUE,
+      griis_filter_mode = "audit_only",
+
+      # Attach native-range evidence from selected web sources.
+      # For marine workflows, WoRMS can be useful alongside SInAS and GBIF.
+      use_native_status = TRUE,
+      use_native_web = TRUE,
+      native_web_sources = c("sinas", "gbif", "worms"),
+      native_filter_mode = "audit_only",
+
+      # Compare and reconcile GRIIS and native-origin evidence where available.
+      reconcile_griis_native = TRUE,
+
+      # Write gbif_summary.csv for the marine batch.
+      export_summary = TRUE,
+
+      # Write processed occurrence tables to disk rather than storing all
+      # records in the active R session.
+      store_in_memory = FALSE,
+
+      # Return only the main run object because detailed outputs are written
+      # to the output directory.
+      return_all_results = FALSE,
+
+      # Show progress messages during the live run.
+      quiet = FALSE
+    )
+  )
+
+  # Display the returned run object.
+  marine_batch_result
+}
+```
+
+The main difference from the terrestrial and freshwater examples is where the
+spatial filter is applied. In the terrestrial workflow, the country code is part
+of the GBIF request. In the marine workflow, the overlay assignment happens after
+the species-level records have been imported.
+
+# Output files and audit trail
+
+A batch run produces more than the processed occurrence tables. The supporting
+files are useful because they show what was submitted, what was returned, which
+steps were applied, and where each output was written.
+
+For project work, keep the main run materials together:
+
+- the original input table;
+- the pipeline call and settings used;
+- `gbif_summary.csv`;
+- exported occurrence files;
+- taxonomy outputs, if taxonomy preparation was enabled;
+- GRIIS or native-range evidence tables, if these options were used;
+- cache notes or source details for external spatial layers;
+- the `biofetchR` package version and R session information.
+
+Start with `gbif_summary.csv` after each run. This file gives a row-level view of
+the batch, including record counts, processing status, failure messages where
+relevant, and exported file paths. Rows marked as `success` should have sensible
+record counts and an output file path. Rows marked as failed, skipped or
+`no_records` should be checked before the exported data are used.
+
+```{r output-audit-example}
+# Create a compact audit view from the summary table.
+# This keeps the columns most useful for checking whether each row completed
+# successfully and where the exported occurrence file was written.
+audit_view <- summary_example[
+  ,
+  intersect(
+    c(
+      "species",     # taxon processed
+      "region_id",   # recipient region or spatial unit
+      "region_type", # spatial framework used
+      "status",      # processing outcome for the row
+      "fail_stage",  # stage where the row failed or stopped, if applicable
+      "fail_reason", # explanation of the failure or stopping reason
+      "output_file"  # exported occurrence file path, if one was written
+    ),
+    names(summary_example)
+  )
+]
+
+# Display the audit view.
+audit_view
+```
+
+This compact view is useful when scanning larger runs because it separates rows
+that produced usable files from rows that need follow-up. The full summary table
+can then be used to inspect record counts, download information and any
+additional fields written by the selected workflow settings.
+
+# Practical recommendations
+
+For small exploratory analyses, it is usually enough to run the pipeline, inspect
+`gbif_summary.csv`, and open the exported occurrence files. For larger batches,
+the main priorities are to pace GBIF requests sensibly, keep outputs organised,
+and preserve the files needed to check how each row was processed.
+
+Recommended practice is to:
+
+- run a one-row smoke test before a larger live run;
+- choose a conservative `batch_size` when submitting many species to GBIF;
+- use `store_in_memory = FALSE` when processing larger batches;
+- write outputs to a stable project directory rather than a temporary folder;
+- keep provider caches separate from final analysis outputs;
+- keep origin and invasive-status evidence in `audit_only` mode until the
+  evidence fields have been reviewed;
+- save the original input table with the exported dataset;
+- use `gbif_summary.csv` as the main record of row status, record counts,
+  failures and output paths;
+- rerun failed or incomplete rows separately after checking `fail_stage` and
+  `fail_reason`.
+
+These habits keep the workflow manageable without requiring users to build the
+analysis through multiple staged runs. The key is to keep the batch inputs,
+summary file, exported occurrence tables and evidence outputs together so the
+processed dataset can be inspected and reused later.

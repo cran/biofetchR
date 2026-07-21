@@ -1,0 +1,1483 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+
+
+<title>Native-range and invasive-status evidence in biofetchR</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Native-range and invasive-status evidence
+in biofetchR</h1>
+
+
+
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">library</span>(biofetchR)</span></code></pre></div>
+<div id="purpose" class="section level1">
+<h1>Purpose</h1>
+<p>Occurrence records show where and when a taxon has been recorded.
+They do not, on their own, show whether that taxon is native,
+introduced, invasive or uncertain in the region being analysed. For
+invasion-biology workflows, this interpretation requires additional
+evidence.</p>
+<p>This vignette explains how <code>biofetchR</code> attaches origin and
+invasive-status evidence to species-region data and
+occurrence-processing outputs. The focus is on keeping status assignment
+traceable rather than treating it as a hidden step. Users should be able
+to inspect the submitted name, any cleaned or corrected name, the
+recipient region, the evidence source, the assigned status and any rows
+that remain unresolved.</p>
+<p>The evidence sources used in these workflows differ in scope. Some
+provide broad taxonomic or origin information, while others are more
+specific to invasion workflows. SInAS is invasion-focused because it
+covers invasive alien species, but those species still have native
+distributions. In <code>biofetchR</code>, SInAS-derived evidence can
+therefore help identify native-origin countries for taxa relevant to
+invasion analyses. It should not, however, be treated as a complete
+native-range source for all taxa, and a missing SInAS match should not
+be read as evidence of native, non-native or invasive status on its
+own.</p>
+<p>This vignette covers how to:</p>
+<ul>
+<li>prepare and correct taxon names before evidence matching;</li>
+<li>attach project-supplied native-range evidence;</li>
+<li>use supported web/API sources for native-range evidence;</li>
+<li>attach GRIIS introduced and invasive-status evidence;</li>
+<li>compare audit-only and filtering modes;</li>
+<li>use origin evidence inside the terrestrial and freshwater
+pipeline;</li>
+<li>inspect the evidence and audit files written by the workflow.</li>
+</ul>
+<p>The recommended workflow is to prepare names first, attach evidence
+second, inspect the audit output third, and apply stricter filters only
+when the evidence supports that choice.</p>
+</div>
+<div id="using-the-examples" class="section level1">
+<h1>Using the examples</h1>
+<p>The local examples use small tables created inside the vignette. They
+can be run without internet access and are intended to show how evidence
+fields, status labels and filtering modes behave.</p>
+<p>Live examples are controlled by the <code>run_live</code> parameter
+and are skipped by default. When <code>run_live = TRUE</code>, the
+vignette can query supported evidence sources and write cache or audit
+files to the example output directory.</p>
+<p>To run the live examples while rendering this vignette locally,
+use:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>rmarkdown<span class="sc">::</span><span class="fu">render</span>(</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>  <span class="st">&quot;vignettes/biofetchR-origin-evidence.Rmd&quot;</span>,</span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>  <span class="at">params =</span> <span class="fu">list</span>(<span class="at">run_live =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>)</span></code></pre></div>
+<p>Use the default version to read the workflow and run the local
+examples. Use the live version when you want to test evidence retrieval
+with provider data.</p>
+</div>
+<div id="evidence-workflow-overview" class="section level1">
+<h1>Evidence workflow overview</h1>
+<p>Origin evidence is easiest to interpret when classification and
+filtering are kept separate. In this vignette, evidence is attached
+first, status fields are created second, and filtering is treated as an
+optional final step.</p>
+<pre><code>#&gt;   step                             stage
+#&gt; 1    1 Start with species-region records
+#&gt; 2    2                  Prepare taxonomy
+#&gt; 3    3      Attach native-range evidence
+#&gt; 4    4             Attach GRIIS evidence
+#&gt; 5    5       Assign origin-status fields
+#&gt; 6    6             Inspect audit outputs
+#&gt; 7    7          Apply optional filtering
+#&gt;                                                                            purpose
+#&gt; 1                Define the taxon and recipient country or region being evaluated.
+#&gt; 2 Clean names, apply manual corrections, and reject obvious non-taxonomic strings.
+#&gt; 3       Identify countries or regions treated as part of the taxon&#39;s native range.
+#&gt; 4          Identify species-country combinations listed as introduced or invasive.
+#&gt; 5    Classify rows using the available evidence and keep unresolved cases visible.
+#&gt; 6  Check taxonomy, evidence sources, status fields, and retained or excluded rows.
+#&gt; 7               Use stricter filters only when they match the biological question.</code></pre>
+<p>The important point is that a row does not have to be removed as soon
+as evidence is attached. It can first be labelled, reviewed and compared
+with other evidence fields before any filtering rule is applied.</p>
+</div>
+<div id="taxonomic-preparation-before-status-assignment" class="section level1">
+<h1>Taxonomic preparation before status assignment</h1>
+<p>Taxon names should be prepared before they are matched to
+native-range or invasive-status evidence. Small differences in names can
+prevent relevant evidence from joining correctly. These differences can
+include authority strings, spelling variants, subspecies names,
+synonyms, open nomenclature, genus-level labels or non-taxonomic
+entries.</p>
+<p><code>biofetchR</code> provides taxonomy helpers for this step. They
+keep the submitted name, cleaned name and any reviewed correction
+visible, while separating names suitable for species-level matching from
+entries that should be reviewed or excluded. In the high-level
+pipelines, the same preparation step can be enabled with
+<code>prepare_taxonomy = TRUE</code>.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="co"># Example input with deliberately mixed taxonomic quality.</span></span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a><span class="co"># Some names are clean, some contain authority strings, some need manual</span></span>
+<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a><span class="co"># correction, and some are not usable taxon names.</span></span>
+<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a>taxonomy_input <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a>  <span class="at">species =</span> <span class="fu">c</span>(</span>
+<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a>    <span class="st">&quot;Rattus rattus (Linnaeus, 1758)&quot;</span>,</span>
+<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a>    <span class="st">&quot;Sturnus vulgaris&quot;</span>,</span>
+<span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a>    <span class="st">&quot;Xenopus laevis Daudin, 1802&quot;</span>,</span>
+<span id="cb4-9"><a href="#cb4-9" tabindex="-1"></a>    <span class="st">&quot;Trachemys scripta elegans&quot;</span>,</span>
+<span id="cb4-10"><a href="#cb4-10" tabindex="-1"></a>    <span class="st">&quot;Rattus sp.&quot;</span>,</span>
+<span id="cb4-11"><a href="#cb4-11" tabindex="-1"></a>    <span class="st">&quot;unknown&quot;</span>,</span>
+<span id="cb4-12"><a href="#cb4-12" tabindex="-1"></a>    <span class="st">&quot;water temperature&quot;</span></span>
+<span id="cb4-13"><a href="#cb4-13" tabindex="-1"></a>  ),</span>
+<span id="cb4-14"><a href="#cb4-14" tabindex="-1"></a>  <span class="at">iso2c =</span> <span class="fu">c</span>(<span class="st">&quot;GB&quot;</span>, <span class="st">&quot;DE&quot;</span>, <span class="st">&quot;FR&quot;</span>, <span class="st">&quot;GB&quot;</span>, <span class="st">&quot;GB&quot;</span>, <span class="st">&quot;GB&quot;</span>, <span class="st">&quot;FR&quot;</span>),</span>
+<span id="cb4-15"><a href="#cb4-15" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb4-16"><a href="#cb4-16" tabindex="-1"></a>)</span>
+<span id="cb4-17"><a href="#cb4-17" tabindex="-1"></a></span>
+<span id="cb4-18"><a href="#cb4-18" tabindex="-1"></a>taxonomy_input</span>
+<span id="cb4-19"><a href="#cb4-19" tabindex="-1"></a><span class="co">#&gt;                          species iso2c</span></span>
+<span id="cb4-20"><a href="#cb4-20" tabindex="-1"></a><span class="co">#&gt; 1 Rattus rattus (Linnaeus, 1758)    GB</span></span>
+<span id="cb4-21"><a href="#cb4-21" tabindex="-1"></a><span class="co">#&gt; 2               Sturnus vulgaris    DE</span></span>
+<span id="cb4-22"><a href="#cb4-22" tabindex="-1"></a><span class="co">#&gt; 3    Xenopus laevis Daudin, 1802    FR</span></span>
+<span id="cb4-23"><a href="#cb4-23" tabindex="-1"></a><span class="co">#&gt; 4      Trachemys scripta elegans    GB</span></span>
+<span id="cb4-24"><a href="#cb4-24" tabindex="-1"></a><span class="co">#&gt; 5                     Rattus sp.    GB</span></span>
+<span id="cb4-25"><a href="#cb4-25" tabindex="-1"></a><span class="co">#&gt; 6                        unknown    GB</span></span>
+<span id="cb4-26"><a href="#cb4-26" tabindex="-1"></a><span class="co">#&gt; 7              water temperature    FR</span></span></code></pre></div>
+<p>For many inputs, automatic preparation is enough. It can clean names,
+identify obvious non-taxonomic strings, flag entries that are not
+species-level records, and return tables showing which rows were
+accepted or rejected.</p>
+<p>Manual corrections are optional. They should be used only for cases
+the user has reviewed, such as a known synonym, a subspecies that should
+be treated at species level, or a source-specific name that needs to be
+standardised before evidence matching.</p>
+<p>The example below first runs the automatic preparation step, then
+repeats it with two reviewed manual corrections.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="co"># First, prepare the input names automatically.</span></span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a><span class="co"># This handles routine cleaning and creates an audit trail.</span></span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a>taxonomy_prepared_auto <span class="ot">&lt;-</span> <span class="fu">bf_prepare_taxa_for_gbif</span>(</span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>  <span class="at">df =</span> taxonomy_input,</span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a>  <span class="at">name_col =</span> <span class="st">&quot;species&quot;</span>,</span>
+<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a>  <span class="at">iso2_col =</span> <span class="st">&quot;iso2c&quot;</span>,</span>
+<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a>  <span class="at">require_species_level =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a>  <span class="at">deduplicate =</span> <span class="cn">TRUE</span></span>
+<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a>)</span>
+<span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a><span class="co"># Inspect the automatic taxonomy audit.</span></span>
+<span id="cb5-12"><a href="#cb5-12" tabindex="-1"></a>taxonomy_prepared_auto<span class="sc">$</span>audit</span>
+<span id="cb5-13"><a href="#cb5-13" tabindex="-1"></a><span class="co">#&gt; # A tibble: 7 × 11</span></span>
+<span id="cb5-14"><a href="#cb5-14" tabindex="-1"></a><span class="co">#&gt;   raw_name                 fixed_name cleaned_name was_manual_fixed is_non_taxon</span></span>
+<span id="cb5-15"><a href="#cb5-15" tabindex="-1"></a><span class="co">#&gt;   &lt;chr&gt;                    &lt;chr&gt;      &lt;chr&gt;        &lt;lgl&gt;            &lt;lgl&gt;       </span></span>
+<span id="cb5-16"><a href="#cb5-16" tabindex="-1"></a><span class="co">#&gt; 1 Rattus rattus (Linnaeus… Rattus ra… Rattus ratt… FALSE            FALSE       </span></span>
+<span id="cb5-17"><a href="#cb5-17" tabindex="-1"></a><span class="co">#&gt; 2 Sturnus vulgaris         Sturnus v… Sturnus vul… FALSE            FALSE       </span></span>
+<span id="cb5-18"><a href="#cb5-18" tabindex="-1"></a><span class="co">#&gt; 3 Xenopus laevis Daudin, … Xenopus l… Xenopus lae… FALSE            FALSE       </span></span>
+<span id="cb5-19"><a href="#cb5-19" tabindex="-1"></a><span class="co">#&gt; 4 Trachemys scripta elega… Trachemys… Trachemys s… FALSE            FALSE       </span></span>
+<span id="cb5-20"><a href="#cb5-20" tabindex="-1"></a><span class="co">#&gt; 5 Rattus sp.               Rattus sp. Rattus       FALSE            FALSE       </span></span>
+<span id="cb5-21"><a href="#cb5-21" tabindex="-1"></a><span class="co">#&gt; 6 unknown                  unknown    &lt;NA&gt;         FALSE            TRUE        </span></span>
+<span id="cb5-22"><a href="#cb5-22" tabindex="-1"></a><span class="co">#&gt; 7 water temperature        water tem… &lt;NA&gt;         FALSE            TRUE        </span></span>
+<span id="cb5-23"><a href="#cb5-23" tabindex="-1"></a><span class="co">#&gt; # ℹ 6 more variables: is_open_or_higher &lt;lgl&gt;, genus &lt;chr&gt;,</span></span>
+<span id="cb5-24"><a href="#cb5-24" tabindex="-1"></a><span class="co">#&gt; #   species_level_candidate &lt;lgl&gt;, accepted &lt;lgl&gt;, rejection_reason &lt;chr&gt;,</span></span>
+<span id="cb5-25"><a href="#cb5-25" tabindex="-1"></a><span class="co">#&gt; #   iso2c &lt;chr&gt;</span></span>
+<span id="cb5-26"><a href="#cb5-26" tabindex="-1"></a></span>
+<span id="cb5-27"><a href="#cb5-27" tabindex="-1"></a><span class="co"># Optional: define manual overrides only for names the user has reviewed.</span></span>
+<span id="cb5-28"><a href="#cb5-28" tabindex="-1"></a><span class="co"># These are not required for every workflow.</span></span>
+<span id="cb5-29"><a href="#cb5-29" tabindex="-1"></a>manual_taxonomy_fixes <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb5-30"><a href="#cb5-30" tabindex="-1"></a>  <span class="st">&quot;Xenopus laevis Daudin, 1802&quot;</span> <span class="ot">=</span> <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb5-31"><a href="#cb5-31" tabindex="-1"></a>  <span class="st">&quot;Trachemys scripta elegans&quot;</span> <span class="ot">=</span> <span class="st">&quot;Trachemys scripta&quot;</span></span>
+<span id="cb5-32"><a href="#cb5-32" tabindex="-1"></a>)</span>
+<span id="cb5-33"><a href="#cb5-33" tabindex="-1"></a></span>
+<span id="cb5-34"><a href="#cb5-34" tabindex="-1"></a><span class="co"># Rerun taxonomy preparation with the reviewed manual overrides.</span></span>
+<span id="cb5-35"><a href="#cb5-35" tabindex="-1"></a>taxonomy_prepared_reviewed <span class="ot">&lt;-</span> <span class="fu">bf_prepare_taxa_for_gbif</span>(</span>
+<span id="cb5-36"><a href="#cb5-36" tabindex="-1"></a>  <span class="at">df =</span> taxonomy_input,</span>
+<span id="cb5-37"><a href="#cb5-37" tabindex="-1"></a>  <span class="at">name_col =</span> <span class="st">&quot;species&quot;</span>,</span>
+<span id="cb5-38"><a href="#cb5-38" tabindex="-1"></a>  <span class="at">iso2_col =</span> <span class="st">&quot;iso2c&quot;</span>,</span>
+<span id="cb5-39"><a href="#cb5-39" tabindex="-1"></a>  <span class="at">manual_fixes =</span> manual_taxonomy_fixes,</span>
+<span id="cb5-40"><a href="#cb5-40" tabindex="-1"></a>  <span class="at">require_species_level =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb5-41"><a href="#cb5-41" tabindex="-1"></a>  <span class="at">deduplicate =</span> <span class="cn">TRUE</span></span>
+<span id="cb5-42"><a href="#cb5-42" tabindex="-1"></a>)</span>
+<span id="cb5-43"><a href="#cb5-43" tabindex="-1"></a></span>
+<span id="cb5-44"><a href="#cb5-44" tabindex="-1"></a><span class="co"># Compare the reviewed audit table with the automatic audit table.</span></span>
+<span id="cb5-45"><a href="#cb5-45" tabindex="-1"></a>taxonomy_prepared_reviewed<span class="sc">$</span>audit</span>
+<span id="cb5-46"><a href="#cb5-46" tabindex="-1"></a><span class="co">#&gt; # A tibble: 7 × 11</span></span>
+<span id="cb5-47"><a href="#cb5-47" tabindex="-1"></a><span class="co">#&gt;   raw_name                 fixed_name cleaned_name was_manual_fixed is_non_taxon</span></span>
+<span id="cb5-48"><a href="#cb5-48" tabindex="-1"></a><span class="co">#&gt;   &lt;chr&gt;                    &lt;chr&gt;      &lt;chr&gt;        &lt;lgl&gt;            &lt;lgl&gt;       </span></span>
+<span id="cb5-49"><a href="#cb5-49" tabindex="-1"></a><span class="co">#&gt; 1 Rattus rattus (Linnaeus… Rattus ra… Rattus ratt… FALSE            FALSE       </span></span>
+<span id="cb5-50"><a href="#cb5-50" tabindex="-1"></a><span class="co">#&gt; 2 Sturnus vulgaris         Sturnus v… Sturnus vul… FALSE            FALSE       </span></span>
+<span id="cb5-51"><a href="#cb5-51" tabindex="-1"></a><span class="co">#&gt; 3 Xenopus laevis Daudin, … Xenopus l… Xenopus lae… TRUE             FALSE       </span></span>
+<span id="cb5-52"><a href="#cb5-52" tabindex="-1"></a><span class="co">#&gt; 4 Trachemys scripta elega… Trachemys… Trachemys s… TRUE             FALSE       </span></span>
+<span id="cb5-53"><a href="#cb5-53" tabindex="-1"></a><span class="co">#&gt; 5 Rattus sp.               Rattus sp. Rattus       FALSE            FALSE       </span></span>
+<span id="cb5-54"><a href="#cb5-54" tabindex="-1"></a><span class="co">#&gt; 6 unknown                  unknown    &lt;NA&gt;         FALSE            TRUE        </span></span>
+<span id="cb5-55"><a href="#cb5-55" tabindex="-1"></a><span class="co">#&gt; 7 water temperature        water tem… &lt;NA&gt;         FALSE            TRUE        </span></span>
+<span id="cb5-56"><a href="#cb5-56" tabindex="-1"></a><span class="co">#&gt; # ℹ 6 more variables: is_open_or_higher &lt;lgl&gt;, genus &lt;chr&gt;,</span></span>
+<span id="cb5-57"><a href="#cb5-57" tabindex="-1"></a><span class="co">#&gt; #   species_level_candidate &lt;lgl&gt;, accepted &lt;lgl&gt;, rejection_reason &lt;chr&gt;,</span></span>
+<span id="cb5-58"><a href="#cb5-58" tabindex="-1"></a><span class="co">#&gt; #   iso2c &lt;chr&gt;</span></span></code></pre></div>
+<p>The taxonomy audit is the main output to inspect from this step. It
+shows which names were accepted for matching, which were changed, and
+which were rejected before origin or invasive-status evidence was
+attached. Manual corrections should remain deliberate and documented,
+not a replacement for reviewing the input table.</p>
+<p>When taxonomy preparation is used inside a pipeline run, taxonomy
+files are written when <code>export_taxonomy_audit = TRUE</code>. Keep
+these files with the origin-evidence outputs so the names used for
+matching can be checked later.</p>
+</div>
+<div id="example-species-country-input" class="section level1">
+<h1>Example species-country input</h1>
+<p>The local examples below use a small species-country table. Each row
+defines the taxon and recipient country being evaluated.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a>recipient_records <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a>  <span class="at">species =</span> <span class="fu">c</span>(</span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a>    <span class="st">&quot;Rattus rattus&quot;</span>,</span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a>    <span class="st">&quot;Sturnus vulgaris&quot;</span>,</span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a>    <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a>    <span class="st">&quot;Trachemys scripta&quot;</span>,</span>
+<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a>    <span class="st">&quot;Carcinus maenas&quot;</span></span>
+<span id="cb6-8"><a href="#cb6-8" tabindex="-1"></a>  ),</span>
+<span id="cb6-9"><a href="#cb6-9" tabindex="-1"></a>  <span class="at">iso2c =</span> <span class="fu">c</span>(<span class="st">&quot;GB&quot;</span>, <span class="st">&quot;DE&quot;</span>, <span class="st">&quot;FR&quot;</span>, <span class="st">&quot;GB&quot;</span>, <span class="st">&quot;GB&quot;</span>),</span>
+<span id="cb6-10"><a href="#cb6-10" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb6-11"><a href="#cb6-11" tabindex="-1"></a>)</span>
+<span id="cb6-12"><a href="#cb6-12" tabindex="-1"></a></span>
+<span id="cb6-13"><a href="#cb6-13" tabindex="-1"></a>recipient_records</span>
+<span id="cb6-14"><a href="#cb6-14" tabindex="-1"></a><span class="co">#&gt;             species iso2c</span></span>
+<span id="cb6-15"><a href="#cb6-15" tabindex="-1"></a><span class="co">#&gt; 1     Rattus rattus    GB</span></span>
+<span id="cb6-16"><a href="#cb6-16" tabindex="-1"></a><span class="co">#&gt; 2  Sturnus vulgaris    DE</span></span>
+<span id="cb6-17"><a href="#cb6-17" tabindex="-1"></a><span class="co">#&gt; 3    Xenopus laevis    FR</span></span>
+<span id="cb6-18"><a href="#cb6-18" tabindex="-1"></a><span class="co">#&gt; 4 Trachemys scripta    GB</span></span>
+<span id="cb6-19"><a href="#cb6-19" tabindex="-1"></a><span class="co">#&gt; 5   Carcinus maenas    GB</span></span></code></pre></div>
+</div>
+<div id="status-categories" class="section level1">
+<h1>Status categories</h1>
+<p>The origin-evidence workflow uses a small set of working status
+categories. These categories describe how the selected evidence supports
+each species-country row; they should not be treated as permanent labels
+outside the evidence context used to create them.</p>
+<pre><code>#&gt;       status
+#&gt; 1     native
+#&gt; 2 non_native
+#&gt; 3   invasive
+#&gt; 4 unresolved
+#&gt;                                                                                                                    meaning
+#&gt; 1                                                   The recipient region is supported as part of the taxon&#39;s native range.
+#&gt; 2    The taxon is interpreted as introduced or non-native, but invasive-status evidence is absent in the selected sources.
+#&gt; 3 The taxon is introduced or non-native and has invasive-status evidence, such as impact, rapid spread, or high abundance.
+#&gt; 4                                                   The available evidence is not sufficient to assign a confident status.</code></pre>
+<p>Positive evidence is the safest basis for interpretation. If a
+recipient country matches the native-range evidence, the row can be
+interpreted as <code>native</code> for that workflow. If the evidence
+does not support a clear status, the row should remain
+<code>unresolved</code> unless another source provides stronger support
+for a native, non-native or invasive-status interpretation.</p>
+</div>
+<div id="project-native-range-evidence" class="section level1">
+<h1>Project native-range evidence</h1>
+<p>A project native-range table records which countries or regions are
+treated as part of each taxon’s native distribution in the current
+workflow. This evidence can come from curated checklists,
+expert-reviewed sources, previous project data, or native-origin
+information compiled earlier from supported web/API sources.</p>
+<p>The table does not need to be a global native-range gazetteer. It
+should record the evidence being used for the analysis, along with
+enough source information to show where that evidence came from and what
+kind of source it represents. This is important because broad origin
+sources, project-specific checklists and invasion-focused sources can
+differ in coverage and purpose.</p>
+<p>At minimum, the table should include a species name and the country
+codes treated as native for that species. During status assignment,
+these fields are compared with the recipient country in the
+species-country input table.</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="co"># Example project native-range evidence table.</span></span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a><span class="co"># Each row gives the countries treated as part of the taxon&#39;s native range.</span></span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a><span class="co"># Multiple ISO3 country codes are separated with semicolons.</span></span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a>native_ranges <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a>  <span class="at">species =</span> <span class="fu">c</span>(</span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a>    <span class="st">&quot;Rattus rattus&quot;</span>,</span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a>    <span class="st">&quot;Sturnus vulgaris&quot;</span>,</span>
+<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a>    <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb8-9"><a href="#cb8-9" tabindex="-1"></a>    <span class="st">&quot;Trachemys scripta&quot;</span>,</span>
+<span id="cb8-10"><a href="#cb8-10" tabindex="-1"></a>    <span class="st">&quot;Carcinus maenas&quot;</span></span>
+<span id="cb8-11"><a href="#cb8-11" tabindex="-1"></a>  ),</span>
+<span id="cb8-12"><a href="#cb8-12" tabindex="-1"></a>  <span class="at">native_origin_iso3 =</span> <span class="fu">c</span>(</span>
+<span id="cb8-13"><a href="#cb8-13" tabindex="-1"></a>    <span class="st">&quot;IND;PAK&quot;</span>,</span>
+<span id="cb8-14"><a href="#cb8-14" tabindex="-1"></a>    <span class="st">&quot;DEU;FRA;GBR&quot;</span>,</span>
+<span id="cb8-15"><a href="#cb8-15" tabindex="-1"></a>    <span class="st">&quot;ZAF;LSO;SWZ&quot;</span>,</span>
+<span id="cb8-16"><a href="#cb8-16" tabindex="-1"></a>    <span class="st">&quot;USA;MEX&quot;</span>,</span>
+<span id="cb8-17"><a href="#cb8-17" tabindex="-1"></a>    <span class="st">&quot;GBR;IRL;FRA;ESP;PRT&quot;</span></span>
+<span id="cb8-18"><a href="#cb8-18" tabindex="-1"></a>  ),</span>
+<span id="cb8-19"><a href="#cb8-19" tabindex="-1"></a>  <span class="at">native_origin_flag =</span> <span class="st">&quot;HAS_ORIGIN&quot;</span>,</span>
+<span id="cb8-20"><a href="#cb8-20" tabindex="-1"></a>  <span class="at">native_sources_used =</span> <span class="st">&quot;example_project_table&quot;</span>,</span>
+<span id="cb8-21"><a href="#cb8-21" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb8-22"><a href="#cb8-22" tabindex="-1"></a>)</span>
+<span id="cb8-23"><a href="#cb8-23" tabindex="-1"></a></span>
+<span id="cb8-24"><a href="#cb8-24" tabindex="-1"></a>native_ranges</span>
+<span id="cb8-25"><a href="#cb8-25" tabindex="-1"></a><span class="co">#&gt;             species  native_origin_iso3 native_origin_flag</span></span>
+<span id="cb8-26"><a href="#cb8-26" tabindex="-1"></a><span class="co">#&gt; 1     Rattus rattus             IND;PAK         HAS_ORIGIN</span></span>
+<span id="cb8-27"><a href="#cb8-27" tabindex="-1"></a><span class="co">#&gt; 2  Sturnus vulgaris         DEU;FRA;GBR         HAS_ORIGIN</span></span>
+<span id="cb8-28"><a href="#cb8-28" tabindex="-1"></a><span class="co">#&gt; 3    Xenopus laevis         ZAF;LSO;SWZ         HAS_ORIGIN</span></span>
+<span id="cb8-29"><a href="#cb8-29" tabindex="-1"></a><span class="co">#&gt; 4 Trachemys scripta             USA;MEX         HAS_ORIGIN</span></span>
+<span id="cb8-30"><a href="#cb8-30" tabindex="-1"></a><span class="co">#&gt; 5   Carcinus maenas GBR;IRL;FRA;ESP;PRT         HAS_ORIGIN</span></span>
+<span id="cb8-31"><a href="#cb8-31" tabindex="-1"></a><span class="co">#&gt;     native_sources_used</span></span>
+<span id="cb8-32"><a href="#cb8-32" tabindex="-1"></a><span class="co">#&gt; 1 example_project_table</span></span>
+<span id="cb8-33"><a href="#cb8-33" tabindex="-1"></a><span class="co">#&gt; 2 example_project_table</span></span>
+<span id="cb8-34"><a href="#cb8-34" tabindex="-1"></a><span class="co">#&gt; 3 example_project_table</span></span>
+<span id="cb8-35"><a href="#cb8-35" tabindex="-1"></a><span class="co">#&gt; 4 example_project_table</span></span>
+<span id="cb8-36"><a href="#cb8-36" tabindex="-1"></a><span class="co">#&gt; 5 example_project_table</span></span></code></pre></div>
+<p>In this example, <code>native_origin_iso3</code> contains the ISO3
+country codes treated as native for each species, while
+<code>native_sources_used</code> records the evidence source. For real
+analyses, source fields should be kept because native-range evidence can
+vary among providers, taxonomic treatments and spatial resolutions.</p>
+</div>
+<div id="attaching-native-range-evidence" class="section level1">
+<h1>Attaching native-range evidence</h1>
+<p>Start by attaching native-range evidence in <code>audit_only</code>
+mode. This keeps every species-country row in the table and adds
+evidence fields that can be checked before any filtering decision is
+made.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a>native_status <span class="ot">&lt;-</span> <span class="fu">bf_attach_native_status</span>(</span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>  <span class="at">df =</span> recipient_records,</span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a>  <span class="at">species_col =</span> <span class="st">&quot;species&quot;</span>,</span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a>  <span class="at">iso2c_col =</span> <span class="st">&quot;iso2c&quot;</span>,</span>
+<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a>  <span class="at">native_ranges =</span> native_ranges,</span>
+<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a>  <span class="at">native_filter_mode =</span> <span class="st">&quot;audit_only&quot;</span>,</span>
+<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a>  <span class="at">quiet =</span> <span class="cn">TRUE</span></span>
+<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a>)</span>
+<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a></span>
+<span id="cb9-10"><a href="#cb9-10" tabindex="-1"></a>native_status</span>
+<span id="cb9-11"><a href="#cb9-11" tabindex="-1"></a><span class="co">#&gt; # A tibble: 5 × 14</span></span>
+<span id="cb9-12"><a href="#cb9-12" tabindex="-1"></a><span class="co">#&gt;   species           iso2c native_name_key   native_name       native_origin_iso3</span></span>
+<span id="cb9-13"><a href="#cb9-13" tabindex="-1"></a><span class="co">#&gt;   &lt;chr&gt;             &lt;chr&gt; &lt;chr&gt;             &lt;chr&gt;             &lt;chr&gt;             </span></span>
+<span id="cb9-14"><a href="#cb9-14" tabindex="-1"></a><span class="co">#&gt; 1 Rattus rattus     GB    rattus rattus     Rattus rattus     IND;PAK           </span></span>
+<span id="cb9-15"><a href="#cb9-15" tabindex="-1"></a><span class="co">#&gt; 2 Sturnus vulgaris  DE    sturnus vulgaris  Sturnus vulgaris  DEU;FRA;GBR       </span></span>
+<span id="cb9-16"><a href="#cb9-16" tabindex="-1"></a><span class="co">#&gt; 3 Xenopus laevis    FR    xenopus laevis    Xenopus laevis    LSO;SWZ;ZAF       </span></span>
+<span id="cb9-17"><a href="#cb9-17" tabindex="-1"></a><span class="co">#&gt; 4 Trachemys scripta GB    trachemys scripta Trachemys scripta MEX;USA           </span></span>
+<span id="cb9-18"><a href="#cb9-18" tabindex="-1"></a><span class="co">#&gt; 5 Carcinus maenas   GB    carcinus maenas   Carcinus maenas   ESP;FRA;GBR;IRL;P…</span></span>
+<span id="cb9-19"><a href="#cb9-19" tabindex="-1"></a><span class="co">#&gt; # ℹ 9 more variables: native_origin_flag &lt;chr&gt;, native_has_origin &lt;lgl&gt;,</span></span>
+<span id="cb9-20"><a href="#cb9-20" tabindex="-1"></a><span class="co">#&gt; #   native_sources_used &lt;chr&gt;, native_recipient_iso3 &lt;chr&gt;,</span></span>
+<span id="cb9-21"><a href="#cb9-21" tabindex="-1"></a><span class="co">#&gt; #   native_is_native_recipient &lt;lgl&gt;, native_is_non_native_recipient &lt;lgl&gt;,</span></span>
+<span id="cb9-22"><a href="#cb9-22" tabindex="-1"></a><span class="co">#&gt; #   native_status &lt;chr&gt;, native_filter_keep &lt;lgl&gt;,</span></span>
+<span id="cb9-23"><a href="#cb9-23" tabindex="-1"></a><span class="co">#&gt; #   native_filter_rejection_reason &lt;chr&gt;</span></span></code></pre></div>
+<p>The summary gives a quick overview of how the supplied evidence was
+attached, including which rows received native-range support and which
+rows remain unresolved.</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="fu">bf_native_status_summary</span>(native_status)</span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a><span class="co">#&gt; # A tibble: 2 × 2</span></span>
+<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a><span class="co">#&gt;   native_status            n</span></span>
+<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a><span class="co">#&gt;   &lt;chr&gt;                &lt;int&gt;</span></span>
+<span id="cb10-5"><a href="#cb10-5" tabindex="-1"></a><span class="co">#&gt; 1 non_native_recipient     3</span></span>
+<span id="cb10-6"><a href="#cb10-6" tabindex="-1"></a><span class="co">#&gt; 2 native_recipient         2</span></span></code></pre></div>
+<p>For review, it is often easier to look at only the columns related to
+names, regions, sources, status and filtering decisions.</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a>native_audit_cols <span class="ot">&lt;-</span> <span class="fu">unique</span>(<span class="fu">c</span>(</span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a>  <span class="fu">intersect</span>(<span class="fu">c</span>(<span class="st">&quot;species&quot;</span>, <span class="st">&quot;iso2c&quot;</span>), <span class="fu">names</span>(native_status)),</span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a>  <span class="fu">grep</span>(<span class="st">&quot;native|origin|source|status|decision|filter&quot;</span>, <span class="fu">names</span>(native_status), <span class="at">value =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a>))</span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a></span>
+<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a>native_status[, native_audit_cols, drop <span class="ot">=</span> <span class="cn">FALSE</span>]</span>
+<span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a><span class="co">#&gt; # A tibble: 5 × 14</span></span>
+<span id="cb11-8"><a href="#cb11-8" tabindex="-1"></a><span class="co">#&gt;   species           iso2c native_name_key   native_name       native_origin_iso3</span></span>
+<span id="cb11-9"><a href="#cb11-9" tabindex="-1"></a><span class="co">#&gt;   &lt;chr&gt;             &lt;chr&gt; &lt;chr&gt;             &lt;chr&gt;             &lt;chr&gt;             </span></span>
+<span id="cb11-10"><a href="#cb11-10" tabindex="-1"></a><span class="co">#&gt; 1 Rattus rattus     GB    rattus rattus     Rattus rattus     IND;PAK           </span></span>
+<span id="cb11-11"><a href="#cb11-11" tabindex="-1"></a><span class="co">#&gt; 2 Sturnus vulgaris  DE    sturnus vulgaris  Sturnus vulgaris  DEU;FRA;GBR       </span></span>
+<span id="cb11-12"><a href="#cb11-12" tabindex="-1"></a><span class="co">#&gt; 3 Xenopus laevis    FR    xenopus laevis    Xenopus laevis    LSO;SWZ;ZAF       </span></span>
+<span id="cb11-13"><a href="#cb11-13" tabindex="-1"></a><span class="co">#&gt; 4 Trachemys scripta GB    trachemys scripta Trachemys scripta MEX;USA           </span></span>
+<span id="cb11-14"><a href="#cb11-14" tabindex="-1"></a><span class="co">#&gt; 5 Carcinus maenas   GB    carcinus maenas   Carcinus maenas   ESP;FRA;GBR;IRL;P…</span></span>
+<span id="cb11-15"><a href="#cb11-15" tabindex="-1"></a><span class="co">#&gt; # ℹ 9 more variables: native_origin_flag &lt;chr&gt;, native_has_origin &lt;lgl&gt;,</span></span>
+<span id="cb11-16"><a href="#cb11-16" tabindex="-1"></a><span class="co">#&gt; #   native_sources_used &lt;chr&gt;, native_recipient_iso3 &lt;chr&gt;,</span></span>
+<span id="cb11-17"><a href="#cb11-17" tabindex="-1"></a><span class="co">#&gt; #   native_is_native_recipient &lt;lgl&gt;, native_is_non_native_recipient &lt;lgl&gt;,</span></span>
+<span id="cb11-18"><a href="#cb11-18" tabindex="-1"></a><span class="co">#&gt; #   native_status &lt;chr&gt;, native_filter_keep &lt;lgl&gt;,</span></span>
+<span id="cb11-19"><a href="#cb11-19" tabindex="-1"></a><span class="co">#&gt; #   native_filter_rejection_reason &lt;chr&gt;</span></span></code></pre></div>
+<p>At this stage, no filtering has been applied. Use the audit view to
+check whether the evidence joined as expected, which rows have positive
+native-range support, which rows remain unresolved, and whether the
+source fields are clear enough for later reporting.</p>
+</div>
+<div id="filtering-modes" class="section level1">
+<h1>Filtering modes</h1>
+<p>Filtering mode controls which rows are retained after native-range
+evidence has been attached. These modes are useful for creating
+analysis-specific subsets, but they should be chosen only after the
+audit fields have been inspected.</p>
+<pre><code>#&gt;                    mode
+#&gt; 1            audit_only
+#&gt; 2       non_native_only
+#&gt; 3 non_native_or_unknown
+#&gt; 4           native_only
+#&gt;                                                            behaviour
+#&gt; 1                             Keep all rows and add evidence fields.
+#&gt; 2 Keep only rows interpreted as non-native in the recipient country.
+#&gt; 3          Keep rows interpreted as non-native plus unresolved rows.
+#&gt; 4     Keep only rows interpreted as native in the recipient country.
+#&gt;                                                        typical_use
+#&gt; 1                                               First-pass review.
+#&gt; 2                                 Strict non-native-only analysis.
+#&gt; 3 Precautionary workflows where unresolved rows need later review.
+#&gt; 4                     Native-range checks or validation workflows.</code></pre>
+<p>The safest first pass is <code>audit_only</code>, because it keeps
+all rows while the evidence fields are checked. Stricter modes are
+useful when the analysis requires a narrower subset, but unresolved rows
+should be handled deliberately rather than silently treated as confirmed
+non-native records.</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="co"># Strict non-native-only table.</span></span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a>non_native_only <span class="ot">&lt;-</span> <span class="fu">bf_attach_native_status</span>(</span>
+<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a>  <span class="at">df =</span> recipient_records,</span>
+<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a>  <span class="at">species_col =</span> <span class="st">&quot;species&quot;</span>,</span>
+<span id="cb13-5"><a href="#cb13-5" tabindex="-1"></a>  <span class="at">iso2c_col =</span> <span class="st">&quot;iso2c&quot;</span>,</span>
+<span id="cb13-6"><a href="#cb13-6" tabindex="-1"></a>  <span class="at">native_ranges =</span> native_ranges,</span>
+<span id="cb13-7"><a href="#cb13-7" tabindex="-1"></a>  <span class="at">native_filter_mode =</span> <span class="st">&quot;non_native_only&quot;</span>,</span>
+<span id="cb13-8"><a href="#cb13-8" tabindex="-1"></a>  <span class="at">quiet =</span> <span class="cn">TRUE</span></span>
+<span id="cb13-9"><a href="#cb13-9" tabindex="-1"></a>)</span>
+<span id="cb13-10"><a href="#cb13-10" tabindex="-1"></a></span>
+<span id="cb13-11"><a href="#cb13-11" tabindex="-1"></a><span class="co"># Less strict table that keeps unresolved rows for later review.</span></span>
+<span id="cb13-12"><a href="#cb13-12" tabindex="-1"></a>non_native_or_unknown <span class="ot">&lt;-</span> <span class="fu">bf_attach_native_status</span>(</span>
+<span id="cb13-13"><a href="#cb13-13" tabindex="-1"></a>  <span class="at">df =</span> recipient_records,</span>
+<span id="cb13-14"><a href="#cb13-14" tabindex="-1"></a>  <span class="at">species_col =</span> <span class="st">&quot;species&quot;</span>,</span>
+<span id="cb13-15"><a href="#cb13-15" tabindex="-1"></a>  <span class="at">iso2c_col =</span> <span class="st">&quot;iso2c&quot;</span>,</span>
+<span id="cb13-16"><a href="#cb13-16" tabindex="-1"></a>  <span class="at">native_ranges =</span> native_ranges,</span>
+<span id="cb13-17"><a href="#cb13-17" tabindex="-1"></a>  <span class="at">native_filter_mode =</span> <span class="st">&quot;non_native_or_unknown&quot;</span>,</span>
+<span id="cb13-18"><a href="#cb13-18" tabindex="-1"></a>  <span class="at">quiet =</span> <span class="cn">TRUE</span></span>
+<span id="cb13-19"><a href="#cb13-19" tabindex="-1"></a>)</span>
+<span id="cb13-20"><a href="#cb13-20" tabindex="-1"></a></span>
+<span id="cb13-21"><a href="#cb13-21" tabindex="-1"></a>non_native_only</span>
+<span id="cb13-22"><a href="#cb13-22" tabindex="-1"></a><span class="co">#&gt; # A tibble: 3 × 14</span></span>
+<span id="cb13-23"><a href="#cb13-23" tabindex="-1"></a><span class="co">#&gt;   species           iso2c native_name_key   native_name       native_origin_iso3</span></span>
+<span id="cb13-24"><a href="#cb13-24" tabindex="-1"></a><span class="co">#&gt;   &lt;chr&gt;             &lt;chr&gt; &lt;chr&gt;             &lt;chr&gt;             &lt;chr&gt;             </span></span>
+<span id="cb13-25"><a href="#cb13-25" tabindex="-1"></a><span class="co">#&gt; 1 Rattus rattus     GB    rattus rattus     Rattus rattus     IND;PAK           </span></span>
+<span id="cb13-26"><a href="#cb13-26" tabindex="-1"></a><span class="co">#&gt; 2 Xenopus laevis    FR    xenopus laevis    Xenopus laevis    LSO;SWZ;ZAF       </span></span>
+<span id="cb13-27"><a href="#cb13-27" tabindex="-1"></a><span class="co">#&gt; 3 Trachemys scripta GB    trachemys scripta Trachemys scripta MEX;USA           </span></span>
+<span id="cb13-28"><a href="#cb13-28" tabindex="-1"></a><span class="co">#&gt; # ℹ 9 more variables: native_origin_flag &lt;chr&gt;, native_has_origin &lt;lgl&gt;,</span></span>
+<span id="cb13-29"><a href="#cb13-29" tabindex="-1"></a><span class="co">#&gt; #   native_sources_used &lt;chr&gt;, native_recipient_iso3 &lt;chr&gt;,</span></span>
+<span id="cb13-30"><a href="#cb13-30" tabindex="-1"></a><span class="co">#&gt; #   native_is_native_recipient &lt;lgl&gt;, native_is_non_native_recipient &lt;lgl&gt;,</span></span>
+<span id="cb13-31"><a href="#cb13-31" tabindex="-1"></a><span class="co">#&gt; #   native_status &lt;chr&gt;, native_filter_keep &lt;lgl&gt;,</span></span>
+<span id="cb13-32"><a href="#cb13-32" tabindex="-1"></a><span class="co">#&gt; #   native_filter_rejection_reason &lt;chr&gt;</span></span>
+<span id="cb13-33"><a href="#cb13-33" tabindex="-1"></a>non_native_or_unknown</span>
+<span id="cb13-34"><a href="#cb13-34" tabindex="-1"></a><span class="co">#&gt; # A tibble: 3 × 14</span></span>
+<span id="cb13-35"><a href="#cb13-35" tabindex="-1"></a><span class="co">#&gt;   species           iso2c native_name_key   native_name       native_origin_iso3</span></span>
+<span id="cb13-36"><a href="#cb13-36" tabindex="-1"></a><span class="co">#&gt;   &lt;chr&gt;             &lt;chr&gt; &lt;chr&gt;             &lt;chr&gt;             &lt;chr&gt;             </span></span>
+<span id="cb13-37"><a href="#cb13-37" tabindex="-1"></a><span class="co">#&gt; 1 Rattus rattus     GB    rattus rattus     Rattus rattus     IND;PAK           </span></span>
+<span id="cb13-38"><a href="#cb13-38" tabindex="-1"></a><span class="co">#&gt; 2 Xenopus laevis    FR    xenopus laevis    Xenopus laevis    LSO;SWZ;ZAF       </span></span>
+<span id="cb13-39"><a href="#cb13-39" tabindex="-1"></a><span class="co">#&gt; 3 Trachemys scripta GB    trachemys scripta Trachemys scripta MEX;USA           </span></span>
+<span id="cb13-40"><a href="#cb13-40" tabindex="-1"></a><span class="co">#&gt; # ℹ 9 more variables: native_origin_flag &lt;chr&gt;, native_has_origin &lt;lgl&gt;,</span></span>
+<span id="cb13-41"><a href="#cb13-41" tabindex="-1"></a><span class="co">#&gt; #   native_sources_used &lt;chr&gt;, native_recipient_iso3 &lt;chr&gt;,</span></span>
+<span id="cb13-42"><a href="#cb13-42" tabindex="-1"></a><span class="co">#&gt; #   native_is_native_recipient &lt;lgl&gt;, native_is_non_native_recipient &lt;lgl&gt;,</span></span>
+<span id="cb13-43"><a href="#cb13-43" tabindex="-1"></a><span class="co">#&gt; #   native_status &lt;chr&gt;, native_filter_keep &lt;lgl&gt;,</span></span>
+<span id="cb13-44"><a href="#cb13-44" tabindex="-1"></a><span class="co">#&gt; #   native_filter_rejection_reason &lt;chr&gt;</span></span></code></pre></div>
+<p>Use <code>non_native_only</code> only when the evidence fields
+provide enough support for a strict non-native subset. Use
+<code>non_native_or_unknown</code> when unresolved rows should be
+retained for later checking, sensitivity analysis or manual review.</p>
+</div>
+<div id="native-range-evidence-from-webapi-sources" class="section level1">
+<h1>Native-range evidence from web/API sources</h1>
+<p><code>biofetchR</code> can compile native-origin evidence from
+supported web/API sources. This is useful when a project table is
+incomplete, when unresolved rows need additional checking, or when users
+want to compare evidence returned by different providers.</p>
+<p>The current source registry includes SInAS, GBIF Species API
+distribution records, and WoRMS Aphia distribution records. These
+sources differ in scope and coverage. SInAS is invasion-focused, but can
+still provide native-origin countries for the invasive alien species it
+covers. GBIF and WoRMS provide different kinds of distribution or
+taxonomic-origin evidence. The returned outputs should therefore be
+inspected as provider evidence, not treated as a single definitive
+native-range authority.</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a><span class="co"># Show native-range web/API sources supported by the installed package version.</span></span>
+<span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a><span class="fu">bf_available_native_web_sources</span>()</span>
+<span id="cb14-3"><a href="#cb14-3" tabindex="-1"></a><span class="co">#&gt;   source</span></span>
+<span id="cb14-4"><a href="#cb14-4" tabindex="-1"></a><span class="co">#&gt; 1  sinas</span></span>
+<span id="cb14-5"><a href="#cb14-5" tabindex="-1"></a><span class="co">#&gt; 2   gbif</span></span>
+<span id="cb14-6"><a href="#cb14-6" tabindex="-1"></a><span class="co">#&gt; 3  worms</span></span>
+<span id="cb14-7"><a href="#cb14-7" tabindex="-1"></a><span class="co">#&gt;                                                                   description</span></span>
+<span id="cb14-8"><a href="#cb14-8" tabindex="-1"></a><span class="co">#&gt; 1           SInAS 3.1.1 native-location records resolved through AllLocations</span></span>
+<span id="cb14-9"><a href="#cb14-9" tabindex="-1"></a><span class="co">#&gt; 2 GBIF Species API distributions with native-like establishment/status fields</span></span>
+<span id="cb14-10"><a href="#cb14-10" tabindex="-1"></a><span class="co">#&gt; 3                  WoRMS REST Aphia distributions for marine and aquatic taxa</span></span>
+<span id="cb14-11"><a href="#cb14-11" tabindex="-1"></a><span class="co">#&gt;    access_type default</span></span>
+<span id="cb14-12"><a href="#cb14-12" tabindex="-1"></a><span class="co">#&gt; 1 zenodo_cache    TRUE</span></span>
+<span id="cb14-13"><a href="#cb14-13" tabindex="-1"></a><span class="co">#&gt; 2     json_api    TRUE</span></span>
+<span id="cb14-14"><a href="#cb14-14" tabindex="-1"></a><span class="co">#&gt; 3     json_api    TRUE</span></span></code></pre></div>
+<p>The live example below requests evidence from all selected sources.
+The returned object contains a retrieval summary, a species-level
+evidence table, a long-format provider table, and any provider strings
+that could not be mapped cleanly.</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a><span class="co"># Retrieve native-range evidence from the selected web/API sources.</span></span>
+<span id="cb15-2"><a href="#cb15-2" tabindex="-1"></a><span class="co"># This is wrapped in run_live_safely() so that a temporary provider failure</span></span>
+<span id="cb15-3"><a href="#cb15-3" tabindex="-1"></a><span class="co"># does not stop the whole vignette from rendering.</span></span>
+<span id="cb15-4"><a href="#cb15-4" tabindex="-1"></a>native_web <span class="ot">&lt;-</span> <span class="fu">run_live_safely</span>(</span>
+<span id="cb15-5"><a href="#cb15-5" tabindex="-1"></a></span>
+<span id="cb15-6"><a href="#cb15-6" tabindex="-1"></a>  <span class="co"># Compile native-origin evidence for the species in recipient_records.</span></span>
+<span id="cb15-7"><a href="#cb15-7" tabindex="-1"></a>  <span class="fu">bf_fetch_native_ranges_web</span>(</span>
+<span id="cb15-8"><a href="#cb15-8" tabindex="-1"></a></span>
+<span id="cb15-9"><a href="#cb15-9" tabindex="-1"></a>    <span class="co"># Species-country table containing the taxa to query.</span></span>
+<span id="cb15-10"><a href="#cb15-10" tabindex="-1"></a>    <span class="at">species =</span> recipient_records,</span>
+<span id="cb15-11"><a href="#cb15-11" tabindex="-1"></a></span>
+<span id="cb15-12"><a href="#cb15-12" tabindex="-1"></a>    <span class="co"># Column containing the taxon names.</span></span>
+<span id="cb15-13"><a href="#cb15-13" tabindex="-1"></a>    <span class="at">species_col =</span> <span class="st">&quot;species&quot;</span>,</span>
+<span id="cb15-14"><a href="#cb15-14" tabindex="-1"></a></span>
+<span id="cb15-15"><a href="#cb15-15" tabindex="-1"></a>    <span class="co"># Native-range evidence sources to query.</span></span>
+<span id="cb15-16"><a href="#cb15-16" tabindex="-1"></a>    <span class="co"># These currently include SInAS, GBIF Species API distribution records,</span></span>
+<span id="cb15-17"><a href="#cb15-17" tabindex="-1"></a>    <span class="co"># and WoRMS Aphia distribution records.</span></span>
+<span id="cb15-18"><a href="#cb15-18" tabindex="-1"></a>    <span class="at">sources =</span> <span class="fu">c</span>(<span class="st">&quot;sinas&quot;</span>, <span class="st">&quot;gbif&quot;</span>, <span class="st">&quot;worms&quot;</span>),</span>
+<span id="cb15-19"><a href="#cb15-19" tabindex="-1"></a></span>
+<span id="cb15-20"><a href="#cb15-20" tabindex="-1"></a>    <span class="co"># Cache provider results so repeated runs do not need to re-query</span></span>
+<span id="cb15-21"><a href="#cb15-21" tabindex="-1"></a>    <span class="co"># the same sources unnecessarily.</span></span>
+<span id="cb15-22"><a href="#cb15-22" tabindex="-1"></a>    <span class="at">cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;native_web&quot;</span>),</span>
+<span id="cb15-23"><a href="#cb15-23" tabindex="-1"></a></span>
+<span id="cb15-24"><a href="#cb15-24" tabindex="-1"></a>    <span class="co"># Use cached results when available.</span></span>
+<span id="cb15-25"><a href="#cb15-25" tabindex="-1"></a>    <span class="co"># Set this to TRUE only when the provider evidence should be refreshed.</span></span>
+<span id="cb15-26"><a href="#cb15-26" tabindex="-1"></a>    <span class="at">force_refresh =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb15-27"><a href="#cb15-27" tabindex="-1"></a></span>
+<span id="cb15-28"><a href="#cb15-28" tabindex="-1"></a>    <span class="co"># Pause briefly between provider requests to avoid sending rapid repeated</span></span>
+<span id="cb15-29"><a href="#cb15-29" tabindex="-1"></a>    <span class="co"># queries to external services.</span></span>
+<span id="cb15-30"><a href="#cb15-30" tabindex="-1"></a>    <span class="at">sleep_sec =</span> <span class="fl">0.25</span>,</span>
+<span id="cb15-31"><a href="#cb15-31" tabindex="-1"></a></span>
+<span id="cb15-32"><a href="#cb15-32" tabindex="-1"></a>    <span class="co"># Show provider messages during the live example.</span></span>
+<span id="cb15-33"><a href="#cb15-33" tabindex="-1"></a>    <span class="at">quiet =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb15-34"><a href="#cb15-34" tabindex="-1"></a></span>
+<span id="cb15-35"><a href="#cb15-35" tabindex="-1"></a>    <span class="co"># Return a structured list containing summary, species-level,</span></span>
+<span id="cb15-36"><a href="#cb15-36" tabindex="-1"></a>    <span class="co"># long-format, and unmapped evidence outputs.</span></span>
+<span id="cb15-37"><a href="#cb15-37" tabindex="-1"></a>    <span class="at">return =</span> <span class="st">&quot;list&quot;</span></span>
+<span id="cb15-38"><a href="#cb15-38" tabindex="-1"></a>  )</span>
+<span id="cb15-39"><a href="#cb15-39" tabindex="-1"></a>)</span>
+<span id="cb15-40"><a href="#cb15-40" tabindex="-1"></a></span>
+<span id="cb15-41"><a href="#cb15-41" tabindex="-1"></a><span class="co"># If the live query completed successfully, inspect the returned evidence.</span></span>
+<span id="cb15-42"><a href="#cb15-42" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.null</span>(native_web)) {</span>
+<span id="cb15-43"><a href="#cb15-43" tabindex="-1"></a></span>
+<span id="cb15-44"><a href="#cb15-44" tabindex="-1"></a>  <span class="co"># Summary of the native-web retrieval.</span></span>
+<span id="cb15-45"><a href="#cb15-45" tabindex="-1"></a>  native_web<span class="sc">$</span>summary</span>
+<span id="cb15-46"><a href="#cb15-46" tabindex="-1"></a></span>
+<span id="cb15-47"><a href="#cb15-47" tabindex="-1"></a>  <span class="co"># Species-level native-range evidence table.</span></span>
+<span id="cb15-48"><a href="#cb15-48" tabindex="-1"></a>  <span class="co"># This is usually the table used for attachment to species-country records.</span></span>
+<span id="cb15-49"><a href="#cb15-49" tabindex="-1"></a>  native_web<span class="sc">$</span>species</span>
+<span id="cb15-50"><a href="#cb15-50" tabindex="-1"></a></span>
+<span id="cb15-51"><a href="#cb15-51" tabindex="-1"></a>  <span class="co"># Long-format provider evidence.</span></span>
+<span id="cb15-52"><a href="#cb15-52" tabindex="-1"></a>  <span class="co"># This is useful for checking which source returned which evidence.</span></span>
+<span id="cb15-53"><a href="#cb15-53" tabindex="-1"></a>  native_web<span class="sc">$</span>long</span>
+<span id="cb15-54"><a href="#cb15-54" tabindex="-1"></a></span>
+<span id="cb15-55"><a href="#cb15-55" tabindex="-1"></a>  <span class="co"># Provider strings or regions that could not be mapped cleanly.</span></span>
+<span id="cb15-56"><a href="#cb15-56" tabindex="-1"></a>  <span class="co"># These should be reviewed if many species remain unresolved.</span></span>
+<span id="cb15-57"><a href="#cb15-57" tabindex="-1"></a>  native_web<span class="sc">$</span>unmapped</span>
+<span id="cb15-58"><a href="#cb15-58" tabindex="-1"></a>}</span></code></pre></div>
+<p>For most workflows, <code>native_web$species</code> is the table used
+for status attachment. The long-format and unmapped outputs are used for
+checking where the evidence came from, which provider contributed it,
+and whether any region names failed to map cleanly.</p>
+<p>Write the web-derived evidence to disk when it will be reused,
+checked later, or reported as part of an analysis.</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" tabindex="-1"></a><span class="cf">if</span> (<span class="fu">exists</span>(<span class="st">&quot;native_web&quot;</span>) <span class="sc">&amp;&amp;</span> <span class="sc">!</span><span class="fu">is.null</span>(native_web)) {</span>
+<span id="cb16-2"><a href="#cb16-2" tabindex="-1"></a>  <span class="fu">bf_write_native_web_outputs</span>(</span>
+<span id="cb16-3"><a href="#cb16-3" tabindex="-1"></a>    native_web,</span>
+<span id="cb16-4"><a href="#cb16-4" tabindex="-1"></a>    <span class="at">output_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;native_web_audit&quot;</span>),</span>
+<span id="cb16-5"><a href="#cb16-5" tabindex="-1"></a>    <span class="at">prefix =</span> <span class="st">&quot;native_web&quot;</span></span>
+<span id="cb16-6"><a href="#cb16-6" tabindex="-1"></a>  )</span>
+<span id="cb16-7"><a href="#cb16-7" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb16-8"><a href="#cb16-8" tabindex="-1"></a>  <span class="fu">skip_live_message</span>(<span class="st">&quot;native web evidence was not available from the previous live chunk&quot;</span>)</span>
+<span id="cb16-9"><a href="#cb16-9" tabindex="-1"></a>}</span></code></pre></div>
+<p>The species-level output can then be passed to
+<code>bf_attach_native_status()</code> in the same way as a project
+native-range table.</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" tabindex="-1"></a><span class="co"># Attach the species-level native-range evidence returned by the web/API</span></span>
+<span id="cb17-2"><a href="#cb17-2" tabindex="-1"></a><span class="co"># retrieval step to the species-country input table.</span></span>
+<span id="cb17-3"><a href="#cb17-3" tabindex="-1"></a><span class="co"># This chunk depends on the previous native_web object being available.</span></span>
+<span id="cb17-4"><a href="#cb17-4" tabindex="-1"></a><span class="cf">if</span> (<span class="fu">exists</span>(<span class="st">&quot;native_web&quot;</span>) <span class="sc">&amp;&amp;</span> <span class="sc">!</span><span class="fu">is.null</span>(native_web)) {</span>
+<span id="cb17-5"><a href="#cb17-5" tabindex="-1"></a></span>
+<span id="cb17-6"><a href="#cb17-6" tabindex="-1"></a>  <span class="co"># Add native-status fields to the recipient species-country table.</span></span>
+<span id="cb17-7"><a href="#cb17-7" tabindex="-1"></a>  native_web_status <span class="ot">&lt;-</span> <span class="fu">bf_attach_native_status</span>(</span>
+<span id="cb17-8"><a href="#cb17-8" tabindex="-1"></a></span>
+<span id="cb17-9"><a href="#cb17-9" tabindex="-1"></a>    <span class="co"># Species-country table to classify.</span></span>
+<span id="cb17-10"><a href="#cb17-10" tabindex="-1"></a>    <span class="at">df =</span> recipient_records,</span>
+<span id="cb17-11"><a href="#cb17-11" tabindex="-1"></a></span>
+<span id="cb17-12"><a href="#cb17-12" tabindex="-1"></a>    <span class="co"># Column containing the taxon name in the species-country table.</span></span>
+<span id="cb17-13"><a href="#cb17-13" tabindex="-1"></a>    <span class="at">species_col =</span> <span class="st">&quot;species&quot;</span>,</span>
+<span id="cb17-14"><a href="#cb17-14" tabindex="-1"></a></span>
+<span id="cb17-15"><a href="#cb17-15" tabindex="-1"></a>    <span class="co"># Column containing the recipient country as an ISO2 code.</span></span>
+<span id="cb17-16"><a href="#cb17-16" tabindex="-1"></a>    <span class="at">iso2c_col =</span> <span class="st">&quot;iso2c&quot;</span>,</span>
+<span id="cb17-17"><a href="#cb17-17" tabindex="-1"></a></span>
+<span id="cb17-18"><a href="#cb17-18" tabindex="-1"></a>    <span class="co"># Species-level native-range evidence returned by bf_fetch_native_ranges_web().</span></span>
+<span id="cb17-19"><a href="#cb17-19" tabindex="-1"></a>    <span class="co"># This table combines the selected web/API sources into a format that can be</span></span>
+<span id="cb17-20"><a href="#cb17-20" tabindex="-1"></a>    <span class="co"># used by bf_attach_native_status().</span></span>
+<span id="cb17-21"><a href="#cb17-21" tabindex="-1"></a>    <span class="at">native_ranges =</span> native_web<span class="sc">$</span>species,</span>
+<span id="cb17-22"><a href="#cb17-22" tabindex="-1"></a></span>
+<span id="cb17-23"><a href="#cb17-23" tabindex="-1"></a>    <span class="co"># Column containing the taxon name in the native-range evidence table.</span></span>
+<span id="cb17-24"><a href="#cb17-24" tabindex="-1"></a>    <span class="at">native_species_col =</span> <span class="st">&quot;species&quot;</span>,</span>
+<span id="cb17-25"><a href="#cb17-25" tabindex="-1"></a></span>
+<span id="cb17-26"><a href="#cb17-26" tabindex="-1"></a>    <span class="co"># Keep all rows and add native-range evidence fields for inspection.</span></span>
+<span id="cb17-27"><a href="#cb17-27" tabindex="-1"></a>    <span class="co"># No records are removed at this stage.</span></span>
+<span id="cb17-28"><a href="#cb17-28" tabindex="-1"></a>    <span class="at">native_filter_mode =</span> <span class="st">&quot;audit_only&quot;</span>,</span>
+<span id="cb17-29"><a href="#cb17-29" tabindex="-1"></a></span>
+<span id="cb17-30"><a href="#cb17-30" tabindex="-1"></a>    <span class="co"># Suppress routine messages from the attachment function.</span></span>
+<span id="cb17-31"><a href="#cb17-31" tabindex="-1"></a>    <span class="at">quiet =</span> <span class="cn">TRUE</span></span>
+<span id="cb17-32"><a href="#cb17-32" tabindex="-1"></a>  )</span>
+<span id="cb17-33"><a href="#cb17-33" tabindex="-1"></a></span>
+<span id="cb17-34"><a href="#cb17-34" tabindex="-1"></a>  <span class="co"># Display the species-country table with attached native-range evidence.</span></span>
+<span id="cb17-35"><a href="#cb17-35" tabindex="-1"></a>  native_web_status</span>
+<span id="cb17-36"><a href="#cb17-36" tabindex="-1"></a></span>
+<span id="cb17-37"><a href="#cb17-37" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb17-38"><a href="#cb17-38" tabindex="-1"></a></span>
+<span id="cb17-39"><a href="#cb17-39" tabindex="-1"></a>  <span class="co"># If the previous live retrieval step did not run or failed, print a clear</span></span>
+<span id="cb17-40"><a href="#cb17-40" tabindex="-1"></a>  <span class="co"># skip message rather than causing the vignette to fail.</span></span>
+<span id="cb17-41"><a href="#cb17-41" tabindex="-1"></a>  <span class="fu">skip_live_message</span>(<span class="st">&quot;native web evidence was not available from the previous live chunk&quot;</span>)</span>
+<span id="cb17-42"><a href="#cb17-42" tabindex="-1"></a>}</span></code></pre></div>
+<p>The same evidence retrieval step can also be triggered directly from
+<code>bf_attach_native_status()</code>. This is useful when users do not
+need to edit or combine the provider table before attachment.</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" tabindex="-1"></a><span class="co"># Attach native-range evidence directly from supported web/API sources.</span></span>
+<span id="cb18-2"><a href="#cb18-2" tabindex="-1"></a><span class="co"># This route is useful when the workflow should retrieve provider evidence</span></span>
+<span id="cb18-3"><a href="#cb18-3" tabindex="-1"></a><span class="co"># during the native-status attachment step rather than supplying a prebuilt</span></span>
+<span id="cb18-4"><a href="#cb18-4" tabindex="-1"></a><span class="co"># native_ranges table.</span></span>
+<span id="cb18-5"><a href="#cb18-5" tabindex="-1"></a>native_web_direct <span class="ot">&lt;-</span> <span class="fu">run_live_safely</span>(</span>
+<span id="cb18-6"><a href="#cb18-6" tabindex="-1"></a></span>
+<span id="cb18-7"><a href="#cb18-7" tabindex="-1"></a>  <span class="co"># Attach native-status fields to the species-country input table.</span></span>
+<span id="cb18-8"><a href="#cb18-8" tabindex="-1"></a>  <span class="fu">bf_attach_native_status</span>(</span>
+<span id="cb18-9"><a href="#cb18-9" tabindex="-1"></a></span>
+<span id="cb18-10"><a href="#cb18-10" tabindex="-1"></a>    <span class="co"># Species-country table to classify.</span></span>
+<span id="cb18-11"><a href="#cb18-11" tabindex="-1"></a>    <span class="at">df =</span> recipient_records,</span>
+<span id="cb18-12"><a href="#cb18-12" tabindex="-1"></a></span>
+<span id="cb18-13"><a href="#cb18-13" tabindex="-1"></a>    <span class="co"># Column containing the taxon name.</span></span>
+<span id="cb18-14"><a href="#cb18-14" tabindex="-1"></a>    <span class="at">species_col =</span> <span class="st">&quot;species&quot;</span>,</span>
+<span id="cb18-15"><a href="#cb18-15" tabindex="-1"></a></span>
+<span id="cb18-16"><a href="#cb18-16" tabindex="-1"></a>    <span class="co"># Column containing the recipient country as an ISO2 code.</span></span>
+<span id="cb18-17"><a href="#cb18-17" tabindex="-1"></a>    <span class="at">iso2c_col =</span> <span class="st">&quot;iso2c&quot;</span>,</span>
+<span id="cb18-18"><a href="#cb18-18" tabindex="-1"></a></span>
+<span id="cb18-19"><a href="#cb18-19" tabindex="-1"></a>    <span class="co"># No local native-range table is supplied here.</span></span>
+<span id="cb18-20"><a href="#cb18-20" tabindex="-1"></a>    <span class="co"># Instead, evidence is retrieved from the selected web/API sources below.</span></span>
+<span id="cb18-21"><a href="#cb18-21" tabindex="-1"></a>    <span class="at">native_ranges =</span> <span class="cn">NULL</span>,</span>
+<span id="cb18-22"><a href="#cb18-22" tabindex="-1"></a></span>
+<span id="cb18-23"><a href="#cb18-23" tabindex="-1"></a>    <span class="co"># Turn on native-range evidence retrieval from supported provider sources.</span></span>
+<span id="cb18-24"><a href="#cb18-24" tabindex="-1"></a>    <span class="at">use_native_web =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb18-25"><a href="#cb18-25" tabindex="-1"></a></span>
+<span id="cb18-26"><a href="#cb18-26" tabindex="-1"></a>    <span class="co"># Query all selected native-range web/API sources.</span></span>
+<span id="cb18-27"><a href="#cb18-27" tabindex="-1"></a>    <span class="co"># SInAS, GBIF distribution metadata, and WoRMS Aphia distributions are used</span></span>
+<span id="cb18-28"><a href="#cb18-28" tabindex="-1"></a>    <span class="co"># as complementary evidence sources.</span></span>
+<span id="cb18-29"><a href="#cb18-29" tabindex="-1"></a>    <span class="at">native_web_sources =</span> <span class="fu">c</span>(<span class="st">&quot;sinas&quot;</span>, <span class="st">&quot;gbif&quot;</span>, <span class="st">&quot;worms&quot;</span>),</span>
+<span id="cb18-30"><a href="#cb18-30" tabindex="-1"></a></span>
+<span id="cb18-31"><a href="#cb18-31" tabindex="-1"></a>    <span class="co"># Store downloaded or retrieved provider evidence in a cache directory.</span></span>
+<span id="cb18-32"><a href="#cb18-32" tabindex="-1"></a>    <span class="co"># This avoids repeating the same provider requests unnecessarily.</span></span>
+<span id="cb18-33"><a href="#cb18-33" tabindex="-1"></a>    <span class="at">native_web_cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;native_web_direct&quot;</span>),</span>
+<span id="cb18-34"><a href="#cb18-34" tabindex="-1"></a></span>
+<span id="cb18-35"><a href="#cb18-35" tabindex="-1"></a>    <span class="co"># Write native-web audit outputs so the provider evidence can be inspected.</span></span>
+<span id="cb18-36"><a href="#cb18-36" tabindex="-1"></a>    <span class="at">export_native_web_audit =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb18-37"><a href="#cb18-37" tabindex="-1"></a></span>
+<span id="cb18-38"><a href="#cb18-38" tabindex="-1"></a>    <span class="co"># Directory where native-web audit files will be written.</span></span>
+<span id="cb18-39"><a href="#cb18-39" tabindex="-1"></a>    <span class="at">native_web_audit_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;native_web_direct_audit&quot;</span>),</span>
+<span id="cb18-40"><a href="#cb18-40" tabindex="-1"></a></span>
+<span id="cb18-41"><a href="#cb18-41" tabindex="-1"></a>    <span class="co"># Keep all rows and attach evidence fields for review.</span></span>
+<span id="cb18-42"><a href="#cb18-42" tabindex="-1"></a>    <span class="co"># No records are removed at this stage.</span></span>
+<span id="cb18-43"><a href="#cb18-43" tabindex="-1"></a>    <span class="at">native_filter_mode =</span> <span class="st">&quot;audit_only&quot;</span>,</span>
+<span id="cb18-44"><a href="#cb18-44" tabindex="-1"></a></span>
+<span id="cb18-45"><a href="#cb18-45" tabindex="-1"></a>    <span class="co"># Suppress routine messages from the attachment function.</span></span>
+<span id="cb18-46"><a href="#cb18-46" tabindex="-1"></a>    <span class="at">quiet =</span> <span class="cn">TRUE</span></span>
+<span id="cb18-47"><a href="#cb18-47" tabindex="-1"></a>  )</span>
+<span id="cb18-48"><a href="#cb18-48" tabindex="-1"></a>)</span>
+<span id="cb18-49"><a href="#cb18-49" tabindex="-1"></a></span>
+<span id="cb18-50"><a href="#cb18-50" tabindex="-1"></a><span class="co"># If the live provider query completed successfully, display the attached</span></span>
+<span id="cb18-51"><a href="#cb18-51" tabindex="-1"></a><span class="co"># native-status table.</span></span>
+<span id="cb18-52"><a href="#cb18-52" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.null</span>(native_web_direct)) {</span>
+<span id="cb18-53"><a href="#cb18-53" tabindex="-1"></a>  native_web_direct</span>
+<span id="cb18-54"><a href="#cb18-54" tabindex="-1"></a>}</span></code></pre></div>
+<p>Both routes produce evidence fields that should be reviewed before
+filtering. Rows that remain unmatched after web/API retrieval should
+stay unresolved unless another source supports a clearer status
+interpretation.</p>
+</div>
+<div id="griis-invasive-status-evidence" class="section level1">
+<h1>GRIIS invasive-status evidence</h1>
+<p>The <strong>Global Register of Introduced and Invasive Species
+(GRIIS)</strong> provides country-, territory- and island-level evidence
+for taxa listed as introduced or invasive. In <code>biofetchR</code>,
+GRIIS is used to add introduced-status and invasive-status fields to
+species-country rows.</p>
+<p>GRIIS evidence should be interpreted separately from native-range
+evidence. Native-range evidence helps assess whether the recipient
+country is supported as part of a taxon’s native distribution. GRIIS
+evidence helps identify recipient regions where the taxon has been
+listed as introduced or invasive.</p>
+<p>In GRIIS, invasive-status evidence is linked to evidence of
+environmental impact or to source information indicating that a species
+is widespread, spreading rapidly or present in high abundance (Pagad et
+al., 2018). This makes GRIIS particularly useful for invasion workflows.
+However, missing GRIIS evidence should not be treated as proof that a
+taxon is absent, native or not invasive; it may simply mean that the
+species-country combination is not represented in the selected GRIIS
+evidence.</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" tabindex="-1"></a><span class="co"># Attach GRIIS introduced/invasive-status evidence to the species-country table.</span></span>
+<span id="cb19-2"><a href="#cb19-2" tabindex="-1"></a><span class="co"># This is a live example because the function may download or retrieve GRIIS</span></span>
+<span id="cb19-3"><a href="#cb19-3" tabindex="-1"></a><span class="co"># evidence when a local GRIIS table is not supplied.</span></span>
+<span id="cb19-4"><a href="#cb19-4" tabindex="-1"></a>griis_status <span class="ot">&lt;-</span> <span class="fu">run_live_safely</span>(</span>
+<span id="cb19-5"><a href="#cb19-5" tabindex="-1"></a></span>
+<span id="cb19-6"><a href="#cb19-6" tabindex="-1"></a>  <span class="co"># Add GRIIS status fields to the input table.</span></span>
+<span id="cb19-7"><a href="#cb19-7" tabindex="-1"></a>  <span class="fu">bf_attach_griis_status</span>(</span>
+<span id="cb19-8"><a href="#cb19-8" tabindex="-1"></a></span>
+<span id="cb19-9"><a href="#cb19-9" tabindex="-1"></a>    <span class="co"># Species-country table to classify.</span></span>
+<span id="cb19-10"><a href="#cb19-10" tabindex="-1"></a>    <span class="at">df =</span> recipient_records,</span>
+<span id="cb19-11"><a href="#cb19-11" tabindex="-1"></a></span>
+<span id="cb19-12"><a href="#cb19-12" tabindex="-1"></a>    <span class="co"># Column containing the taxon name.</span></span>
+<span id="cb19-13"><a href="#cb19-13" tabindex="-1"></a>    <span class="at">species_col =</span> <span class="st">&quot;species&quot;</span>,</span>
+<span id="cb19-14"><a href="#cb19-14" tabindex="-1"></a></span>
+<span id="cb19-15"><a href="#cb19-15" tabindex="-1"></a>    <span class="co"># Column containing the recipient country as an ISO2 code.</span></span>
+<span id="cb19-16"><a href="#cb19-16" tabindex="-1"></a>    <span class="at">iso2c_col =</span> <span class="st">&quot;iso2c&quot;</span>,</span>
+<span id="cb19-17"><a href="#cb19-17" tabindex="-1"></a></span>
+<span id="cb19-18"><a href="#cb19-18" tabindex="-1"></a>    <span class="co"># No preloaded GRIIS table is supplied here.</span></span>
+<span id="cb19-19"><a href="#cb19-19" tabindex="-1"></a>    <span class="co"># When griis = NULL, the function uses the configured GRIIS retrieval/cache</span></span>
+<span id="cb19-20"><a href="#cb19-20" tabindex="-1"></a>    <span class="co"># workflow to obtain the evidence.</span></span>
+<span id="cb19-21"><a href="#cb19-21" tabindex="-1"></a>    <span class="at">griis =</span> <span class="cn">NULL</span>,</span>
+<span id="cb19-22"><a href="#cb19-22" tabindex="-1"></a></span>
+<span id="cb19-23"><a href="#cb19-23" tabindex="-1"></a>    <span class="co"># Directory used to cache GRIIS files or processed evidence.</span></span>
+<span id="cb19-24"><a href="#cb19-24" tabindex="-1"></a>    <span class="co"># This avoids repeating the same retrieval step unnecessarily.</span></span>
+<span id="cb19-25"><a href="#cb19-25" tabindex="-1"></a>    <span class="at">cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;griis&quot;</span>),</span>
+<span id="cb19-26"><a href="#cb19-26" tabindex="-1"></a></span>
+<span id="cb19-27"><a href="#cb19-27" tabindex="-1"></a>    <span class="co"># Use cached GRIIS evidence when available.</span></span>
+<span id="cb19-28"><a href="#cb19-28" tabindex="-1"></a>    <span class="co"># Set this to TRUE only when you deliberately want to refresh the cache.</span></span>
+<span id="cb19-29"><a href="#cb19-29" tabindex="-1"></a>    <span class="at">force_refresh =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb19-30"><a href="#cb19-30" tabindex="-1"></a></span>
+<span id="cb19-31"><a href="#cb19-31" tabindex="-1"></a>    <span class="co"># Require the species-country combination to match GRIIS evidence.</span></span>
+<span id="cb19-32"><a href="#cb19-32" tabindex="-1"></a>    <span class="co"># This is stricter than checking whether the species appears anywhere in GRIIS.</span></span>
+<span id="cb19-33"><a href="#cb19-33" tabindex="-1"></a>    <span class="at">require_country =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb19-34"><a href="#cb19-34" tabindex="-1"></a></span>
+<span id="cb19-35"><a href="#cb19-35" tabindex="-1"></a>    <span class="co"># Show progress messages for the live example.</span></span>
+<span id="cb19-36"><a href="#cb19-36" tabindex="-1"></a>    <span class="at">quiet =</span> <span class="cn">FALSE</span></span>
+<span id="cb19-37"><a href="#cb19-37" tabindex="-1"></a>  )</span>
+<span id="cb19-38"><a href="#cb19-38" tabindex="-1"></a>)</span>
+<span id="cb19-39"><a href="#cb19-39" tabindex="-1"></a></span>
+<span id="cb19-40"><a href="#cb19-40" tabindex="-1"></a><span class="co"># If the GRIIS attachment step completed successfully, display the output table</span></span>
+<span id="cb19-41"><a href="#cb19-41" tabindex="-1"></a><span class="co"># with the added GRIIS evidence fields.</span></span>
+<span id="cb19-42"><a href="#cb19-42" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.null</span>(griis_status)) {</span>
+<span id="cb19-43"><a href="#cb19-43" tabindex="-1"></a>  griis_status</span>
+<span id="cb19-44"><a href="#cb19-44" tabindex="-1"></a>}</span></code></pre></div>
+<p>The attached GRIIS fields should be inspected before they are used
+for filtering. For example, users should check whether the match is
+country-specific, whether the row is listed as introduced or invasive,
+and whether the resulting fields match the scope of the analysis.</p>
+<p>After inspection, a stricter table can be created by retaining only
+rows flagged as invasive by GRIIS. This is a filtering choice for
+analyses that specifically require GRIIS-supported invasive-status
+records. For broader evidence review, keep the full attached table and
+treat the GRIIS fields as part of the audit output.</p>
+<div class="sourceCode" id="cb20"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" tabindex="-1"></a><span class="co"># Create a stricter invasive-only table from the already attached GRIIS fields.</span></span>
+<span id="cb20-2"><a href="#cb20-2" tabindex="-1"></a><span class="co"># The previous chunk created griis_status with columns such as griis_listed,</span></span>
+<span id="cb20-3"><a href="#cb20-3" tabindex="-1"></a><span class="co"># griis_invasive, and griis_status. Here we simply filter that existing audit</span></span>
+<span id="cb20-4"><a href="#cb20-4" tabindex="-1"></a><span class="co"># table rather than re-running the GRIIS attachment step.</span></span>
+<span id="cb20-5"><a href="#cb20-5" tabindex="-1"></a><span class="cf">if</span> (<span class="fu">exists</span>(<span class="st">&quot;griis_status&quot;</span>) <span class="sc">&amp;&amp;</span> <span class="sc">!</span><span class="fu">is.null</span>(griis_status)) {</span>
+<span id="cb20-6"><a href="#cb20-6" tabindex="-1"></a></span>
+<span id="cb20-7"><a href="#cb20-7" tabindex="-1"></a>  <span class="co"># Keep only rows that were flagged as invasive by the attached GRIIS evidence.</span></span>
+<span id="cb20-8"><a href="#cb20-8" tabindex="-1"></a>  invasive_only <span class="ot">&lt;-</span> griis_status[</span>
+<span id="cb20-9"><a href="#cb20-9" tabindex="-1"></a>    griis_status<span class="sc">$</span>griis_invasive <span class="sc">%in%</span> <span class="cn">TRUE</span>,</span>
+<span id="cb20-10"><a href="#cb20-10" tabindex="-1"></a>    ,</span>
+<span id="cb20-11"><a href="#cb20-11" tabindex="-1"></a>    drop <span class="ot">=</span> <span class="cn">FALSE</span></span>
+<span id="cb20-12"><a href="#cb20-12" tabindex="-1"></a>  ]</span>
+<span id="cb20-13"><a href="#cb20-13" tabindex="-1"></a></span>
+<span id="cb20-14"><a href="#cb20-14" tabindex="-1"></a>  <span class="co"># Display the stricter invasive-only table.</span></span>
+<span id="cb20-15"><a href="#cb20-15" tabindex="-1"></a>  invasive_only</span>
+<span id="cb20-16"><a href="#cb20-16" tabindex="-1"></a></span>
+<span id="cb20-17"><a href="#cb20-17" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb20-18"><a href="#cb20-18" tabindex="-1"></a></span>
+<span id="cb20-19"><a href="#cb20-19" tabindex="-1"></a>  <span class="co"># If the GRIIS attachment chunk did not run or failed, skip cleanly.</span></span>
+<span id="cb20-20"><a href="#cb20-20" tabindex="-1"></a>  <span class="fu">skip_live_message</span>(<span class="st">&quot;GRIIS status was not available from the previous live chunk&quot;</span>)</span>
+<span id="cb20-21"><a href="#cb20-21" tabindex="-1"></a>}</span></code></pre></div>
+</div>
+<div id="origin-status-audit-table" class="section level1">
+<h1>Origin-status audit table</h1>
+<p>After native-range and GRIIS evidence have been attached, the next
+step is to combine the evidence fields into one interpretable status for
+each species-country row. The final status should be mutually exclusive,
+such as <code>native</code>, <code>non_native</code>,
+<code>invasive</code> or <code>unresolved</code>.</p>
+<p>Native-range evidence is used to identify rows with positive support
+for native status in the recipient country. GRIIS evidence is used to
+identify rows listed as introduced or invasive in the recipient country.
+These evidence fields should be read together, but they should not be
+treated as independent final statuses for the same row.</p>
+<p>A compact audit table helps users see why a row received its final
+status. It can show the native-range result, the GRIIS result, the
+assigned status and the suggested review action. In real workflows, rows
+without clear native-range or GRIIS support should remain
+<code>unresolved</code> unless another evidence source supports a
+stronger interpretation.</p>
+<div class="sourceCode" id="cb21"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" tabindex="-1"></a><span class="co"># Example origin-status audit table.</span></span>
+<span id="cb21-2"><a href="#cb21-2" tabindex="-1"></a><span class="co"># This is not live evidence; it illustrates how evidence fields can support</span></span>
+<span id="cb21-3"><a href="#cb21-3" tabindex="-1"></a><span class="co"># one final status assignment for each species-country row.</span></span>
+<span id="cb21-4"><a href="#cb21-4" tabindex="-1"></a>origin_status_audit_example <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb21-5"><a href="#cb21-5" tabindex="-1"></a>  <span class="at">species =</span> <span class="fu">c</span>(</span>
+<span id="cb21-6"><a href="#cb21-6" tabindex="-1"></a>    <span class="st">&quot;Rattus rattus&quot;</span>,</span>
+<span id="cb21-7"><a href="#cb21-7" tabindex="-1"></a>    <span class="st">&quot;Sturnus vulgaris&quot;</span>,</span>
+<span id="cb21-8"><a href="#cb21-8" tabindex="-1"></a>    <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb21-9"><a href="#cb21-9" tabindex="-1"></a>    <span class="st">&quot;Trachemys scripta&quot;</span>,</span>
+<span id="cb21-10"><a href="#cb21-10" tabindex="-1"></a>    <span class="st">&quot;Carcinus maenas&quot;</span></span>
+<span id="cb21-11"><a href="#cb21-11" tabindex="-1"></a>  ),</span>
+<span id="cb21-12"><a href="#cb21-12" tabindex="-1"></a>  <span class="at">iso2c =</span> <span class="fu">c</span>(<span class="st">&quot;GB&quot;</span>, <span class="st">&quot;DE&quot;</span>, <span class="st">&quot;FR&quot;</span>, <span class="st">&quot;GB&quot;</span>, <span class="st">&quot;GB&quot;</span>),</span>
+<span id="cb21-13"><a href="#cb21-13" tabindex="-1"></a>  <span class="at">native_range_result =</span> <span class="fu">c</span>(</span>
+<span id="cb21-14"><a href="#cb21-14" tabindex="-1"></a>    <span class="st">&quot;outside_native_range&quot;</span>,</span>
+<span id="cb21-15"><a href="#cb21-15" tabindex="-1"></a>    <span class="st">&quot;inside_native_range&quot;</span>,</span>
+<span id="cb21-16"><a href="#cb21-16" tabindex="-1"></a>    <span class="st">&quot;outside_native_range&quot;</span>,</span>
+<span id="cb21-17"><a href="#cb21-17" tabindex="-1"></a>    <span class="st">&quot;outside_native_range&quot;</span>,</span>
+<span id="cb21-18"><a href="#cb21-18" tabindex="-1"></a>    <span class="st">&quot;inside_native_range&quot;</span></span>
+<span id="cb21-19"><a href="#cb21-19" tabindex="-1"></a>  ),</span>
+<span id="cb21-20"><a href="#cb21-20" tabindex="-1"></a>  <span class="at">griis_result =</span> <span class="fu">c</span>(</span>
+<span id="cb21-21"><a href="#cb21-21" tabindex="-1"></a>    <span class="st">&quot;listed_invasive&quot;</span>,</span>
+<span id="cb21-22"><a href="#cb21-22" tabindex="-1"></a>    <span class="st">&quot;not_listed_or_unresolved&quot;</span>,</span>
+<span id="cb21-23"><a href="#cb21-23" tabindex="-1"></a>    <span class="st">&quot;listed_invasive&quot;</span>,</span>
+<span id="cb21-24"><a href="#cb21-24" tabindex="-1"></a>    <span class="st">&quot;listed_introduced&quot;</span>,</span>
+<span id="cb21-25"><a href="#cb21-25" tabindex="-1"></a>    <span class="st">&quot;not_listed_or_unresolved&quot;</span></span>
+<span id="cb21-26"><a href="#cb21-26" tabindex="-1"></a>  ),</span>
+<span id="cb21-27"><a href="#cb21-27" tabindex="-1"></a>  <span class="at">assigned_status =</span> <span class="fu">c</span>(</span>
+<span id="cb21-28"><a href="#cb21-28" tabindex="-1"></a>    <span class="st">&quot;invasive&quot;</span>,</span>
+<span id="cb21-29"><a href="#cb21-29" tabindex="-1"></a>    <span class="st">&quot;native&quot;</span>,</span>
+<span id="cb21-30"><a href="#cb21-30" tabindex="-1"></a>    <span class="st">&quot;invasive&quot;</span>,</span>
+<span id="cb21-31"><a href="#cb21-31" tabindex="-1"></a>    <span class="st">&quot;non_native&quot;</span>,</span>
+<span id="cb21-32"><a href="#cb21-32" tabindex="-1"></a>    <span class="st">&quot;native&quot;</span></span>
+<span id="cb21-33"><a href="#cb21-33" tabindex="-1"></a>  ),</span>
+<span id="cb21-34"><a href="#cb21-34" tabindex="-1"></a>  <span class="at">review_action =</span> <span class="fu">c</span>(</span>
+<span id="cb21-35"><a href="#cb21-35" tabindex="-1"></a>    <span class="st">&quot;retain_for_invasive_workflow&quot;</span>,</span>
+<span id="cb21-36"><a href="#cb21-36" tabindex="-1"></a>    <span class="st">&quot;exclude_from_non_native_workflow&quot;</span>,</span>
+<span id="cb21-37"><a href="#cb21-37" tabindex="-1"></a>    <span class="st">&quot;retain_for_invasive_workflow&quot;</span>,</span>
+<span id="cb21-38"><a href="#cb21-38" tabindex="-1"></a>    <span class="st">&quot;retain_for_non_native_workflow&quot;</span>,</span>
+<span id="cb21-39"><a href="#cb21-39" tabindex="-1"></a>    <span class="st">&quot;exclude_from_non_native_workflow&quot;</span></span>
+<span id="cb21-40"><a href="#cb21-40" tabindex="-1"></a>  ),</span>
+<span id="cb21-41"><a href="#cb21-41" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb21-42"><a href="#cb21-42" tabindex="-1"></a>)</span>
+<span id="cb21-43"><a href="#cb21-43" tabindex="-1"></a></span>
+<span id="cb21-44"><a href="#cb21-44" tabindex="-1"></a>origin_status_audit_example</span>
+<span id="cb21-45"><a href="#cb21-45" tabindex="-1"></a><span class="co">#&gt;             species iso2c  native_range_result             griis_result</span></span>
+<span id="cb21-46"><a href="#cb21-46" tabindex="-1"></a><span class="co">#&gt; 1     Rattus rattus    GB outside_native_range          listed_invasive</span></span>
+<span id="cb21-47"><a href="#cb21-47" tabindex="-1"></a><span class="co">#&gt; 2  Sturnus vulgaris    DE  inside_native_range not_listed_or_unresolved</span></span>
+<span id="cb21-48"><a href="#cb21-48" tabindex="-1"></a><span class="co">#&gt; 3    Xenopus laevis    FR outside_native_range          listed_invasive</span></span>
+<span id="cb21-49"><a href="#cb21-49" tabindex="-1"></a><span class="co">#&gt; 4 Trachemys scripta    GB outside_native_range        listed_introduced</span></span>
+<span id="cb21-50"><a href="#cb21-50" tabindex="-1"></a><span class="co">#&gt; 5   Carcinus maenas    GB  inside_native_range not_listed_or_unresolved</span></span>
+<span id="cb21-51"><a href="#cb21-51" tabindex="-1"></a><span class="co">#&gt;   assigned_status                    review_action</span></span>
+<span id="cb21-52"><a href="#cb21-52" tabindex="-1"></a><span class="co">#&gt; 1        invasive     retain_for_invasive_workflow</span></span>
+<span id="cb21-53"><a href="#cb21-53" tabindex="-1"></a><span class="co">#&gt; 2          native exclude_from_non_native_workflow</span></span>
+<span id="cb21-54"><a href="#cb21-54" tabindex="-1"></a><span class="co">#&gt; 3        invasive     retain_for_invasive_workflow</span></span>
+<span id="cb21-55"><a href="#cb21-55" tabindex="-1"></a><span class="co">#&gt; 4      non_native   retain_for_non_native_workflow</span></span>
+<span id="cb21-56"><a href="#cb21-56" tabindex="-1"></a><span class="co">#&gt; 5          native exclude_from_non_native_workflow</span></span></code></pre></div>
+<p>This table is illustrative. In a real audit output, the distinction
+between positive evidence, conflicting evidence and missing evidence
+should be kept visible. A row should be marked for review when the
+available evidence is incomplete, ambiguous, source-limited or
+taxonomically uncertain. Review is not a biological status; it is an
+audit flag that tells the user to inspect the row before applying a
+filter.</p>
+</div>
+<div id="recommended-default-settings" class="section level1">
+<h1>Recommended default settings</h1>
+<p>For a first pass, use settings that keep the evidence visible. The
+aim is to prepare names, attach origin and invasive-status fields, write
+the relevant audit files, and postpone filtering until the evidence has
+been checked.</p>
+<pre><code>#&gt;                      setting
+#&gt; 1           prepare_taxonomy
+#&gt; 2      export_taxonomy_audit
+#&gt; 3           use_native_range
+#&gt; 4             use_native_web
+#&gt; 5         native_web_sources
+#&gt; 6         native_filter_mode
+#&gt; 7                  use_griis
+#&gt; 8      filter_griis_invasive
+#&gt; 9  reconcile_origin_evidence
+#&gt; 10       export_origin_audit
+#&gt; 11           store_in_memory
+#&gt;                                                recommended_value
+#&gt; 1                                                           TRUE
+#&gt; 2                                                           TRUE
+#&gt; 3                              TRUE when origin status is needed
+#&gt; 4  TRUE to supplement project native-range evidence or fill gaps
+#&gt; 5                                    c(&quot;sinas&quot;, &quot;gbif&quot;, &quot;worms&quot;)
+#&gt; 6                                                     audit_only
+#&gt; 7                             TRUE when GRIIS evidence is needed
+#&gt; 8                                                          FALSE
+#&gt; 9                                                           TRUE
+#&gt; 10                                                          TRUE
+#&gt; 11                                      FALSE for larger batches
+#&gt;                                                                                  reason
+#&gt; 1                  Clean and correct names before evidence matching or GBIF submission.
+#&gt; 2                           Preserve raw, fixed, cleaned, accepted, and rejected names.
+#&gt; 3                                    Attach native-origin fields for status assignment.
+#&gt; 4                       Compile native-origin evidence from supported provider helpers.
+#&gt; 5  Use all supported native-range web/API sources unless the project requires a subset.
+#&gt; 6                                        Keep all rows while evidence is being checked.
+#&gt; 7                                         Attach introduced and invasive-status fields.
+#&gt; 8                                 Avoid invasive-only filtering before evidence review.
+#&gt; 9                         Create combined origin-evidence status fields where possible.
+#&gt; 10                  Write files that explain status assignment and filtering decisions.
+#&gt; 11          Write occurrence outputs to disk rather than keeping every table in memory.</code></pre>
+<p>These settings are intended for evidence review, not for producing
+the narrowest possible dataset. After the audit outputs have been
+inspected, users can decide whether to keep all rows, retain unresolved
+rows for review, or apply a stricter native, non-native or
+invasive-status filter.</p>
+<p>The source choices should also match the analysis. For example, using
+all available web/API sources can be useful for an initial comparison,
+but a final workflow may use only the sources that are appropriate for
+the taxa, regions and invasion-status question being studied.</p>
+</div>
+<div id="origin-evidence-inside-the-batch-pipeline" class="section level1">
+<h1>Origin evidence inside the batch pipeline</h1>
+<p>Origin-evidence steps can also be run inside the terrestrial and
+freshwater batch pipeline. This is useful when the same workflow needs
+to prepare names, attach evidence, process GBIF records and write
+occurrence outputs in one run.</p>
+<p>The example below uses audit-first settings. Taxonomy, native-range,
+native-web and GRIIS evidence outputs are written for inspection, but
+rows are not removed only because native-range evidence is unresolved or
+because they are not flagged as GRIIS-invasive. Filtering can be applied
+later if the evidence fields support the subset needed for the
+analysis.</p>
+<div class="sourceCode" id="cb23"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" tabindex="-1"></a><span class="co"># Run the live pipeline example only when GBIF credentials are available.</span></span>
+<span id="cb23-2"><a href="#cb23-2" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span>gbif_ready) {</span>
+<span id="cb23-3"><a href="#cb23-3" tabindex="-1"></a></span>
+<span id="cb23-4"><a href="#cb23-4" tabindex="-1"></a>  <span class="co"># Skip cleanly rather than failing the vignette.</span></span>
+<span id="cb23-5"><a href="#cb23-5" tabindex="-1"></a>  <span class="fu">skip_live_message</span>(<span class="st">&quot;set GBIF credentials to run the origin-evidence pipeline example&quot;</span>)</span>
+<span id="cb23-6"><a href="#cb23-6" tabindex="-1"></a></span>
+<span id="cb23-7"><a href="#cb23-7" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb23-8"><a href="#cb23-8" tabindex="-1"></a></span>
+<span id="cb23-9"><a href="#cb23-9" tabindex="-1"></a>  <span class="co"># Small species-country input table for the live example.</span></span>
+<span id="cb23-10"><a href="#cb23-10" tabindex="-1"></a>  origin_pipeline_input <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb23-11"><a href="#cb23-11" tabindex="-1"></a>    <span class="at">species =</span> <span class="fu">c</span>(</span>
+<span id="cb23-12"><a href="#cb23-12" tabindex="-1"></a>      <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb23-13"><a href="#cb23-13" tabindex="-1"></a>      <span class="st">&quot;Trachemys scripta&quot;</span></span>
+<span id="cb23-14"><a href="#cb23-14" tabindex="-1"></a>    ),</span>
+<span id="cb23-15"><a href="#cb23-15" tabindex="-1"></a>    <span class="at">iso2c =</span> <span class="fu">c</span>(<span class="st">&quot;FR&quot;</span>, <span class="st">&quot;GB&quot;</span>),</span>
+<span id="cb23-16"><a href="#cb23-16" tabindex="-1"></a>    <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb23-17"><a href="#cb23-17" tabindex="-1"></a>  )</span>
+<span id="cb23-18"><a href="#cb23-18" tabindex="-1"></a></span>
+<span id="cb23-19"><a href="#cb23-19" tabindex="-1"></a>  <span class="co"># Run the terrestrial/freshwater pipeline with taxonomy preparation,</span></span>
+<span id="cb23-20"><a href="#cb23-20" tabindex="-1"></a>  <span class="co"># native-range evidence, GRIIS evidence, and audit outputs enabled.</span></span>
+<span id="cb23-21"><a href="#cb23-21" tabindex="-1"></a>  origin_pipeline_result <span class="ot">&lt;-</span> <span class="fu">run_live_safely</span>(</span>
+<span id="cb23-22"><a href="#cb23-22" tabindex="-1"></a>    <span class="fu">process_gbif_terrestrial_freshwater_pipeline</span>(</span>
+<span id="cb23-23"><a href="#cb23-23" tabindex="-1"></a></span>
+<span id="cb23-24"><a href="#cb23-24" tabindex="-1"></a>      <span class="co"># Species-country input table.</span></span>
+<span id="cb23-25"><a href="#cb23-25" tabindex="-1"></a>      <span class="at">df =</span> origin_pipeline_input,</span>
+<span id="cb23-26"><a href="#cb23-26" tabindex="-1"></a></span>
+<span id="cb23-27"><a href="#cb23-27" tabindex="-1"></a>      <span class="co"># Output folder for this vignette example.</span></span>
+<span id="cb23-28"><a href="#cb23-28" tabindex="-1"></a>      <span class="at">output_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;origin_pipeline&quot;</span>),</span>
+<span id="cb23-29"><a href="#cb23-29" tabindex="-1"></a></span>
+<span id="cb23-30"><a href="#cb23-30" tabindex="-1"></a>      <span class="co"># GBIF credentials read from environment variables.</span></span>
+<span id="cb23-31"><a href="#cb23-31" tabindex="-1"></a>      <span class="at">user =</span> gbif_user,</span>
+<span id="cb23-32"><a href="#cb23-32" tabindex="-1"></a>      <span class="at">pwd =</span> gbif_pwd,</span>
+<span id="cb23-33"><a href="#cb23-33" tabindex="-1"></a>      <span class="at">email =</span> gbif_email,</span>
+<span id="cb23-34"><a href="#cb23-34" tabindex="-1"></a></span>
+<span id="cb23-35"><a href="#cb23-35" tabindex="-1"></a>      <span class="co"># Use GADM level 1 for spatial attribution.</span></span>
+<span id="cb23-36"><a href="#cb23-36" tabindex="-1"></a>      <span class="at">region_source =</span> <span class="st">&quot;gadm&quot;</span>,</span>
+<span id="cb23-37"><a href="#cb23-37" tabindex="-1"></a>      <span class="at">gadm_unit =</span> <span class="dv">1</span>,</span>
+<span id="cb23-38"><a href="#cb23-38" tabindex="-1"></a>      <span class="at">cache_dir_gadm =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;gadm&quot;</span>),</span>
+<span id="cb23-39"><a href="#cb23-39" tabindex="-1"></a></span>
+<span id="cb23-40"><a href="#cb23-40" tabindex="-1"></a>      <span class="co"># Prepare taxon names and write taxonomy audit files.</span></span>
+<span id="cb23-41"><a href="#cb23-41" tabindex="-1"></a>      <span class="at">prepare_taxonomy =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb23-42"><a href="#cb23-42" tabindex="-1"></a>      <span class="at">export_taxonomy_audit =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb23-43"><a href="#cb23-43" tabindex="-1"></a></span>
+<span id="cb23-44"><a href="#cb23-44" tabindex="-1"></a>      <span class="co"># Attach GRIIS introduced/invasive-status evidence.</span></span>
+<span id="cb23-45"><a href="#cb23-45" tabindex="-1"></a>      <span class="co"># Do not filter to GRIIS-invasive rows in this audit-mode example.</span></span>
+<span id="cb23-46"><a href="#cb23-46" tabindex="-1"></a>      <span class="at">use_griis =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb23-47"><a href="#cb23-47" tabindex="-1"></a>      <span class="at">filter_griis_invasive =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb23-48"><a href="#cb23-48" tabindex="-1"></a>      <span class="at">griis_cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;griis&quot;</span>),</span>
+<span id="cb23-49"><a href="#cb23-49" tabindex="-1"></a></span>
+<span id="cb23-50"><a href="#cb23-50" tabindex="-1"></a>      <span class="co"># Attach native-range evidence from supported web/API sources.</span></span>
+<span id="cb23-51"><a href="#cb23-51" tabindex="-1"></a>      <span class="co"># No local native-range table is supplied in this example.</span></span>
+<span id="cb23-52"><a href="#cb23-52" tabindex="-1"></a>      <span class="at">use_native_range =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb23-53"><a href="#cb23-53" tabindex="-1"></a>      <span class="at">native_ranges =</span> <span class="cn">NULL</span>,</span>
+<span id="cb23-54"><a href="#cb23-54" tabindex="-1"></a>      <span class="at">use_native_web =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb23-55"><a href="#cb23-55" tabindex="-1"></a>      <span class="at">native_web_sources =</span> <span class="fu">c</span>(<span class="st">&quot;sinas&quot;</span>, <span class="st">&quot;gbif&quot;</span>, <span class="st">&quot;worms&quot;</span>),</span>
+<span id="cb23-56"><a href="#cb23-56" tabindex="-1"></a>      <span class="at">native_web_cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;native_web&quot;</span>),</span>
+<span id="cb23-57"><a href="#cb23-57" tabindex="-1"></a>      <span class="at">export_native_web_audit =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb23-58"><a href="#cb23-58" tabindex="-1"></a></span>
+<span id="cb23-59"><a href="#cb23-59" tabindex="-1"></a>      <span class="co"># Keep all rows while attaching native-range evidence.</span></span>
+<span id="cb23-60"><a href="#cb23-60" tabindex="-1"></a>      <span class="at">native_filter_mode =</span> <span class="st">&quot;audit_only&quot;</span>,</span>
+<span id="cb23-61"><a href="#cb23-61" tabindex="-1"></a></span>
+<span id="cb23-62"><a href="#cb23-62" tabindex="-1"></a>      <span class="co"># Write origin-status audit outputs.</span></span>
+<span id="cb23-63"><a href="#cb23-63" tabindex="-1"></a>      <span class="at">reconcile_origin_evidence =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb23-64"><a href="#cb23-64" tabindex="-1"></a>      <span class="at">export_origin_audit =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb23-65"><a href="#cb23-65" tabindex="-1"></a>      <span class="at">export_summary =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb23-66"><a href="#cb23-66" tabindex="-1"></a></span>
+<span id="cb23-67"><a href="#cb23-67" tabindex="-1"></a>      <span class="co"># Keep the vignette example small.</span></span>
+<span id="cb23-68"><a href="#cb23-68" tabindex="-1"></a>      <span class="at">batch_size =</span> <span class="dv">1</span>,</span>
+<span id="cb23-69"><a href="#cb23-69" tabindex="-1"></a></span>
+<span id="cb23-70"><a href="#cb23-70" tabindex="-1"></a>      <span class="co"># Clean and thin occurrence records before export.</span></span>
+<span id="cb23-71"><a href="#cb23-71" tabindex="-1"></a>      <span class="at">apply_cleaning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb23-72"><a href="#cb23-72" tabindex="-1"></a>      <span class="at">apply_thinning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb23-73"><a href="#cb23-73" tabindex="-1"></a>      <span class="at">dist_km =</span> <span class="dv">5</span>,</span>
+<span id="cb23-74"><a href="#cb23-74" tabindex="-1"></a></span>
+<span id="cb23-75"><a href="#cb23-75" tabindex="-1"></a>      <span class="co"># Write detailed outputs to disk rather than storing every table in memory.</span></span>
+<span id="cb23-76"><a href="#cb23-76" tabindex="-1"></a>      <span class="at">return_all_results =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb23-77"><a href="#cb23-77" tabindex="-1"></a>      <span class="at">store_in_memory =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb23-78"><a href="#cb23-78" tabindex="-1"></a></span>
+<span id="cb23-79"><a href="#cb23-79" tabindex="-1"></a>      <span class="co"># Show progress messages during the live example.</span></span>
+<span id="cb23-80"><a href="#cb23-80" tabindex="-1"></a>      <span class="at">quiet =</span> <span class="cn">FALSE</span></span>
+<span id="cb23-81"><a href="#cb23-81" tabindex="-1"></a>    )</span>
+<span id="cb23-82"><a href="#cb23-82" tabindex="-1"></a>  )</span>
+<span id="cb23-83"><a href="#cb23-83" tabindex="-1"></a></span>
+<span id="cb23-84"><a href="#cb23-84" tabindex="-1"></a>  <span class="co"># Display the returned pipeline result object.</span></span>
+<span id="cb23-85"><a href="#cb23-85" tabindex="-1"></a>  origin_pipeline_result</span>
+<span id="cb23-86"><a href="#cb23-86" tabindex="-1"></a>}</span></code></pre></div>
+<p>After the run, inspect the taxonomy, native-web, origin-evidence and
+<code>gbif_summary.csv</code> outputs together. The evidence files
+explain how each species-country row was interpreted before GBIF
+processing, while <code>gbif_summary.csv</code> records what happened
+during occurrence download, cleaning, spatial attribution and
+export.</p>
+</div>
+<div id="interpreting-pipeline-audit-outputs" class="section level1">
+<h1>Interpreting pipeline audit outputs</h1>
+<p>After a live pipeline run, inspect the summary and evidence files
+before using the exported occurrence records.
+<code>gbif_summary.csv</code> shows whether each species-region row
+completed successfully, how many records were retained after processing,
+and where the occurrence files were written. The evidence files show how
+names, native-origin information and GRIIS fields were handled before or
+during the run.</p>
+<div class="sourceCode" id="cb24"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" tabindex="-1"></a><span class="co"># Path to the pipeline output directory.</span></span>
+<span id="cb24-2"><a href="#cb24-2" tabindex="-1"></a>pipeline_dir <span class="ot">&lt;-</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;origin_pipeline&quot;</span>)</span>
+<span id="cb24-3"><a href="#cb24-3" tabindex="-1"></a></span>
+<span id="cb24-4"><a href="#cb24-4" tabindex="-1"></a><span class="co"># Path to the main summary file.</span></span>
+<span id="cb24-5"><a href="#cb24-5" tabindex="-1"></a>summary_path <span class="ot">&lt;-</span> <span class="fu">file.path</span>(pipeline_dir, <span class="st">&quot;gbif_summary.csv&quot;</span>)</span>
+<span id="cb24-6"><a href="#cb24-6" tabindex="-1"></a></span>
+<span id="cb24-7"><a href="#cb24-7" tabindex="-1"></a><span class="co"># Read and display the most useful summary fields if the file exists.</span></span>
+<span id="cb24-8"><a href="#cb24-8" tabindex="-1"></a><span class="cf">if</span> (<span class="fu">file.exists</span>(summary_path)) {</span>
+<span id="cb24-9"><a href="#cb24-9" tabindex="-1"></a></span>
+<span id="cb24-10"><a href="#cb24-10" tabindex="-1"></a>  origin_summary <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(summary_path, <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb24-11"><a href="#cb24-11" tabindex="-1"></a></span>
+<span id="cb24-12"><a href="#cb24-12" tabindex="-1"></a>  origin_summary[</span>
+<span id="cb24-13"><a href="#cb24-13" tabindex="-1"></a>    ,</span>
+<span id="cb24-14"><a href="#cb24-14" tabindex="-1"></a>    <span class="fu">intersect</span>(</span>
+<span id="cb24-15"><a href="#cb24-15" tabindex="-1"></a>      <span class="fu">c</span>(</span>
+<span id="cb24-16"><a href="#cb24-16" tabindex="-1"></a>        <span class="st">&quot;species&quot;</span>,</span>
+<span id="cb24-17"><a href="#cb24-17" tabindex="-1"></a>        <span class="st">&quot;region_id&quot;</span>,</span>
+<span id="cb24-18"><a href="#cb24-18" tabindex="-1"></a>        <span class="st">&quot;region_type&quot;</span>,</span>
+<span id="cb24-19"><a href="#cb24-19" tabindex="-1"></a>        <span class="st">&quot;n_total&quot;</span>,</span>
+<span id="cb24-20"><a href="#cb24-20" tabindex="-1"></a>        <span class="st">&quot;n_cleaned&quot;</span>,</span>
+<span id="cb24-21"><a href="#cb24-21" tabindex="-1"></a>        <span class="st">&quot;n_thinned&quot;</span>,</span>
+<span id="cb24-22"><a href="#cb24-22" tabindex="-1"></a>        <span class="st">&quot;status&quot;</span>,</span>
+<span id="cb24-23"><a href="#cb24-23" tabindex="-1"></a>        <span class="st">&quot;fail_stage&quot;</span>,</span>
+<span id="cb24-24"><a href="#cb24-24" tabindex="-1"></a>        <span class="st">&quot;fail_reason&quot;</span>,</span>
+<span id="cb24-25"><a href="#cb24-25" tabindex="-1"></a>        <span class="st">&quot;output_file&quot;</span></span>
+<span id="cb24-26"><a href="#cb24-26" tabindex="-1"></a>      ),</span>
+<span id="cb24-27"><a href="#cb24-27" tabindex="-1"></a>      <span class="fu">names</span>(origin_summary)</span>
+<span id="cb24-28"><a href="#cb24-28" tabindex="-1"></a>    ),</span>
+<span id="cb24-29"><a href="#cb24-29" tabindex="-1"></a>    drop <span class="ot">=</span> <span class="cn">FALSE</span></span>
+<span id="cb24-30"><a href="#cb24-30" tabindex="-1"></a>  ]</span>
+<span id="cb24-31"><a href="#cb24-31" tabindex="-1"></a></span>
+<span id="cb24-32"><a href="#cb24-32" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb24-33"><a href="#cb24-33" tabindex="-1"></a>  <span class="fu">skip_live_message</span>(<span class="st">&quot;summary file was not available from the live pipeline run&quot;</span>)</span>
+<span id="cb24-34"><a href="#cb24-34" tabindex="-1"></a>}</span></code></pre></div>
+<p>The next check is whether the expected audit files were written.
+These may include taxonomy outputs, native-web evidence files,
+origin-evidence summaries and the main run summary, depending on which
+settings were enabled.</p>
+<div class="sourceCode" id="cb25"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" tabindex="-1"></a><span class="co"># List audit and summary files written by the pipeline.</span></span>
+<span id="cb25-2"><a href="#cb25-2" tabindex="-1"></a><span class="co"># These files should be kept with the exported occurrence data.</span></span>
+<span id="cb25-3"><a href="#cb25-3" tabindex="-1"></a><span class="cf">if</span> (<span class="fu">dir.exists</span>(pipeline_dir)) {</span>
+<span id="cb25-4"><a href="#cb25-4" tabindex="-1"></a>  <span class="fu">list.files</span>(</span>
+<span id="cb25-5"><a href="#cb25-5" tabindex="-1"></a>    pipeline_dir,</span>
+<span id="cb25-6"><a href="#cb25-6" tabindex="-1"></a>    <span class="at">pattern =</span> <span class="st">&quot;taxonomy|origin|native_web|griis|summary&quot;</span>,</span>
+<span id="cb25-7"><a href="#cb25-7" tabindex="-1"></a>    <span class="at">full.names =</span> <span class="cn">TRUE</span></span>
+<span id="cb25-8"><a href="#cb25-8" tabindex="-1"></a>  )</span>
+<span id="cb25-9"><a href="#cb25-9" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb25-10"><a href="#cb25-10" tabindex="-1"></a>  <span class="fu">skip_live_message</span>(<span class="st">&quot;pipeline output directory was not available&quot;</span>)</span>
+<span id="cb25-11"><a href="#cb25-11" tabindex="-1"></a>}</span></code></pre></div>
+<p>For larger workflows, keep these files with the original input table
+and exported occurrence records. Together, they show which names were
+accepted, which evidence sources contributed to the status fields, which
+rows remained unresolved, which rows failed or returned no records, and
+which occurrence files were produced.</p>
+</div>
+<div id="final-checklist" class="section level1">
+<h1>Final checklist</h1>
+<p>Before using an origin-classified occurrence dataset, check that the
+evidence and filtering decisions are clear enough to review later.</p>
+<p>Useful checks include:</p>
+<ul>
+<li>did species names clean and resolve as expected?</li>
+<li>were manual taxonomy corrections saved?</li>
+<li>were rejected taxonomy rows inspected?</li>
+<li>were native-range evidence sources recorded?</li>
+<li>were native-web/API outputs cached or exported when used?</li>
+<li>were GRIIS fields recorded when used?</li>
+<li>do any rows remain unresolved?</li>
+<li>were any rows removed by filtering?</li>
+<li>was the filtering mode recorded?</li>
+<li>are <code>gbif_summary.csv</code>, taxonomy outputs and
+origin-evidence outputs stored together?</li>
+<li>are the <code>biofetchR</code> package version and R session
+information saved with the project outputs?</li>
+</ul>
+<p>The aim is not always to force every row into a final category. A
+good origin-evidence workflow keeps positive evidence, missing evidence
+and uncertainty visible. Filtering should then be applied only when it
+matches the biological question and the evidence available for the taxa
+and regions being analysed.</p>
+</div>
+<div id="provider-citations" class="section level1">
+<h1>Provider citations</h1>
+<p>When origin or invasive-status evidence is used in an analysis, cite
+the provider sources that contributed to the final evidence fields. The
+exact citation will depend on which sources were selected, which
+versions were used, and whether the evidence came from a cached file, an
+API query or a downloaded dataset release.</p>
+<p>For the examples in this vignette, the main provider sources are:</p>
+<ul>
+<li><p><strong>SInAS</strong>: cite the SInAS dataset release used by
+the workflow. Record the version, release DOI and access date where
+available. SInAS is especially relevant for invasion workflows because
+it provides native and alien distribution information for alien species,
+but it should be cited as the specific dataset release used rather than
+as a general native-range authority for all taxa.</p></li>
+<li><p><strong>GBIF</strong>: cite GBIF-mediated occurrence data using
+the GBIF download DOI or derived-dataset citation associated with the
+records used in the analysis. If GBIF Species API taxonomic or
+distribution information is used as evidence, record the accessed taxon
+pages, access dates and any dataset citations returned by GBIF where
+available.</p></li>
+<li><p><strong>WoRMS</strong>: cite the World Register of Marine Species
+using the recommended citation for the accessed version. For example,
+WoRMS checklist metadata may be cited as:</p>
+<p>WoRMS Editorial Board. World Register of Marine Species. Checklist
+dataset. <a href="https://doi.org/10.14284/170" class="uri">https://doi.org/10.14284/170</a>.</p></li>
+<li><p><strong>GRIIS</strong>: cite the Global Register of Introduced
+and Invasive Species when introduced or invasive-status evidence is
+attached. A standard citation for the GRIIS data descriptor is:</p>
+<p>Pagad, S., Genovesi, P., Carnevali, L., Schigel, D. and McGeoch,
+M.A. (2018). Introducing the Global Register of Introduced and Invasive
+Species. <em>Scientific Data</em>, 5, 170202. <a href="https://doi.org/10.1038/sdata.2017.202" class="uri">https://doi.org/10.1038/sdata.2017.202</a>.</p></li>
+</ul>
+<p>Keep provider versions, access dates, cache locations and exported
+audit files with the project outputs. These records show which evidence
+sources contributed to each status assignment and make it easier to
+update, replace or rerun the origin-evidence workflow later.</p>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

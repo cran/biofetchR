@@ -1,0 +1,876 @@
+---
+title: "Auditing and scaling biofetchR workflows"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Auditing and scaling biofetchR workflows}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  message = TRUE,
+  warning = TRUE
+)
+
+# Helper for calculating retention rates safely.
+safe_rate <- function(numerator, denominator) {
+  ifelse(
+    !is.na(denominator) & denominator > 0,
+    numerator / denominator,
+    NA_real_
+  )
+}
+
+# Helper for compact display of selected columns.
+select_existing <- function(x, columns) {
+  x[
+    ,
+    intersect(columns, names(x)),
+    drop = FALSE
+  ]
+}
+
+# Vignette-safe example paths. These keep all example outputs and caches under
+# tempdir(), which is safe for CRAN examples/vignettes/tests.
+example_output_dir <- file.path(tempdir(), "biofetchR-vignette-outputs")
+example_cache_dir <- file.path(tempdir(), "biofetchR-vignette-cache")
+```
+
+```{r load-package}
+library(biofetchR)
+```
+
+# Purpose
+
+Larger occurrence workflows are useful only when their outputs can be checked,
+understood and reused. A completed run should show which rows were attempted,
+which rows completed, how many records were retained after each processing step,
+where exported files were written, and which settings were used.
+
+This vignette focuses on audit and scaling steps after a `biofetchR` workflow has
+run. The workflow-specific vignettes cover terrestrial, freshwater, marine,
+spatial-overlay and origin-evidence workflows. Here, the emphasis is on reading
+the outputs, identifying rows that need review, rerunning selected rows, and
+keeping enough information to reproduce the run later.
+
+The main principle is to inspect before analysis. Rows with clear summaries,
+sensible retention, expected output files and interpretable evidence fields can
+be carried forward. Rows with missing files, unexpected record loss, unresolved
+evidence or incomplete spatial assignment should be reviewed before they are used.
+
+# Recommended output structure
+
+For small tests, outputs can be written to a temporary directory. For project
+work, use a stable folder structure that separates inputs, exported outputs,
+provider caches, scripts and reports.
+
+A clear folder structure might look like this:
+
+```text
+project/
+  data_raw/
+    species_country_input.csv
+    marine_species_input.csv
+
+  outputs/
+    terrestrial_gadm_batch/
+      gbif_summary.csv
+      occurrence_files/
+      origin_audit/
+      taxonomy/
+
+    marine_eez_batch/
+      gbif_summary.csv
+      occurrence_files/
+      origin_audit/
+      taxonomy/
+
+    spatial_overlay_checks/
+      gbif_summary.csv
+      occurrence_files/
+
+  cache/
+    gadm/
+    marine_overlays/
+    griis/
+    native_web/
+    raster/
+    wdpa/
+    ramsar/
+
+  scripts/
+    01_run_smoke_test.R
+    02_run_batch.R
+    03_check_outputs.R
+    04_rerun_failed_rows.R
+
+  reports/
+    sessionInfo.txt
+    provider_citations.txt
+```
+
+The exact folder names can be changed. The important point is to keep final
+occurrence outputs separate from reusable provider caches, while keeping summary
+and audit files close to the processed records they describe.
+
+# The main summary file
+
+The main file to inspect after most high-level workflows is `gbif_summary.csv`.
+This table usually contains one row per attempted species-region,
+species-country or species-overlay combination.
+
+The exact columns depend on the pipeline and settings used, but common fields
+include:
+
+```{r summary-column-reference, echo = FALSE}
+summary_columns <- data.frame(
+  column_group = c(
+    "Input identifiers",
+    "Spatial identifiers",
+    "Record counts",
+    "Status fields",
+    "Output fields",
+    "Evidence fields"
+  ),
+  example_columns = c(
+    "species, iso2c, region_id, overlay",
+    "region_source, gadm_unit, overlay, marine_region_name",
+    "n_total, n_cleaned, n_thinned, n_with_overlay, n_without_overlay",
+    "status, fail_stage, fail_reason",
+    "output_file, output_dir",
+    "native_filter_mode, griis_filter_mode, evidence_action"
+  ),
+  why_check = c(
+    "Confirm which row was attempted.",
+    "Confirm which spatial framework was used.",
+    "Check how many records survived each processing step.",
+    "Identify rows that succeeded, failed, or returned no usable records.",
+    "Confirm where exported occurrence files were written.",
+    "Confirm how native-range or invasive-status evidence was handled."
+  ),
+  stringsAsFactors = FALSE
+)
+
+summary_columns
+```
+
+Use this file as the first checkpoint. It gives a compact view of row status,
+record counts, output paths and any evidence or spatial settings recorded by the
+workflow.
+
+# Example summary table
+
+The example below is offline and does not use live GBIF data. It mimics the kind
+of summary table produced by a mixed terrestrial and marine batch.
+
+```{r example-summary}
+summary_example <- data.frame(
+  species = c(
+    "Xenopus laevis",
+    "Trachemys scripta",
+    "Rattus rattus",
+    "Carcinus maenas",
+    "Mnemiopsis leidyi",
+    "Undaria pinnatifida"
+  ),
+  workflow = c(
+    "terrestrial_gadm",
+    "terrestrial_gadm",
+    "terrestrial_gadm",
+    "marine_eez",
+    "marine_eez",
+    "marine_lme"
+  ),
+  region_id = c(
+    "FR",
+    "GB",
+    "GB",
+    NA,
+    NA,
+    NA
+  ),
+  overlay = c(
+    NA,
+    NA,
+    NA,
+    "eez",
+    "eez",
+    "lme"
+  ),
+  n_total = c(
+    1340,
+    220,
+    0,
+    980,
+    640,
+    410
+  ),
+  n_cleaned = c(
+    1309,
+    198,
+    0,
+    944,
+    612,
+    389
+  ),
+  n_thinned = c(
+    861,
+    174,
+    0,
+    702,
+    455,
+    301
+  ),
+  n_with_overlay = c(
+    861,
+    174,
+    0,
+    690,
+    430,
+    292
+  ),
+  n_without_overlay = c(
+    0,
+    0,
+    0,
+    12,
+    25,
+    9
+  ),
+  status = c(
+    "success",
+    "success",
+    "no_records",
+    "success",
+    "success",
+    "success"
+  ),
+  fail_stage = c(
+    NA,
+    NA,
+    "import",
+    NA,
+    NA,
+    NA
+  ),
+  fail_reason = c(
+    NA,
+    NA,
+    "No records returned",
+    NA,
+    NA,
+    NA
+  ),
+  output_file = c(
+    file.path(
+      example_output_dir,
+      "terrestrial_gadm_batch",
+      "occurrence_files",
+      "Xenopus_laevis_FR.csv"
+    ),
+    file.path(
+      example_output_dir,
+      "terrestrial_gadm_batch",
+      "occurrence_files",
+      "Trachemys_scripta_GB.csv"
+    ),
+    NA,
+    file.path(
+      example_output_dir,
+      "marine_eez_batch",
+      "occurrence_files",
+      "Carcinus_maenas_eez.csv"
+    ),
+    file.path(
+      example_output_dir,
+      "marine_eez_batch",
+      "occurrence_files",
+      "Mnemiopsis_leidyi_eez.csv"
+    ),
+    file.path(
+      example_output_dir,
+      "marine_lme_batch",
+      "occurrence_files",
+      "Undaria_pinnatifida_lme.csv"
+    )
+  ),
+  stringsAsFactors = FALSE
+)
+
+summary_example
+```
+
+This table is illustrative. In a real workflow, read `gbif_summary.csv` from the
+pipeline output directory.
+
+```{r read-summary-template, eval = FALSE}
+summary_tbl <- read.csv(
+  file.path(example_output_dir, "terrestrial_gadm_batch", "gbif_summary.csv"),
+  stringsAsFactors = FALSE
+)
+```
+
+# Status checks
+
+Start by checking the status distribution. A batch can complete overall while
+still containing rows that returned no records, stopped during import, stopped
+during spatial attribution, or need manual review.
+
+```{r status-check}
+table(summary_example$status, useNA = "ifany")
+```
+
+Rows that did not complete successfully should be inspected before analysis.
+
+```{r failed-rows}
+failed_rows <- summary_example[
+  !summary_example$status %in% "success",
+  ,
+  drop = FALSE
+]
+
+failed_rows
+```
+
+When a row is skipped, stops early or returns no records, use the summary fields
+to identify the likely cause. The issue may be a missing GBIF result, a
+taxon-name problem, coordinate filtering, provider access, output writing, or a
+spatial framework that does not match the retained records.
+
+The most useful diagnostic fields are usually `status`, `fail_stage` and
+`fail_reason`.
+
+```{r failure-diagnostic-fields}
+select_existing(
+  failed_rows,
+  c(
+    "species",
+    "workflow",
+    "region_id",
+    "overlay",
+    "status",
+    "fail_stage",
+    "fail_reason"
+  )
+)
+```
+
+# Record-retention checks
+
+Record counts show how much data remains after each processing step. Comparing
+`n_total`, `n_cleaned`, `n_thinned` and overlay-assignment counts helps identify
+rows that need closer inspection.
+
+```{r retention-checks}
+summary_example$retained_after_cleaning <- safe_rate(
+  summary_example$n_cleaned,
+  summary_example$n_total
+)
+
+summary_example$retained_after_thinning <- safe_rate(
+  summary_example$n_thinned,
+  summary_example$n_cleaned
+)
+
+summary_example$overlay_assignment_rate <- safe_rate(
+  summary_example$n_with_overlay,
+  summary_example$n_thinned
+)
+
+select_existing(
+  summary_example,
+  c(
+    "species",
+    "workflow",
+    "n_total",
+    "n_cleaned",
+    "n_thinned",
+    "n_with_overlay",
+    "n_without_overlay",
+    "retained_after_cleaning",
+    "retained_after_thinning",
+    "overlay_assignment_rate"
+  )
+)
+```
+
+Low retention after cleaning can indicate many invalid coordinates, missing
+coordinates, exact zero-zero records, institution coordinates, centroid records
+or records removed by coordinate-uncertainty filters.
+
+Low retention after thinning usually indicates strong spatial clustering. This
+may be appropriate for the analysis, but it should be recorded when thinning is
+used in the final workflow.
+
+Low overlay assignment rates should also be reviewed. For example, unmatched
+marine records may fall outside the selected overlay, sit near boundaries, occur
+in provider coverage gaps, or retain coordinate problems that were not removed
+during cleaning.
+
+# Rows needing review
+
+Not every row needing attention has a non-success status. Some rows complete but
+still deserve review because they have low retention, many unmatched records, or
+evidence fields that affect interpretation.
+
+```{r review-flags}
+summary_example$needs_review <- with(
+  summary_example,
+  status != "success" |
+    retained_after_cleaning < 0.5 |
+    retained_after_thinning < 0.5 |
+    overlay_assignment_rate < 0.9
+)
+
+select_existing(
+  summary_example[summary_example$needs_review, , drop = FALSE],
+  c(
+    "species",
+    "workflow",
+    "status",
+    "n_total",
+    "n_cleaned",
+    "n_thinned",
+    "n_with_overlay",
+    "n_without_overlay",
+    "retained_after_cleaning",
+    "retained_after_thinning",
+    "overlay_assignment_rate",
+    "fail_stage",
+    "fail_reason"
+  )
+)
+```
+
+The thresholds above are examples only. Choose review thresholds that match the
+taxa, spatial scale and purpose of the analysis.
+
+# Output-file checks
+
+Successful rows should usually point to exported occurrence files. Before
+combining outputs, check that listed files exist and can be opened.
+
+The example paths below are illustrative, so they are expected not to exist when
+this vignette is rendered.
+
+```{r output-path-checks}
+summary_example$output_file_listed <- !is.na(summary_example$output_file) &
+  nzchar(summary_example$output_file)
+
+summary_example$output_file_exists <- ifelse(
+  summary_example$output_file_listed,
+  file.exists(summary_example$output_file),
+  FALSE
+)
+
+select_existing(
+  summary_example,
+  c(
+    "species",
+    "status",
+    "output_file_listed",
+    "output_file_exists",
+    "output_file"
+  )
+)
+```
+
+In a real run, a successful row with a missing output file should be checked
+before the exported dataset is used. The file may have been moved, the path may
+need to be resolved relative to the output directory, or the export may not have
+completed as expected.
+
+# Rerunning problem rows
+
+In larger batches, rerun only the rows that need another pass. This avoids
+repeating completed rows and makes the new output easier to compare with the
+original run.
+
+```{r rows-to-rerun}
+rows_to_rerun <- summary_example[
+  !summary_example$status %in% "success",
+  ,
+  drop = FALSE
+]
+
+terrestrial_rows_to_rerun <- rows_to_rerun[
+  grepl("^terrestrial|^freshwater", rows_to_rerun$workflow),
+  ,
+  drop = FALSE
+]
+
+marine_rows_to_rerun <- rows_to_rerun[
+  grepl("^marine", rows_to_rerun$workflow),
+  ,
+  drop = FALSE
+]
+
+select_existing(
+  rows_to_rerun,
+  c(
+    "species",
+    "workflow",
+    "region_id",
+    "overlay",
+    "fail_stage",
+    "fail_reason"
+  )
+)
+```
+
+For terrestrial and freshwater workflows, rerun the selected rows with the same
+spatial settings as the original run.
+
+```{r rerun-failed-terrestrial-template, eval = FALSE}
+failed_terrestrial_input <- data.frame(
+  species = terrestrial_rows_to_rerun$species,
+  iso2c = terrestrial_rows_to_rerun$region_id,
+  stringsAsFactors = FALSE
+)
+
+process_gbif_terrestrial_freshwater_pipeline(
+  df = failed_terrestrial_input,
+
+  output_dir = file.path(example_output_dir, "terrestrial_gadm_rerun"),
+
+  user = Sys.getenv("GBIF_USER"),
+  pwd = Sys.getenv("GBIF_PWD"),
+  email = Sys.getenv("GBIF_EMAIL"),
+
+  region_source = "gadm",
+  gadm_unit = 1,
+
+  batch_size = 1,
+  apply_cleaning = TRUE,
+  apply_thinning = TRUE,
+  dist_km = 5,
+
+  export_summary = TRUE,
+  store_in_memory = FALSE,
+  return_all_results = FALSE
+)
+```
+
+For marine workflows, rerun the selected species with the same overlay and
+evidence settings as the original run.
+
+```{r rerun-failed-marine-template, eval = FALSE}
+failed_marine_input <- data.frame(
+  species = marine_rows_to_rerun$species,
+  stringsAsFactors = FALSE
+)
+
+process_gbif_marine_pipeline(
+  df = failed_marine_input,
+
+  output_dir = file.path(example_output_dir, "marine_eez_rerun"),
+
+  user = Sys.getenv("GBIF_USER"),
+  pwd = Sys.getenv("GBIF_PWD"),
+  email = Sys.getenv("GBIF_EMAIL"),
+
+  overlay = "eez",
+  overlay_cache_dir = file.path(example_cache_dir, "marine_overlays"),
+
+  batch_size = 1,
+  apply_cleaning = TRUE,
+  apply_thinning = TRUE,
+  dist_km = 5,
+
+  export_summary = TRUE,
+  store_in_memory = FALSE,
+  return_all_results = FALSE
+)
+```
+
+Keep rerun outputs separate from the original batch. This makes it clear which
+rows were rerun and which settings were used.
+
+# Preserving evidence and spatial audit outputs
+
+When taxonomy preparation, origin evidence, invasive-status evidence or spatial
+attribution are enabled, keep their supporting outputs with the processed
+occurrence files. These tables explain how rows were interpreted before they were
+filtered, exported or carried into later analyses.
+
+A useful origin-evidence audit might look like this:
+
+```{r origin-audit-example}
+origin_audit_example <- data.frame(
+  species = c(
+    "Xenopus laevis",
+    "Trachemys scripta",
+    "Carcinus maenas",
+    "Undaria pinnatifida"
+  ),
+  recipient_region = c(
+    "FR",
+    "GB",
+    "GB",
+    "NZ"
+  ),
+  evidence_source = c(
+    "native_web_and_griis",
+    "native_web_and_griis",
+    "griis_country_and_native_web",
+    "griis_country_and_native_web"
+  ),
+  native_range_decision = c(
+    "outside_native_range",
+    "outside_native_range",
+    "outside_native_range",
+    "outside_native_range"
+  ),
+  griis_decision = c(
+    "listed_invasive",
+    "listed_invasive",
+    "listed_alien_or_invasive",
+    "listed_alien_or_invasive"
+  ),
+  evidence_action = c(
+    "retain",
+    "retain",
+    "retain",
+    "review"
+  ),
+  stringsAsFactors = FALSE
+)
+
+origin_audit_example
+```
+
+Rows marked for review should remain visible in an audit table, even when they
+are excluded from a final analysis dataset.
+
+Spatial attribution can be checked in the same way. The example below records the
+spatial framework used and the number of records with and without an assignment.
+
+```{r spatial-attribution-audit-example}
+spatial_audit_example <- data.frame(
+  species = c(
+    "Xenopus laevis",
+    "Carcinus maenas",
+    "Carcinus maenas",
+    "Undaria pinnatifida"
+  ),
+  workflow = c(
+    "terrestrial_gadm",
+    "marine_eez",
+    "marine_lme",
+    "marine_ecs"
+  ),
+  spatial_framework = c(
+    "GADM level 1",
+    "Exclusive Economic Zones",
+    "Large Marine Ecosystems",
+    "Extended continental shelves"
+  ),
+  records_with_assignment = c(
+    861,
+    690,
+    675,
+    288
+  ),
+  records_without_assignment = c(
+    0,
+    12,
+    27,
+    13
+  ),
+  stringsAsFactors = FALSE
+)
+
+spatial_audit_example
+```
+
+The aim is not to duplicate every occurrence record in an audit table. It is to
+keep enough information to explain which evidence and spatial settings shaped the
+exported outputs.
+
+# Scaling, memory and runtime
+
+Scale gradually. Start with a small run, inspect the summary, open the exported
+file, then increase the number of rows only after the settings behave as
+expected.
+
+A practical sequence is:
+
+1. run one species-region or one species-overlay row;
+2. inspect `gbif_summary.csv`;
+3. open the exported occurrence file;
+4. run a short batch with the same settings;
+5. check retention rates and rows needing review;
+6. add optional overlays or evidence sources only when needed;
+7. split very large projects by taxon group, region, realm or overlay;
+8. keep all summary and audit outputs.
+
+The example below shows a modest second-stage terrestrial input table.
+
+```{r second-stage-terrestrial-input}
+terrestrial_test_batch <- data.frame(
+  species = c(
+    "Xenopus laevis",
+    "Trachemys scripta",
+    "Sturnus vulgaris",
+    "Rattus rattus",
+    "Myocastor coypus"
+  ),
+  iso2c = c(
+    "FR",
+    "GB",
+    "DE",
+    "GB",
+    "IT"
+  ),
+  stringsAsFactors = FALSE
+)
+
+terrestrial_test_batch
+```
+
+For marine workflows, a second-stage test might use a short species list and one
+overlay.
+
+```{r second-stage-marine-input}
+marine_test_batch <- data.frame(
+  species = c(
+    "Carcinus maenas",
+    "Mnemiopsis leidyi",
+    "Undaria pinnatifida",
+    "Didemnum vexillum"
+  ),
+  stringsAsFactors = FALSE
+)
+
+marine_test_batch
+```
+
+For larger workflows, `store_in_memory = FALSE` is usually the safest setting.
+This writes processed occurrence files to disk rather than retaining all records
+in the R session. Keep `batch_size` conservative while testing, then adjust it
+only after the workflow is stable.
+
+The example below shows a project-style batch call. It is not evaluated because
+paths and input tables are project-specific.
+
+```{r project-scale-template, eval = FALSE}
+project_output <- file.path(example_output_dir, "terrestrial_gadm_batch")
+project_cache <- example_cache_dir
+
+batch_result <- process_gbif_terrestrial_freshwater_pipeline(
+  df = terrestrial_test_batch,
+
+  output_dir = project_output,
+
+  user = Sys.getenv("GBIF_USER"),
+  pwd = Sys.getenv("GBIF_PWD"),
+  email = Sys.getenv("GBIF_EMAIL"),
+
+  region_source = "gadm",
+  gadm_unit = 1,
+  cache_dir_gadm = file.path(project_cache, "gadm"),
+
+  batch_size = 1,
+
+  apply_cleaning = TRUE,
+  apply_thinning = TRUE,
+  dist_km = 5,
+
+  export_summary = TRUE,
+  store_in_memory = FALSE,
+  return_all_results = FALSE,
+  quiet = FALSE
+)
+```
+
+# Provider metadata and session information
+
+`biofetchR` workflows may use GBIF occurrence data, administrative boundaries,
+marine overlays, ecoregions, protected-area layers, raster layers, native-range
+evidence, invasive-status evidence, WoRMS evidence, SInAS evidence and other
+provider resources.
+
+For project outputs, keep a simple metadata table recording which sources were
+used and what should be saved with the results.
+
+```{r provider-metadata-template}
+provider_metadata_template <- data.frame(
+  provider = c(
+    "GBIF",
+    "GADM",
+    "Marine Regions",
+    "GRIIS",
+    "SInAS",
+    "WoRMS"
+  ),
+  used_for = c(
+    "Occurrence records",
+    "Administrative attribution",
+    "Marine overlay attribution",
+    "Species-country alien or invasive status evidence",
+    "Native and alien distribution evidence",
+    "Marine taxonomy or distribution evidence"
+  ),
+  record_with_outputs = c(
+    "Download DOI or download key",
+    "Version or access date",
+    "Product name, version or access date, and overlay name",
+    "Version or access date",
+    "Dataset version and access date",
+    "Dataset DOI, version, or access date"
+  ),
+  stringsAsFactors = FALSE
+)
+
+provider_metadata_template
+```
+
+Provider metadata should be stored alongside `gbif_summary.csv`, exported
+occurrence files, and any origin or spatial audit tables.
+
+For reproducibility, record the R session information alongside final outputs.
+This helps identify the R version, package versions and optional dependencies
+used for the run.
+
+```{r session-info}
+sessionInfo()
+```
+
+In a project workflow, save this to a text file at the end of the run.
+
+```{r save-session-info-template, eval = FALSE}
+dir.create(example_output_dir, recursive = TRUE, showWarnings = FALSE)
+
+writeLines(
+  capture.output(sessionInfo()),
+  file.path(example_output_dir, "sessionInfo.txt")
+)
+```
+
+# Final checklist
+
+Before carrying outputs forward, confirm that the run can be traced from input to
+exported records.
+
+A complete run folder should include:
+
+- the input table used for the run;
+- `gbif_summary.csv`;
+- exported occurrence files for successful rows;
+- any taxonomy, origin-evidence or spatial-attribution outputs produced by the
+  selected settings;
+- provider-cache notes or paths;
+- provider citations or access details where needed;
+- saved R session information.
+
+Rows should be held back for review if they stopped early, returned no records,
+lack an expected output file, have unexpectedly low retention, contain many
+unmatched spatial assignments, or include unresolved evidence that affects the
+analysis.
+
+Once these checks are complete, the retained occurrence files can be combined,
+summarised or passed into the next stage of the project with a clear record of
+how they were produced.

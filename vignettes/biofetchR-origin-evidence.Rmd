@@ -1,0 +1,1160 @@
+---
+title: "Native-range and invasive-status evidence in biofetchR"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Native-range and invasive-status evidence in biofetchR}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+params:
+  run_live: false
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  message = TRUE,
+  warning = TRUE
+)
+
+# Live examples are skipped by default.
+# Set params$run_live to TRUE when rendering the vignette locally if you want to
+# contact GBIF, GRIIS, SInAS, WoRMS, or other external provider sources.
+run_live <- isTRUE(params$run_live)
+
+# Read GBIF credentials from environment variables.
+# This avoids writing credentials directly into the vignette or project files.
+gbif_user <- Sys.getenv("GBIF_USER")
+gbif_pwd <- Sys.getenv("GBIF_PWD")
+gbif_email <- Sys.getenv("GBIF_EMAIL")
+
+# GBIF examples are attempted only when all credentials are available.
+gbif_ready <- all(nzchar(c(gbif_user, gbif_pwd, gbif_email)))
+
+# Example outputs are written to a temporary folder.
+# In a real project, replace tempdir() with a stable project directory.
+output_root <- file.path(tempdir(), "biofetchR_origin_evidence_vignette")
+dir.create(output_root, recursive = TRUE, showWarnings = FALSE)
+
+# Run live examples without stopping the whole vignette if a provider request,
+# download, or external service fails.
+run_live_safely <- function(expr) {
+  tryCatch(
+    force(expr),
+    error = function(e) {
+      message("Live example did not complete: ", conditionMessage(e))
+      NULL
+    }
+  )
+}
+
+# Print a clear message when a live example is skipped.
+skip_live_message <- function(reason) {
+  message("Live example skipped: ", reason)
+  invisible(NULL)
+}
+```
+
+```{r load-package}
+library(biofetchR)
+```
+
+# Purpose
+
+Occurrence records show where and when a taxon has been recorded. They do not,
+on their own, show whether that taxon is native, introduced, invasive or
+uncertain in the region being analysed. For invasion-biology workflows, this
+interpretation requires additional evidence.
+
+This vignette explains how `biofetchR` attaches origin and invasive-status
+evidence to species-region data and occurrence-processing outputs. The focus is
+on keeping status assignment traceable rather than treating it as a hidden step.
+Users should be able to inspect the submitted name, any cleaned or corrected
+name, the recipient region, the evidence source, the assigned status and any
+rows that remain unresolved.
+
+The evidence sources used in these workflows differ in scope. Some provide broad
+taxonomic or origin information, while others are more specific to invasion
+workflows. SInAS is invasion-focused because it covers invasive alien species,
+but those species still have native distributions. In `biofetchR`, SInAS-derived
+evidence can therefore help identify native-origin countries for taxa relevant
+to invasion analyses. It should not, however, be treated as a complete
+native-range source for all taxa, and a missing SInAS match should not be read as
+evidence of native, non-native or invasive status on its own.
+
+This vignette covers how to:
+
+- prepare and correct taxon names before evidence matching;
+- attach project-supplied native-range evidence;
+- use supported web/API sources for native-range evidence;
+- attach GRIIS introduced and invasive-status evidence;
+- compare audit-only and filtering modes;
+- use origin evidence inside the terrestrial and freshwater pipeline;
+- inspect the evidence and audit files written by the workflow.
+
+The recommended workflow is to prepare names first, attach evidence second,
+inspect the audit output third, and apply stricter filters only when the
+evidence supports that choice.
+
+# Using the examples
+
+The local examples use small tables created inside the vignette. They can be run
+without internet access and are intended to show how evidence fields, status
+labels and filtering modes behave.
+
+Live examples are controlled by the `run_live` parameter and are skipped by
+default. When `run_live = TRUE`, the vignette can query supported evidence
+sources and write cache or audit files to the example output directory.
+
+To run the live examples while rendering this vignette locally, use:
+
+```{r render-live-version, eval = FALSE}
+rmarkdown::render(
+  "vignettes/biofetchR-origin-evidence.Rmd",
+  params = list(run_live = TRUE)
+)
+```
+
+Use the default version to read the workflow and run the local examples. Use the
+live version when you want to test evidence retrieval with provider data.
+
+# Evidence workflow overview
+
+Origin evidence is easiest to interpret when classification and filtering are
+kept separate. In this vignette, evidence is attached first, status fields are
+created second, and filtering is treated as an optional final step.
+
+```{r evidence-workflow-overview, echo = FALSE}
+workflow_steps <- data.frame(
+  step = 1:7,
+  stage = c(
+    "Start with species-region records",
+    "Prepare taxonomy",
+    "Attach native-range evidence",
+    "Attach GRIIS evidence",
+    "Assign origin-status fields",
+    "Inspect audit outputs",
+    "Apply optional filtering"
+  ),
+  purpose = c(
+    "Define the taxon and recipient country or region being evaluated.",
+    "Clean names, apply manual corrections, and reject obvious non-taxonomic strings.",
+    "Identify countries or regions treated as part of the taxon's native range.",
+    "Identify species-country combinations listed as introduced or invasive.",
+    "Classify rows using the available evidence and keep unresolved cases visible.",
+    "Check taxonomy, evidence sources, status fields, and retained or excluded rows.",
+    "Use stricter filters only when they match the biological question."
+  ),
+  stringsAsFactors = FALSE
+)
+
+workflow_steps
+```
+
+The important point is that a row does not have to be removed as soon as evidence
+is attached. It can first be labelled, reviewed and compared with other evidence
+fields before any filtering rule is applied.
+
+# Taxonomic preparation before status assignment
+
+Taxon names should be prepared before they are matched to native-range or
+invasive-status evidence. Small differences in names can prevent relevant
+evidence from joining correctly. These differences can include authority
+strings, spelling variants, subspecies names, synonyms, open nomenclature,
+genus-level labels or non-taxonomic entries.
+
+`biofetchR` provides taxonomy helpers for this step. They keep the submitted
+name, cleaned name and any reviewed correction visible, while separating names
+suitable for species-level matching from entries that should be reviewed or
+excluded. In the high-level pipelines, the same preparation step can be enabled
+with `prepare_taxonomy = TRUE`.
+
+```{r taxonomy-correction-input}
+# Example input with deliberately mixed taxonomic quality.
+# Some names are clean, some contain authority strings, some need manual
+# correction, and some are not usable taxon names.
+taxonomy_input <- data.frame(
+  species = c(
+    "Rattus rattus (Linnaeus, 1758)",
+    "Sturnus vulgaris",
+    "Xenopus laevis Daudin, 1802",
+    "Trachemys scripta elegans",
+    "Rattus sp.",
+    "unknown",
+    "water temperature"
+  ),
+  iso2c = c("GB", "DE", "FR", "GB", "GB", "GB", "FR"),
+  stringsAsFactors = FALSE
+)
+
+taxonomy_input
+```
+
+For many inputs, automatic preparation is enough. It can clean names, identify
+obvious non-taxonomic strings, flag entries that are not species-level records,
+and return tables showing which rows were accepted or rejected.
+
+Manual corrections are optional. They should be used only for cases the user has
+reviewed, such as a known synonym, a subspecies that should be treated at species
+level, or a source-specific name that needs to be standardised before evidence
+matching.
+
+The example below first runs the automatic preparation step, then repeats it
+with two reviewed manual corrections.
+
+```{r taxonomy-correction-example}
+# First, prepare the input names automatically.
+# This handles routine cleaning and creates an audit trail.
+taxonomy_prepared_auto <- bf_prepare_taxa_for_gbif(
+  df = taxonomy_input,
+  name_col = "species",
+  iso2_col = "iso2c",
+  require_species_level = TRUE,
+  deduplicate = TRUE
+)
+
+# Inspect the automatic taxonomy audit.
+taxonomy_prepared_auto$audit
+
+# Optional: define manual overrides only for names the user has reviewed.
+# These are not required for every workflow.
+manual_taxonomy_fixes <- c(
+  "Xenopus laevis Daudin, 1802" = "Xenopus laevis",
+  "Trachemys scripta elegans" = "Trachemys scripta"
+)
+
+# Rerun taxonomy preparation with the reviewed manual overrides.
+taxonomy_prepared_reviewed <- bf_prepare_taxa_for_gbif(
+  df = taxonomy_input,
+  name_col = "species",
+  iso2_col = "iso2c",
+  manual_fixes = manual_taxonomy_fixes,
+  require_species_level = TRUE,
+  deduplicate = TRUE
+)
+
+# Compare the reviewed audit table with the automatic audit table.
+taxonomy_prepared_reviewed$audit
+```
+
+The taxonomy audit is the main output to inspect from this step. It shows which
+names were accepted for matching, which were changed, and which were rejected
+before origin or invasive-status evidence was attached. Manual corrections
+should remain deliberate and documented, not a replacement for reviewing the
+input table.
+
+When taxonomy preparation is used inside a pipeline run, taxonomy files are
+written when `export_taxonomy_audit = TRUE`. Keep these files with the
+origin-evidence outputs so the names used for matching can be checked later.
+
+# Example species-country input
+
+The local examples below use a small species-country table. Each row defines the
+taxon and recipient country being evaluated.
+
+```{r local-recipient-input}
+recipient_records <- data.frame(
+  species = c(
+    "Rattus rattus",
+    "Sturnus vulgaris",
+    "Xenopus laevis",
+    "Trachemys scripta",
+    "Carcinus maenas"
+  ),
+  iso2c = c("GB", "DE", "FR", "GB", "GB"),
+  stringsAsFactors = FALSE
+)
+
+recipient_records
+```
+
+# Status categories
+
+The origin-evidence workflow uses a small set of working status categories. These
+categories describe how the selected evidence supports each species-country row;
+they should not be treated as permanent labels outside the evidence context used
+to create them.
+
+```{r status-category-table, echo = FALSE}
+status_categories <- data.frame(
+  status = c("native", "non_native", "invasive", "unresolved"),
+  meaning = c(
+    "The recipient region is supported as part of the taxon's native range.",
+    "The taxon is interpreted as introduced or non-native, but invasive-status evidence is absent in the selected sources.",
+    "The taxon is introduced or non-native and has invasive-status evidence, such as impact, rapid spread, or high abundance.",
+    "The available evidence is not sufficient to assign a confident status."
+  ),
+  stringsAsFactors = FALSE
+)
+
+status_categories
+```
+
+Positive evidence is the safest basis for interpretation. If a recipient country
+matches the native-range evidence, the row can be interpreted as `native` for
+that workflow. If the evidence does not support a clear status, the row should
+remain `unresolved` unless another source provides stronger support for a
+native, non-native or invasive-status interpretation.
+
+# Project native-range evidence
+
+A project native-range table records which countries or regions are treated as
+part of each taxon's native distribution in the current workflow. This evidence
+can come from curated checklists, expert-reviewed sources, previous project
+data, or native-origin information compiled earlier from supported web/API
+sources.
+
+The table does not need to be a global native-range gazetteer. It should record
+the evidence being used for the analysis, along with enough source information
+to show where that evidence came from and what kind of source it represents. This
+is important because broad origin sources, project-specific checklists and
+invasion-focused sources can differ in coverage and purpose.
+
+At minimum, the table should include a species name and the country codes treated
+as native for that species. During status assignment, these fields are compared
+with the recipient country in the species-country input table.
+
+```{r local-native-evidence}
+# Example project native-range evidence table.
+# Each row gives the countries treated as part of the taxon's native range.
+# Multiple ISO3 country codes are separated with semicolons.
+native_ranges <- data.frame(
+  species = c(
+    "Rattus rattus",
+    "Sturnus vulgaris",
+    "Xenopus laevis",
+    "Trachemys scripta",
+    "Carcinus maenas"
+  ),
+  native_origin_iso3 = c(
+    "IND;PAK",
+    "DEU;FRA;GBR",
+    "ZAF;LSO;SWZ",
+    "USA;MEX",
+    "GBR;IRL;FRA;ESP;PRT"
+  ),
+  native_origin_flag = "HAS_ORIGIN",
+  native_sources_used = "example_project_table",
+  stringsAsFactors = FALSE
+)
+
+native_ranges
+```
+
+In this example, `native_origin_iso3` contains the ISO3 country codes treated as
+native for each species, while `native_sources_used` records the evidence source.
+For real analyses, source fields should be kept because native-range evidence
+can vary among providers, taxonomic treatments and spatial resolutions.
+
+# Attaching native-range evidence
+
+Start by attaching native-range evidence in `audit_only` mode. This keeps every
+species-country row in the table and adds evidence fields that can be checked
+before any filtering decision is made.
+
+```{r attach-native-local}
+native_status <- bf_attach_native_status(
+  df = recipient_records,
+  species_col = "species",
+  iso2c_col = "iso2c",
+  native_ranges = native_ranges,
+  native_filter_mode = "audit_only",
+  quiet = TRUE
+)
+
+native_status
+```
+
+The summary gives a quick overview of how the supplied evidence was attached,
+including which rows received native-range support and which rows remain
+unresolved.
+
+```{r native-summary-local}
+bf_native_status_summary(native_status)
+```
+
+For review, it is often easier to look at only the columns related to names,
+regions, sources, status and filtering decisions.
+
+```{r inspect-native-audit-columns}
+native_audit_cols <- unique(c(
+  intersect(c("species", "iso2c"), names(native_status)),
+  grep("native|origin|source|status|decision|filter", names(native_status), value = TRUE)
+))
+
+native_status[, native_audit_cols, drop = FALSE]
+```
+
+At this stage, no filtering has been applied. Use the audit view to check whether
+the evidence joined as expected, which rows have positive native-range support,
+which rows remain unresolved, and whether the source fields are clear enough for
+later reporting.
+
+# Filtering modes
+
+Filtering mode controls which rows are retained after native-range evidence has
+been attached. These modes are useful for creating analysis-specific subsets,
+but they should be chosen only after the audit fields have been inspected.
+
+```{r filtering-mode-table, echo = FALSE}
+filtering_modes <- data.frame(
+  mode = c(
+    "audit_only",
+    "non_native_only",
+    "non_native_or_unknown",
+    "native_only"
+  ),
+  behaviour = c(
+    "Keep all rows and add evidence fields.",
+    "Keep only rows interpreted as non-native in the recipient country.",
+    "Keep rows interpreted as non-native plus unresolved rows.",
+    "Keep only rows interpreted as native in the recipient country."
+  ),
+  typical_use = c(
+    "First-pass review.",
+    "Strict non-native-only analysis.",
+    "Precautionary workflows where unresolved rows need later review.",
+    "Native-range checks or validation workflows."
+  ),
+  stringsAsFactors = FALSE
+)
+
+filtering_modes
+```
+
+The safest first pass is `audit_only`, because it keeps all rows while the
+evidence fields are checked. Stricter modes are useful when the analysis requires
+a narrower subset, but unresolved rows should be handled deliberately rather than
+silently treated as confirmed non-native records.
+
+```{r native-filter-modes}
+# Strict non-native-only table.
+non_native_only <- bf_attach_native_status(
+  df = recipient_records,
+  species_col = "species",
+  iso2c_col = "iso2c",
+  native_ranges = native_ranges,
+  native_filter_mode = "non_native_only",
+  quiet = TRUE
+)
+
+# Less strict table that keeps unresolved rows for later review.
+non_native_or_unknown <- bf_attach_native_status(
+  df = recipient_records,
+  species_col = "species",
+  iso2c_col = "iso2c",
+  native_ranges = native_ranges,
+  native_filter_mode = "non_native_or_unknown",
+  quiet = TRUE
+)
+
+non_native_only
+non_native_or_unknown
+```
+
+Use `non_native_only` only when the evidence fields provide enough support for a
+strict non-native subset. Use `non_native_or_unknown` when unresolved rows should
+be retained for later checking, sensitivity analysis or manual review.
+
+# Native-range evidence from web/API sources
+
+`biofetchR` can compile native-origin evidence from supported web/API sources.
+This is useful when a project table is incomplete, when unresolved rows need
+additional checking, or when users want to compare evidence returned by different
+providers.
+
+The current source registry includes SInAS, GBIF Species API distribution
+records, and WoRMS Aphia distribution records. These sources differ in scope and
+coverage. SInAS is invasion-focused, but can still provide native-origin
+countries for the invasive alien species it covers. GBIF and WoRMS provide
+different kinds of distribution or taxonomic-origin evidence. The returned
+outputs should therefore be inspected as provider evidence, not treated as a
+single definitive native-range authority.
+
+```{r native-web-source-registry}
+# Show native-range web/API sources supported by the installed package version.
+bf_available_native_web_sources()
+```
+
+The live example below requests evidence from all selected sources. The returned
+object contains a retrieval summary, a species-level evidence table, a
+long-format provider table, and any provider strings that could not be mapped
+cleanly.
+
+```{r native-web-live, eval = run_live}
+# Retrieve native-range evidence from the selected web/API sources.
+# This is wrapped in run_live_safely() so that a temporary provider failure
+# does not stop the whole vignette from rendering.
+native_web <- run_live_safely(
+
+  # Compile native-origin evidence for the species in recipient_records.
+  bf_fetch_native_ranges_web(
+
+    # Species-country table containing the taxa to query.
+    species = recipient_records,
+
+    # Column containing the taxon names.
+    species_col = "species",
+
+    # Native-range evidence sources to query.
+    # These currently include SInAS, GBIF Species API distribution records,
+    # and WoRMS Aphia distribution records.
+    sources = c("sinas", "gbif", "worms"),
+
+    # Cache provider results so repeated runs do not need to re-query
+    # the same sources unnecessarily.
+    cache_dir = file.path(output_root, "cache", "native_web"),
+
+    # Use cached results when available.
+    # Set this to TRUE only when the provider evidence should be refreshed.
+    force_refresh = FALSE,
+
+    # Pause briefly between provider requests to avoid sending rapid repeated
+    # queries to external services.
+    sleep_sec = 0.25,
+
+    # Show provider messages during the live example.
+    quiet = FALSE,
+
+    # Return a structured list containing summary, species-level,
+    # long-format, and unmapped evidence outputs.
+    return = "list"
+  )
+)
+
+# If the live query completed successfully, inspect the returned evidence.
+if (!is.null(native_web)) {
+
+  # Summary of the native-web retrieval.
+  native_web$summary
+
+  # Species-level native-range evidence table.
+  # This is usually the table used for attachment to species-country records.
+  native_web$species
+
+  # Long-format provider evidence.
+  # This is useful for checking which source returned which evidence.
+  native_web$long
+
+  # Provider strings or regions that could not be mapped cleanly.
+  # These should be reviewed if many species remain unresolved.
+  native_web$unmapped
+}
+```
+
+For most workflows, `native_web$species` is the table used for status attachment.
+The long-format and unmapped outputs are used for checking where the evidence
+came from, which provider contributed it, and whether any region names failed to
+map cleanly.
+
+Write the web-derived evidence to disk when it will be reused, checked later, or
+reported as part of an analysis.
+
+```{r write-native-web-live, eval = run_live}
+if (exists("native_web") && !is.null(native_web)) {
+  bf_write_native_web_outputs(
+    native_web,
+    output_dir = file.path(output_root, "native_web_audit"),
+    prefix = "native_web"
+  )
+} else {
+  skip_live_message("native web evidence was not available from the previous live chunk")
+}
+```
+
+The species-level output can then be passed to `bf_attach_native_status()` in the
+same way as a project native-range table.
+
+```{r attach-native-web-live, eval = run_live}
+# Attach the species-level native-range evidence returned by the web/API
+# retrieval step to the species-country input table.
+# This chunk depends on the previous native_web object being available.
+if (exists("native_web") && !is.null(native_web)) {
+
+  # Add native-status fields to the recipient species-country table.
+  native_web_status <- bf_attach_native_status(
+
+    # Species-country table to classify.
+    df = recipient_records,
+
+    # Column containing the taxon name in the species-country table.
+    species_col = "species",
+
+    # Column containing the recipient country as an ISO2 code.
+    iso2c_col = "iso2c",
+
+    # Species-level native-range evidence returned by bf_fetch_native_ranges_web().
+    # This table combines the selected web/API sources into a format that can be
+    # used by bf_attach_native_status().
+    native_ranges = native_web$species,
+
+    # Column containing the taxon name in the native-range evidence table.
+    native_species_col = "species",
+
+    # Keep all rows and add native-range evidence fields for inspection.
+    # No records are removed at this stage.
+    native_filter_mode = "audit_only",
+
+    # Suppress routine messages from the attachment function.
+    quiet = TRUE
+  )
+
+  # Display the species-country table with attached native-range evidence.
+  native_web_status
+
+} else {
+
+  # If the previous live retrieval step did not run or failed, print a clear
+  # skip message rather than causing the vignette to fail.
+  skip_live_message("native web evidence was not available from the previous live chunk")
+}
+```
+
+The same evidence retrieval step can also be triggered directly from
+`bf_attach_native_status()`. This is useful when users do not need to edit or
+combine the provider table before attachment.
+
+```{r attach-native-web-direct-live, eval = run_live}
+# Attach native-range evidence directly from supported web/API sources.
+# This route is useful when the workflow should retrieve provider evidence
+# during the native-status attachment step rather than supplying a prebuilt
+# native_ranges table.
+native_web_direct <- run_live_safely(
+
+  # Attach native-status fields to the species-country input table.
+  bf_attach_native_status(
+
+    # Species-country table to classify.
+    df = recipient_records,
+
+    # Column containing the taxon name.
+    species_col = "species",
+
+    # Column containing the recipient country as an ISO2 code.
+    iso2c_col = "iso2c",
+
+    # No local native-range table is supplied here.
+    # Instead, evidence is retrieved from the selected web/API sources below.
+    native_ranges = NULL,
+
+    # Turn on native-range evidence retrieval from supported provider sources.
+    use_native_web = TRUE,
+
+    # Query all selected native-range web/API sources.
+    # SInAS, GBIF distribution metadata, and WoRMS Aphia distributions are used
+    # as complementary evidence sources.
+    native_web_sources = c("sinas", "gbif", "worms"),
+
+    # Store downloaded or retrieved provider evidence in a cache directory.
+    # This avoids repeating the same provider requests unnecessarily.
+    native_web_cache_dir = file.path(output_root, "cache", "native_web_direct"),
+
+    # Write native-web audit outputs so the provider evidence can be inspected.
+    export_native_web_audit = TRUE,
+
+    # Directory where native-web audit files will be written.
+    native_web_audit_dir = file.path(output_root, "native_web_direct_audit"),
+
+    # Keep all rows and attach evidence fields for review.
+    # No records are removed at this stage.
+    native_filter_mode = "audit_only",
+
+    # Suppress routine messages from the attachment function.
+    quiet = TRUE
+  )
+)
+
+# If the live provider query completed successfully, display the attached
+# native-status table.
+if (!is.null(native_web_direct)) {
+  native_web_direct
+}
+```
+
+Both routes produce evidence fields that should be reviewed before filtering.
+Rows that remain unmatched after web/API retrieval should stay unresolved unless
+another source supports a clearer status interpretation.
+
+# GRIIS invasive-status evidence
+
+The **Global Register of Introduced and Invasive Species (GRIIS)** provides
+country-, territory- and island-level evidence for taxa listed as introduced or
+invasive. In `biofetchR`, GRIIS is used to add introduced-status and
+invasive-status fields to species-country rows.
+
+GRIIS evidence should be interpreted separately from native-range evidence.
+Native-range evidence helps assess whether the recipient country is supported as
+part of a taxon's native distribution. GRIIS evidence helps identify recipient
+regions where the taxon has been listed as introduced or invasive.
+
+In GRIIS, invasive-status evidence is linked to evidence of environmental impact
+or to source information indicating that a species is widespread, spreading
+rapidly or present in high abundance (Pagad et al., 2018). This makes GRIIS
+particularly useful for invasion workflows. However, missing GRIIS evidence
+should not be treated as proof that a taxon is absent, native or not invasive; it
+may simply mean that the species-country combination is not represented in the
+selected GRIIS evidence.
+
+```{r griis-live, eval = run_live}
+# Attach GRIIS introduced/invasive-status evidence to the species-country table.
+# This is a live example because the function may download or retrieve GRIIS
+# evidence when a local GRIIS table is not supplied.
+griis_status <- run_live_safely(
+
+  # Add GRIIS status fields to the input table.
+  bf_attach_griis_status(
+
+    # Species-country table to classify.
+    df = recipient_records,
+
+    # Column containing the taxon name.
+    species_col = "species",
+
+    # Column containing the recipient country as an ISO2 code.
+    iso2c_col = "iso2c",
+
+    # No preloaded GRIIS table is supplied here.
+    # When griis = NULL, the function uses the configured GRIIS retrieval/cache
+    # workflow to obtain the evidence.
+    griis = NULL,
+
+    # Directory used to cache GRIIS files or processed evidence.
+    # This avoids repeating the same retrieval step unnecessarily.
+    cache_dir = file.path(output_root, "cache", "griis"),
+
+    # Use cached GRIIS evidence when available.
+    # Set this to TRUE only when you deliberately want to refresh the cache.
+    force_refresh = FALSE,
+
+    # Require the species-country combination to match GRIIS evidence.
+    # This is stricter than checking whether the species appears anywhere in GRIIS.
+    require_country = TRUE,
+
+    # Show progress messages for the live example.
+    quiet = FALSE
+  )
+)
+
+# If the GRIIS attachment step completed successfully, display the output table
+# with the added GRIIS evidence fields.
+if (!is.null(griis_status)) {
+  griis_status
+}
+```
+
+The attached GRIIS fields should be inspected before they are used for filtering.
+For example, users should check whether the match is country-specific, whether
+the row is listed as introduced or invasive, and whether the resulting fields
+match the scope of the analysis.
+
+After inspection, a stricter table can be created by retaining only rows flagged
+as invasive by GRIIS. This is a filtering choice for analyses that specifically
+require GRIIS-supported invasive-status records. For broader evidence review,
+keep the full attached table and treat the GRIIS fields as part of the audit
+output.
+
+```{r griis-filter-live, eval = run_live}
+# Create a stricter invasive-only table from the already attached GRIIS fields.
+# The previous chunk created griis_status with columns such as griis_listed,
+# griis_invasive, and griis_status. Here we simply filter that existing audit
+# table rather than re-running the GRIIS attachment step.
+if (exists("griis_status") && !is.null(griis_status)) {
+
+  # Keep only rows that were flagged as invasive by the attached GRIIS evidence.
+  invasive_only <- griis_status[
+    griis_status$griis_invasive %in% TRUE,
+    ,
+    drop = FALSE
+  ]
+
+  # Display the stricter invasive-only table.
+  invasive_only
+
+} else {
+
+  # If the GRIIS attachment chunk did not run or failed, skip cleanly.
+  skip_live_message("GRIIS status was not available from the previous live chunk")
+}
+```
+
+# Origin-status audit table
+
+After native-range and GRIIS evidence have been attached, the next step is to
+combine the evidence fields into one interpretable status for each
+species-country row. The final status should be mutually exclusive, such as
+`native`, `non_native`, `invasive` or `unresolved`.
+
+Native-range evidence is used to identify rows with positive support for native
+status in the recipient country. GRIIS evidence is used to identify rows listed
+as introduced or invasive in the recipient country. These evidence fields should
+be read together, but they should not be treated as independent final statuses
+for the same row.
+
+A compact audit table helps users see why a row received its final status. It can
+show the native-range result, the GRIIS result, the assigned status and the
+suggested review action. In real workflows, rows without clear native-range or
+GRIIS support should remain `unresolved` unless another evidence source supports
+a stronger interpretation.
+
+```{r origin-status-audit-example}
+# Example origin-status audit table.
+# This is not live evidence; it illustrates how evidence fields can support
+# one final status assignment for each species-country row.
+origin_status_audit_example <- data.frame(
+  species = c(
+    "Rattus rattus",
+    "Sturnus vulgaris",
+    "Xenopus laevis",
+    "Trachemys scripta",
+    "Carcinus maenas"
+  ),
+  iso2c = c("GB", "DE", "FR", "GB", "GB"),
+  native_range_result = c(
+    "outside_native_range",
+    "inside_native_range",
+    "outside_native_range",
+    "outside_native_range",
+    "inside_native_range"
+  ),
+  griis_result = c(
+    "listed_invasive",
+    "not_listed_or_unresolved",
+    "listed_invasive",
+    "listed_introduced",
+    "not_listed_or_unresolved"
+  ),
+  assigned_status = c(
+    "invasive",
+    "native",
+    "invasive",
+    "non_native",
+    "native"
+  ),
+  review_action = c(
+    "retain_for_invasive_workflow",
+    "exclude_from_non_native_workflow",
+    "retain_for_invasive_workflow",
+    "retain_for_non_native_workflow",
+    "exclude_from_non_native_workflow"
+  ),
+  stringsAsFactors = FALSE
+)
+
+origin_status_audit_example
+```
+
+This table is illustrative. In a real audit output, the distinction between
+positive evidence, conflicting evidence and missing evidence should be kept
+visible. A row should be marked for review when the available evidence is
+incomplete, ambiguous, source-limited or taxonomically uncertain. Review is not a
+biological status; it is an audit flag that tells the user to inspect the row
+before applying a filter.
+
+# Recommended default settings
+
+For a first pass, use settings that keep the evidence visible. The aim is to
+prepare names, attach origin and invasive-status fields, write the relevant
+audit files, and postpone filtering until the evidence has been checked.
+
+```{r recommended-defaults-table, echo = FALSE}
+recommended_defaults <- data.frame(
+  setting = c(
+    "prepare_taxonomy",
+    "export_taxonomy_audit",
+    "use_native_range",
+    "use_native_web",
+    "native_web_sources",
+    "native_filter_mode",
+    "use_griis",
+    "filter_griis_invasive",
+    "reconcile_origin_evidence",
+    "export_origin_audit",
+    "store_in_memory"
+  ),
+  recommended_value = c(
+    "TRUE",
+    "TRUE",
+    "TRUE when origin status is needed",
+    "TRUE to supplement project native-range evidence or fill gaps",
+    "c(\"sinas\", \"gbif\", \"worms\")",
+    "audit_only",
+    "TRUE when GRIIS evidence is needed",
+    "FALSE",
+    "TRUE",
+    "TRUE",
+    "FALSE for larger batches"
+  ),
+  reason = c(
+    "Clean and correct names before evidence matching or GBIF submission.",
+    "Preserve raw, fixed, cleaned, accepted, and rejected names.",
+    "Attach native-origin fields for status assignment.",
+    "Compile native-origin evidence from supported provider helpers.",
+    "Use all supported native-range web/API sources unless the project requires a subset.",
+    "Keep all rows while evidence is being checked.",
+    "Attach introduced and invasive-status fields.",
+    "Avoid invasive-only filtering before evidence review.",
+    "Create combined origin-evidence status fields where possible.",
+    "Write files that explain status assignment and filtering decisions.",
+    "Write occurrence outputs to disk rather than keeping every table in memory."
+  ),
+  stringsAsFactors = FALSE
+)
+
+recommended_defaults
+```
+
+These settings are intended for evidence review, not for producing the narrowest
+possible dataset. After the audit outputs have been inspected, users can decide
+whether to keep all rows, retain unresolved rows for review, or apply a stricter
+native, non-native or invasive-status filter.
+
+The source choices should also match the analysis. For example, using all
+available web/API sources can be useful for an initial comparison, but a final
+workflow may use only the sources that are appropriate for the taxa, regions and
+invasion-status question being studied.
+
+# Origin evidence inside the batch pipeline
+
+Origin-evidence steps can also be run inside the terrestrial and freshwater
+batch pipeline. This is useful when the same workflow needs to prepare names,
+attach evidence, process GBIF records and write occurrence outputs in one run.
+
+The example below uses audit-first settings. Taxonomy, native-range, native-web
+and GRIIS evidence outputs are written for inspection, but rows are not removed
+only because native-range evidence is unresolved or because they are not flagged
+as GRIIS-invasive. Filtering can be applied later if the evidence fields support
+the subset needed for the analysis.
+
+```{r origin-in-pipeline-live, eval = run_live}
+# Run the live pipeline example only when GBIF credentials are available.
+if (!gbif_ready) {
+
+  # Skip cleanly rather than failing the vignette.
+  skip_live_message("set GBIF credentials to run the origin-evidence pipeline example")
+
+} else {
+
+  # Small species-country input table for the live example.
+  origin_pipeline_input <- data.frame(
+    species = c(
+      "Xenopus laevis",
+      "Trachemys scripta"
+    ),
+    iso2c = c("FR", "GB"),
+    stringsAsFactors = FALSE
+  )
+
+  # Run the terrestrial/freshwater pipeline with taxonomy preparation,
+  # native-range evidence, GRIIS evidence, and audit outputs enabled.
+  origin_pipeline_result <- run_live_safely(
+    process_gbif_terrestrial_freshwater_pipeline(
+
+      # Species-country input table.
+      df = origin_pipeline_input,
+
+      # Output folder for this vignette example.
+      output_dir = file.path(output_root, "origin_pipeline"),
+
+      # GBIF credentials read from environment variables.
+      user = gbif_user,
+      pwd = gbif_pwd,
+      email = gbif_email,
+
+      # Use GADM level 1 for spatial attribution.
+      region_source = "gadm",
+      gadm_unit = 1,
+      cache_dir_gadm = file.path(output_root, "cache", "gadm"),
+
+      # Prepare taxon names and write taxonomy audit files.
+      prepare_taxonomy = TRUE,
+      export_taxonomy_audit = TRUE,
+
+      # Attach GRIIS introduced/invasive-status evidence.
+      # Do not filter to GRIIS-invasive rows in this audit-mode example.
+      use_griis = TRUE,
+      filter_griis_invasive = FALSE,
+      griis_cache_dir = file.path(output_root, "cache", "griis"),
+
+      # Attach native-range evidence from supported web/API sources.
+      # No local native-range table is supplied in this example.
+      use_native_range = TRUE,
+      native_ranges = NULL,
+      use_native_web = TRUE,
+      native_web_sources = c("sinas", "gbif", "worms"),
+      native_web_cache_dir = file.path(output_root, "cache", "native_web"),
+      export_native_web_audit = TRUE,
+
+      # Keep all rows while attaching native-range evidence.
+      native_filter_mode = "audit_only",
+
+      # Write origin-status audit outputs.
+      reconcile_origin_evidence = TRUE,
+      export_origin_audit = TRUE,
+      export_summary = TRUE,
+
+      # Keep the vignette example small.
+      batch_size = 1,
+
+      # Clean and thin occurrence records before export.
+      apply_cleaning = TRUE,
+      apply_thinning = TRUE,
+      dist_km = 5,
+
+      # Write detailed outputs to disk rather than storing every table in memory.
+      return_all_results = FALSE,
+      store_in_memory = FALSE,
+
+      # Show progress messages during the live example.
+      quiet = FALSE
+    )
+  )
+
+  # Display the returned pipeline result object.
+  origin_pipeline_result
+}
+```
+
+After the run, inspect the taxonomy, native-web, origin-evidence and
+`gbif_summary.csv` outputs together. The evidence files explain how each
+species-country row was interpreted before GBIF processing, while
+`gbif_summary.csv` records what happened during occurrence download, cleaning,
+spatial attribution and export.
+
+# Interpreting pipeline audit outputs
+
+After a live pipeline run, inspect the summary and evidence files before using
+the exported occurrence records. `gbif_summary.csv` shows whether each
+species-region row completed successfully, how many records were retained after
+processing, and where the occurrence files were written. The evidence files show
+how names, native-origin information and GRIIS fields were handled before or
+during the run.
+
+```{r inspect-origin-outputs-live, eval = run_live}
+# Path to the pipeline output directory.
+pipeline_dir <- file.path(output_root, "origin_pipeline")
+
+# Path to the main summary file.
+summary_path <- file.path(pipeline_dir, "gbif_summary.csv")
+
+# Read and display the most useful summary fields if the file exists.
+if (file.exists(summary_path)) {
+
+  origin_summary <- read.csv(summary_path, stringsAsFactors = FALSE)
+
+  origin_summary[
+    ,
+    intersect(
+      c(
+        "species",
+        "region_id",
+        "region_type",
+        "n_total",
+        "n_cleaned",
+        "n_thinned",
+        "status",
+        "fail_stage",
+        "fail_reason",
+        "output_file"
+      ),
+      names(origin_summary)
+    ),
+    drop = FALSE
+  ]
+
+} else {
+  skip_live_message("summary file was not available from the live pipeline run")
+}
+```
+
+The next check is whether the expected audit files were written. These may
+include taxonomy outputs, native-web evidence files, origin-evidence summaries
+and the main run summary, depending on which settings were enabled.
+
+```{r list-origin-audit-files-live, eval = run_live}
+# List audit and summary files written by the pipeline.
+# These files should be kept with the exported occurrence data.
+if (dir.exists(pipeline_dir)) {
+  list.files(
+    pipeline_dir,
+    pattern = "taxonomy|origin|native_web|griis|summary",
+    full.names = TRUE
+  )
+} else {
+  skip_live_message("pipeline output directory was not available")
+}
+```
+
+For larger workflows, keep these files with the original input table and exported
+occurrence records. Together, they show which names were accepted, which evidence
+sources contributed to the status fields, which rows remained unresolved, which
+rows failed or returned no records, and which occurrence files were produced.
+
+# Final checklist
+
+Before using an origin-classified occurrence dataset, check that the evidence and
+filtering decisions are clear enough to review later.
+
+Useful checks include:
+
+- did species names clean and resolve as expected?
+- were manual taxonomy corrections saved?
+- were rejected taxonomy rows inspected?
+- were native-range evidence sources recorded?
+- were native-web/API outputs cached or exported when used?
+- were GRIIS fields recorded when used?
+- do any rows remain unresolved?
+- were any rows removed by filtering?
+- was the filtering mode recorded?
+- are `gbif_summary.csv`, taxonomy outputs and origin-evidence outputs stored
+  together?
+- are the `biofetchR` package version and R session information saved with the
+  project outputs?
+
+The aim is not always to force every row into a final category. A good
+origin-evidence workflow keeps positive evidence, missing evidence and
+uncertainty visible. Filtering should then be applied only when it matches the
+biological question and the evidence available for the taxa and regions being
+analysed.
+
+# Provider citations
+
+When origin or invasive-status evidence is used in an analysis, cite the
+provider sources that contributed to the final evidence fields. The exact
+citation will depend on which sources were selected, which versions were used,
+and whether the evidence came from a cached file, an API query or a downloaded
+dataset release.
+
+For the examples in this vignette, the main provider sources are:
+
+- **SInAS**: cite the SInAS dataset release used by the workflow. Record the
+  version, release DOI and access date where available. SInAS is especially
+  relevant for invasion workflows because it provides native and alien
+  distribution information for alien species, but it should be cited as the
+  specific dataset release used rather than as a general native-range authority
+  for all taxa.
+
+- **GBIF**: cite GBIF-mediated occurrence data using the GBIF download DOI or
+  derived-dataset citation associated with the records used in the analysis. If
+  GBIF Species API taxonomic or distribution information is used as evidence,
+  record the accessed taxon pages, access dates and any dataset citations
+  returned by GBIF where available.
+
+- **WoRMS**: cite the World Register of Marine Species using the recommended
+  citation for the accessed version. For example, WoRMS checklist metadata may be
+  cited as:
+
+  WoRMS Editorial Board. World Register of Marine Species. Checklist dataset.
+  https://doi.org/10.14284/170.
+
+- **GRIIS**: cite the Global Register of Introduced and Invasive Species when
+  introduced or invasive-status evidence is attached. A standard citation for
+  the GRIIS data descriptor is:
+
+  Pagad, S., Genovesi, P., Carnevali, L., Schigel, D. and McGeoch, M.A. (2018).
+  Introducing the Global Register of Introduced and Invasive Species.
+  *Scientific Data*, 5, 170202. https://doi.org/10.1038/sdata.2017.202.
+
+Keep provider versions, access dates, cache locations and exported audit files
+with the project outputs. These records show which evidence sources contributed
+to each status assignment and make it easier to update, replace or rerun the
+origin-evidence workflow later.

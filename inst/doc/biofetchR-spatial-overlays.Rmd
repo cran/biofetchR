@@ -1,0 +1,1450 @@
+---
+title: "Spatial overlays and raster context in biofetchR"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Spatial overlays and raster context in biofetchR}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+params:
+  run_live: false
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  message = TRUE,
+  warning = TRUE
+)
+
+# Live examples are skipped by default.
+# Set params$run_live to TRUE when rendering locally if you want to contact
+# GBIF or download external spatial-provider resources.
+run_live <- isTRUE(params$run_live)
+
+# Read GBIF credentials from environment variables.
+# This avoids writing usernames, passwords, or email addresses directly into
+# vignettes, scripts, or shared project files.
+gbif_user <- Sys.getenv("GBIF_USER")
+gbif_pwd <- Sys.getenv("GBIF_PWD")
+gbif_email <- Sys.getenv("GBIF_EMAIL")
+
+# GBIF live examples are attempted only when all credentials are available.
+gbif_ready <- all(nzchar(c(gbif_user, gbif_pwd, gbif_email)))
+
+# Write vignette example outputs to a temporary folder.
+# In a real project, replace tempdir() with a stable project directory.
+output_root <- file.path(tempdir(), "biofetchR_spatial_overlays_vignette")
+dir.create(output_root, recursive = TRUE, showWarnings = FALSE)
+
+# Run live examples without stopping the whole vignette if a provider request,
+# spatial download, or GBIF request fails.
+run_live_safely <- function(expr) {
+  tryCatch(
+    force(expr),
+    error = function(e) {
+      message("Live example did not complete: ", conditionMessage(e))
+      NULL
+    }
+  )
+}
+
+# Print a clear message when a live example is skipped.
+skip_live_message <- function(reason) {
+  message("Live example skipped: ", reason)
+  invisible(NULL)
+}
+```
+
+```{r load-package}
+library(biofetchR)
+```
+
+# Purpose
+
+Occurrence records become more useful once their coordinates are linked to the
+spatial units needed for an analysis. The right spatial framework depends on the
+question being asked: administrative boundaries support reporting, ecoregions
+support ecological interpretation, hydrological layers support freshwater
+context, marine regions support offshore attribution, and raster layers can add
+local environmental or anthropogenic-pressure information.
+
+`biofetchR` supports these workflows by adding spatial context to imported
+occurrence records. This vignette focuses on how to choose vector overlays, add
+raster context, inspect spatial-attribution outputs, and diagnose common
+problems such as missing joins, boundary effects or unsuitable overlay choices.
+
+The aim is not to add every available layer to every dataset. Start with the
+spatial framework that directly matches the analysis question, then add
+additional overlays or raster context only when they provide a clear
+interpretive benefit.
+
+# Using the examples
+
+The examples use a mixture of local and live code. Local chunks create small
+example tables, inspect registry objects, or show workflow templates. These can
+be read and adapted without contacting external services.
+
+Live chunks may submit GBIF requests, retrieve spatial layers, create provider
+caches, or write example outputs. They are controlled by the `run_live` parameter
+and are skipped by default.
+
+To render a live version locally, use:
+
+```{r render-live-version, eval = FALSE}
+rmarkdown::render(
+  "vignettes/biofetchR-spatial-overlays.Rmd",
+  params = list(run_live = TRUE)
+)
+```
+
+Use the default version to inspect the overlay workflow structure. Use the live
+version when you want to test the examples with GBIF credentials, spatial-provider
+access and local cache folders.
+
+# Vector overlays and raster context
+
+`biofetchR` can add spatial context to occurrence records in two main ways:
+vector overlays and raster extraction.
+
+**Vector overlays** assign occurrence points to spatial features with boundaries
+or geometries. These may include administrative units, terrestrial ecoregions,
+freshwater ecoregions, protected areas, Ramsar wetlands, EEZs, marine regions,
+rivers, lakes, basins, reservoirs, dams, wastewater-treatment sites or mining
+layers. The result is usually a feature name, identifier or category attached to
+each record.
+
+**Raster context** extracts values from gridded datasets at the occurrence
+location. These values may describe environmental conditions, land cover, soil
+properties, anthropogenic pressure or other cell-based information.
+
+The distinction is important because the outputs answer different spatial
+questions. A vector overlay asks which mapped feature a record falls within,
+intersects or is nearest to. Raster context asks what grid-cell value is
+associated with the record coordinates. Both can be useful, but they should be
+chosen according to the spatial meaning needed for the analysis.
+
+# Choosing a spatial framework
+
+Choose the spatial framework according to the unit that should be attached to
+each occurrence record. The table below gives common matches between analysis
+goals, suitable spatial context and the fields users should expect to inspect in
+the output.
+
+```{r spatial-decision-table, echo = FALSE}
+spatial_decision <- data.frame(
+  analysis_goal = c(
+    "Summarise records by administrative units",
+    "Describe terrestrial ecological setting",
+    "Describe freshwater ecological setting",
+    "Add freshwater or aquatic-infrastructure context",
+    "Add protected-area or wetland context",
+    "Assign offshore records to marine regions",
+    "Attach local environmental or human-pressure values"
+  ),
+  suitable_context = c(
+    "GADM",
+    "TEOW or RESOLVE 2017",
+    "FEOW, basins, rivers, or lakes",
+    "Rivers, lakes, basins, GDW barriers, HydroWASTE, or GDW reservoirs",
+    "WDPA or Ramsar",
+    "EEZ, LME, MEOW, or IHO",
+    "Raster context"
+  ),
+  typical_output = c(
+    "Administrative identifiers and names",
+    "Terrestrial ecoregion, biome, or realm labels",
+    "Freshwater ecoregion or hydrological identifiers",
+    "Hydrological or infrastructure-context fields",
+    "Protected-area or wetland-context fields",
+    "Marine region identifiers and names",
+    "Raster-derived covariate columns"
+  ),
+  stringsAsFactors = FALSE
+)
+
+spatial_decision
+```
+
+A good overlay choice should match the scale and meaning of the analysis. For
+example, GADM is appropriate when records need to be summarised by political or
+administrative units, while FEOW or basin layers are more suitable when the
+freshwater setting is the main unit of interpretation.
+
+For terrestrial and freshwater workflows, start with the framework that will be
+used for the main summary or grouping variable. Add secondary overlays only when
+they answer a separate question, such as whether records also fall in protected
+areas, wetlands, river basins or infrastructure-linked features.
+
+# Example occurrence table
+
+Spatial joins require occurrence records with coordinate columns that can be
+converted into point geometry. The example below is a minimal table with a taxon
+name, longitude, latitude, country code and year.
+
+```{r example-occurrence-table}
+example_occurrences <- data.frame(
+  species = c(
+    "Xenopus laevis",
+    "Xenopus laevis",
+    "Carcinus maenas"
+  ),
+  decimalLongitude = c(2.35, 1.44, -5.10),
+  decimalLatitude = c(48.86, 43.60, 50.15),
+  countryCode = c("FR", "FR", "GB"),
+  year = c(2019, 2021, 2020),
+  stringsAsFactors = FALSE
+)
+
+example_occurrences
+```
+
+In a full `biofetchR` workflow, point tables are usually created after GBIF
+records have been imported and processed. This local example is deliberately
+small so that the overlay examples below focus on the spatial-join step rather
+than the download workflow.
+
+# Cleaning and thinning before spatial overlays
+
+Spatial overlays should be applied only after the coordinate columns have been
+checked. Records with missing coordinates, impossible longitude or latitude
+values, exact `0,0` coordinates, or very high coordinate uncertainty can be
+assigned to the wrong spatial unit. These records can then affect summaries by
+administrative unit, ecoregion, basin, protected area or marine region.
+
+`biofetchR` provides direct access to these checks through
+`thin_spatial_points()`. The same cleaning and thinning controls are also exposed
+inside the high-level terrestrial/freshwater and marine pipelines. Using the
+helper directly is useful when users want to inspect coordinate processing before
+running a full pipeline, or when they already have an occurrence table that only
+needs spatial preparation before overlay assignment.
+
+The main options are:
+
+```{r cleaning-options-table, echo = FALSE}
+cleaning_options <- data.frame(
+  option = c(
+    "Coordinate screening",
+    "Coordinate-uncertainty filtering",
+    "High-uncertainty flagging",
+    "Cleaning-only mode",
+    "Distance-based thinning",
+    "Density-based thinning",
+    "Priority-based retention",
+    "Diagnostic output"
+  ),
+  argument = c(
+    "automatic",
+    "filter_uncertain, max_uncertainty_m",
+    "warn_uncertainty_m",
+    "dist_km = 0",
+    "dist_km > 0",
+    "max_density",
+    "priority_col",
+    "return_all = TRUE"
+  ),
+  purpose = c(
+    "Remove missing, non-finite, impossible, or exact zero-zero coordinates.",
+    "Remove records with coordinate uncertainty above a chosen threshold.",
+    "Flag retained records with high coordinate uncertainty.",
+    "Apply coordinate cleaning without thinning.",
+    "Reduce spatial clustering by retaining points separated by a minimum distance.",
+    "Limit the approximate number of retained points per km².",
+    "Preferentially retain higher-priority records during thinning.",
+    "Return all post-cleaning rows with a `.thinned` flag showing which rows were retained."
+  ),
+  stringsAsFactors = FALSE
+)
+
+cleaning_options
+```
+
+The example below deliberately includes several common coordinate problems:
+valid records, nearby clustered records, an impossible longitude, an exact `0,0`
+point, a missing coordinate and one record with high coordinate uncertainty. It
+also includes `individualCount` as an example priority field that can be used
+during thinning.
+
+```{r cleaning-example-input}
+# Example occurrence table for demonstrating cleaning and thinning.
+# This is deliberately small and includes several common coordinate problems.
+cleaning_example <- data.frame(
+  species = c(
+    "Xenopus laevis",
+    "Xenopus laevis",
+    "Xenopus laevis",
+    "Xenopus laevis",
+    "Xenopus laevis",
+    "Xenopus laevis",
+    "Xenopus laevis"
+  ),
+
+  # Longitude values include valid coordinates, an impossible longitude,
+  # an exact zero-zero point, and a missing value.
+  decimalLongitude = c(
+    2.3500,
+    2.3505,
+    2.3520,
+    181.0000,
+    0.0000,
+    NA,
+    1.4400
+  ),
+
+  # Latitude values include valid coordinates and an exact zero-zero point.
+  decimalLatitude = c(
+    48.8600,
+    48.8605,
+    48.8620,
+    48.8600,
+    0.0000,
+    43.6000,
+    43.6000
+  ),
+
+  # Coordinate uncertainty is optional in GBIF-style data.
+  # Here, one otherwise valid record has high uncertainty.
+  coordinateUncertaintyInMeters = c(
+    30,
+    50,
+    12000,
+    20,
+    10,
+    100,
+    300
+  ),
+
+  # individualCount is used here as an example priority column.
+  # Higher values are retained first during thinning when priority_col is used.
+  individualCount = c(
+    10,
+    2,
+    1,
+    1,
+    1,
+    1,
+    5
+  ),
+
+  year = c(2019, 2019, 2020, 2020, 2021, 2021, 2022),
+
+  stringsAsFactors = FALSE
+)
+
+cleaning_example
+```
+
+## Cleaning only
+
+Use cleaning-only mode when records should be checked for coordinate quality but
+their spatial clustering should be left unchanged. This is useful before
+assigning records to an overlay when the analysis needs all retained locations,
+rather than a thinned subset.
+
+Set `dist_km = 0` to apply the coordinate checks without distance-based thinning.
+In the example below, records with missing, impossible or exact `0,0`
+coordinates are removed. Records with coordinate uncertainty greater than
+`max_uncertainty_m` are also removed because `filter_uncertain = TRUE`.
+
+```{r cleaning-only-example}
+# Apply coordinate cleaning only.
+# Records with missing, impossible, or exact zero-zero coordinates are removed.
+# Records above max_uncertainty_m are also removed because filter_uncertain = TRUE.
+cleaned_only <- thin_spatial_points(
+  cleaning_example,
+  dist_km = 0,
+  filter_uncertain = TRUE,
+  max_uncertainty_m = 10000,
+  quiet = TRUE
+)
+
+# Drop geometry for compact display in the vignette.
+sf::st_drop_geometry(cleaned_only)
+```
+
+The returned table keeps the records that passed the coordinate-quality checks.
+This is the safest option when the user wants cleaner coordinates for overlay
+assignment but does not want to remove nearby records only because they are
+spatially clustered.
+
+## Keeping high-uncertainty records but flagging them
+
+High coordinate uncertainty does not always mean a record should be removed. In
+some workflows, users may want to retain uncertain records so they can be
+reviewed later, compared with other evidence, or excluded only in a sensitivity
+analysis.
+
+Set `filter_uncertain = FALSE` to keep these records. Records above
+`warn_uncertainty_m` are retained, but flagged in the `.high_uncertainty` column
+so they can be inspected before overlay results are interpreted.
+
+```{r uncertainty-flag-example}
+# Retain high-uncertainty records but flag them for review.
+cleaned_with_uncertainty_flags <- thin_spatial_points(
+  cleaning_example,
+  dist_km = 0,
+  filter_uncertain = FALSE,
+  warn_uncertainty_m = 5000,
+  quiet = TRUE
+)
+
+# Inspect the retained records and the uncertainty flag.
+sf::st_drop_geometry(cleaned_with_uncertainty_flags)[
+  ,
+  intersect(
+    c(
+      "species",
+      "decimalLongitude",
+      "decimalLatitude",
+      "coordinateUncertaintyInMeters",
+      ".high_uncertainty"
+    ),
+    names(cleaned_with_uncertainty_flags)
+  ),
+  drop = FALSE
+]
+```
+
+This mode is useful when uncertain records should remain visible rather than
+being removed automatically. The flag allows users to decide later whether those
+records are suitable for the selected overlay, should be checked manually, or
+should be excluded from a stricter analysis.
+
+## Distance-based thinning
+
+Spatial thinning reduces clustering by retaining points that are at least a
+chosen distance apart. This is useful when heavily sampled locations would
+otherwise dominate maps, summaries, or models. It can also reduce sampling-driven
+spatial autocorrelation in downstream analyses, although it should not be treated
+as a substitute for checking spatial structure during model diagnostics.
+
+```{r distance-thinning-example}
+# Apply coordinate cleaning and then distance-based thinning.
+# return_all = TRUE keeps all cleaned records and adds a `.thinned` diagnostic
+# column showing which rows were retained by thinning.
+distance_thinned <- thin_spatial_points(
+  cleaning_example,
+  dist_km = 5,
+  priority_col = "individualCount",
+  return_all = TRUE,
+  filter_uncertain = FALSE,
+  warn_uncertainty_m = 5000,
+  quiet = TRUE
+)
+
+# Inspect thinning diagnostics.
+sf::st_drop_geometry(distance_thinned)[
+  ,
+  intersect(
+    c(
+      "species",
+      "decimalLongitude",
+      "decimalLatitude",
+      "individualCount",
+      "coordinateUncertaintyInMeters",
+      ".high_uncertainty",
+      ".thinned"
+    ),
+    names(distance_thinned)
+  ),
+  drop = FALSE
+]
+```
+
+## Distance-based thinning
+
+Distance-based thinning retains a subset of records so that kept points are
+separated by at least the chosen distance. This is useful when many records come
+from the same locality or from very densely sampled areas, and those clusters
+would otherwise dominate maps, overlay summaries or spatial analyses. In
+downstream modelling, strong spatial clustering can also contribute to spatial
+autocorrelation, so thinning can help reduce one source of sampling-driven
+dependence before model fitting.
+
+In this example, `dist_km = 5` applies a 5 km thinning distance after coordinate
+cleaning. The `priority_col` argument is used to retain higher-priority records
+first when nearby records compete for the same retained location. Here,
+`individualCount` is used only as an example priority field.
+
+```{r distance-thinning-example-overlay}
+# Apply coordinate cleaning and then distance-based thinning.
+# return_all = TRUE keeps all cleaned records and adds a `.thinned` diagnostic
+# column showing which rows were retained by thinning.
+distance_thinned <- thin_spatial_points(
+  cleaning_example,
+  dist_km = 5,
+  priority_col = "individualCount",
+  return_all = TRUE,
+  filter_uncertain = FALSE,
+  warn_uncertainty_m = 5000,
+  quiet = TRUE
+)
+
+# Inspect thinning diagnostics.
+sf::st_drop_geometry(distance_thinned)[
+  ,
+  intersect(
+    c(
+      "species",
+      "decimalLongitude",
+      "decimalLatitude",
+      "individualCount",
+      "coordinateUncertaintyInMeters",
+      ".high_uncertainty",
+      ".thinned"
+    ),
+    names(distance_thinned)
+  ),
+  drop = FALSE
+]
+```
+
+Because `return_all = TRUE`, the output keeps all cleaned records and adds the
+`.thinned` column. Rows marked `TRUE` are the records retained by thinning; rows
+marked `FALSE` passed coordinate cleaning but were not selected for the thinned
+subset. This makes it possible to inspect what thinning changed before using the
+retained records in an overlay workflow.
+
+Thinning is a sampling-bias reduction step, not a complete solution to spatial
+autocorrelation. If the retained records are used in models, users should still
+check spatial structure during model diagnostics and consider whether additional
+spatial terms, blocking, or sensitivity analyses are needed.
+
+## Cleaning and thinning inside the pipelines
+
+The same cleaning and thinning controls can be used directly inside the
+high-level pipelines. This is usually the simplest route when records are being
+downloaded, processed and assigned to overlays in one workflow.
+
+Use `apply_cleaning = TRUE` to run coordinate-quality checks before spatial
+attribution. Use `apply_thinning = TRUE` with `dist_km` to apply distance-based
+thinning after cleaning.
+
+```{r pipeline-cleaning-settings-example, eval = FALSE}
+process_gbif_terrestrial_freshwater_pipeline(
+  df = data.frame(
+    species = "Xenopus laevis",
+    iso2c = "FR",
+    stringsAsFactors = FALSE
+  ),
+  output_dir = file.path(output_root, "example_outputs"),
+  user = Sys.getenv("GBIF_USER"),
+  pwd = Sys.getenv("GBIF_PWD"),
+  email = Sys.getenv("GBIF_EMAIL"),
+
+  region_source = "gadm",
+  gadm_unit = 1,
+  cache_dir_gadm = file.path(output_root, "cache", "gadm"),
+
+  # Apply coordinate quality control.
+  apply_cleaning = TRUE,
+
+  # Apply spatial thinning after cleaning.
+  apply_thinning = TRUE,
+
+  # Retain records separated by at least 5 km where possible.
+  dist_km = 5,
+
+  export_summary = TRUE,
+  store_in_memory = FALSE
+)
+```
+
+After the run, inspect the record-count fields in `gbif_summary.csv`. These show
+how many records were returned from GBIF, how many remained after coordinate
+cleaning, and how many remained after thinning. Check these values before
+interpreting the overlay fields, especially when few records remain or when
+thinning removes a large proportion of the cleaned dataset.
+
+# Primary and secondary spatial context
+
+A primary spatial framework is the main unit used to organise the output. This is
+usually the unit that records will be grouped by, summarised across, mapped or
+used in later analyses. For example, a terrestrial workflow may use GADM level 1
+as the primary framework when the main output needs to be interpreted by
+subnational administrative units.
+
+A secondary overlay adds another layer of context to the same records. It should
+not be treated as a replacement for the primary framework. For example, a
+freshwater workflow may retain GADM level 1 as the reporting unit while also
+adding FEOW identifiers to describe the freshwater ecoregion associated with each
+record.
+
+The key point is to keep these fields interpretable. Administrative units,
+ecoregions, hydrological features, protected areas, marine regions and raster
+values describe different spatial concepts. Keeping them as separate fields makes
+it easier to check the output, compare alternative summaries and decide which
+spatial unit is appropriate for each part of the analysis.
+
+```{r primary-secondary-table, echo = FALSE}
+primary_secondary <- data.frame(
+  workflow = c(
+    "Subnational terrestrial reporting",
+    "Freshwater invasion analysis",
+    "Protected-area screening",
+    "Marine jurisdictional analysis",
+    "Environmental-covariate analysis"
+  ),
+  primary_context = c(
+    "GADM level 1",
+    "GADM level 1 or basin unit",
+    "GADM or ecological region",
+    "EEZ",
+    "GADM, ecoregion, basin, or marine region"
+  ),
+  secondary_context = c(
+    "TEOW or RESOLVE 2017",
+    "FEOW, rivers, lakes, dams, reservoirs",
+    "WDPA or Ramsar",
+    "LME, MEOW, IHO, or high seas",
+    "Raster context"
+  ),
+  reason = c(
+    "Administrative outputs can be interpreted alongside ecological regions.",
+    "Reporting units and freshwater ecological units answer different questions.",
+    "Protected-area context is usually an additional attribute, not the main grouping unit.",
+    "Marine records need marine spatial units rather than land boundaries.",
+    "Raster values describe point-level covariates rather than polygon membership."
+  ),
+  stringsAsFactors = FALSE
+)
+
+primary_secondary
+```
+
+Use the primary framework for the main grouping structure, then add secondary
+fields only when they support a specific interpretation. This avoids forcing
+different spatial concepts into one combined unit too early.
+
+# Common overlay types
+
+The table below provides a quick reference to overlay names commonly used in
+`biofetchR` workflows. It is intended as a guide to the main spatial meaning of
+each overlay, not as a complete description of every provider layer.
+
+Availability can depend on optional packages, internet access, provider
+availability and local cache settings. Before scaling up, test the selected
+overlay on a small example and check that the output contains the spatial names
+or identifiers you need.
+
+```{r overlay-reference-table}
+overlay_reference <- data.frame(
+  overlay = c(
+    "gadm",
+    "teow",
+    "feow",
+    "lakes",
+    "rivers",
+    "basins",
+    "ne_admin1",
+    "resolve2017",
+    "wdpa",
+    "ramsar",
+    "gdw_barriers",
+    "hydrowaste",
+    "gdw_reservoirs",
+    "global_mining",
+    "eez",
+    "lme",
+    "meow",
+    "iho"
+  ),
+  typical_use = c(
+    "Administrative attribution for terrestrial and freshwater records",
+    "Terrestrial ecoregion context",
+    "Freshwater ecoregion context",
+    "Lake-associated occurrence context",
+    "River-associated occurrence context",
+    "Hydrological basin context",
+    "Natural Earth administrative-unit context",
+    "RESOLVE ecoregion and biome context",
+    "Protected-area context",
+    "Ramsar wetland context",
+    "Barrier and dam context",
+    "Wastewater-treatment context",
+    "Reservoir context",
+    "Mining or extraction-pressure context",
+    "Marine jurisdictional attribution",
+    "Large Marine Ecosystem attribution",
+    "Marine ecoregion attribution",
+    "Sea-area attribution"
+  ),
+  broad_domain = c(
+    "terrestrial/freshwater",
+    "terrestrial",
+    "freshwater",
+    "freshwater",
+    "freshwater",
+    "freshwater",
+    "terrestrial/freshwater",
+    "terrestrial",
+    "terrestrial/freshwater/marine depending on source",
+    "wetland/freshwater/coastal",
+    "freshwater",
+    "freshwater/infrastructure",
+    "freshwater",
+    "terrestrial/infrastructure",
+    "marine",
+    "marine",
+    "marine",
+    "marine"
+  ),
+  stringsAsFactors = FALSE
+)
+
+overlay_reference
+```
+
+Use this table to narrow the overlay choice before running a pipeline. For
+example, choose `gadm` when the output needs administrative units, `feow` or
+basin layers when freshwater context is central, `wdpa` or `ramsar` when
+conservation-site context is needed, and marine overlays when records should be
+interpreted in offshore or coastal marine space.
+
+# GADM administrative attribution
+
+GADM is used when occurrence records need to be assigned to administrative
+boundaries. In `biofetchR`, this is most useful when the analysis needs outputs
+by country, first-level administrative unit, or finer subnational subdivision.
+
+Administrative attribution is different from ecological or hydrological context.
+It is useful when records need to be summarised for reporting units, management
+regions, national or subnational comparisons, or first-detection summaries within
+political boundaries.
+
+In the high-level pipeline, GADM attribution is requested with
+`region_source = "gadm"`. The `gadm_unit` argument sets the administrative level:
+level 0 refers to the country, level 1 to the first subnational unit, and level 2
+to the next subdivision below that.
+
+```{r load-gadm-live, eval = run_live}
+# Load GADM level 1 polygons for Portugal.
+# This is useful for checking that GADM can be retrieved and cached before
+# running a larger GBIF workflow.
+gadm_prt_l1 <- run_live_safely(
+  load_gadm(
+    iso2c = "PT",
+    level = 1,
+    cache_dir = file.path(output_root, "cache", "gadm"),
+    quiet = FALSE
+  )
+)
+
+# Inspect the returned GADM object if loading succeeded.
+if (!is.null(gadm_prt_l1)) {
+  gadm_prt_l1
+}
+```
+
+Choose the GADM level according to the scale of the question and the density of
+the occurrence data. Level 0 is suitable for country-level summaries, but it can
+hide important subnational variation. Level 2 provides finer spatial detail, but
+may produce sparse or uneven outputs when records are limited.
+
+GADM level 1 is often a practical default for subnational work. It provides more
+detail than country-level summaries while usually retaining enough records per
+unit for maps, tables and comparative analyses.
+
+# GADM inside the terrestrial and freshwater pipeline
+
+GADM can also be used directly inside the terrestrial and freshwater pipeline.
+The example below runs a small species-country workflow, processes the GBIF
+records, and assigns the retained occurrences to GADM level 1 units.
+
+```{r gadm-pipeline-live, eval = run_live}
+# Run the live GADM pipeline example only when GBIF credentials are available.
+if (!gbif_ready) {
+
+  # Skip cleanly rather than failing the vignette.
+  skip_live_message("set GBIF_USER, GBIF_PWD, and GBIF_EMAIL to run this example")
+
+} else {
+
+  # Run a minimal terrestrial/freshwater pipeline with GADM attribution.
+  gadm_pipeline_result <- run_live_safely(
+    process_gbif_terrestrial_freshwater_pipeline(
+
+      # Species-country input table.
+      df = data.frame(
+        species = "Xenopus laevis",
+        iso2c = "FR",
+        stringsAsFactors = FALSE
+      ),
+
+      # Output folder for this example.
+      output_dir = file.path(output_root, "gadm_pipeline"),
+
+      # GBIF credentials read from environment variables.
+      user = gbif_user,
+      pwd = gbif_pwd,
+      email = gbif_email,
+
+      # Use GADM level 1 as the primary spatial framework.
+      region_source = "gadm",
+      gadm_unit = 1,
+      cache_dir_gadm = file.path(output_root, "cache", "gadm"),
+
+      # Clean coordinates and thin retained records.
+      apply_cleaning = TRUE,
+      apply_thinning = TRUE,
+      dist_km = 5,
+
+      # Keep the example small and write outputs to disk.
+      batch_size = 1,
+      export_summary = TRUE,
+      store_in_memory = FALSE,
+      return_all_results = FALSE,
+
+      # Show progress messages.
+      quiet = FALSE
+    )
+  )
+
+  gadm_pipeline_result
+}
+```
+
+After a live run, inspect `gbif_summary.csv` before opening the exported
+occurrence file. The summary shows whether the row completed, how many records
+were retained after processing, and where the output file was written.
+
+```{r inspect-gadm-summary-live, eval = run_live}
+# Path to the summary file written by the GADM example.
+summary_path <- file.path(
+  output_root,
+  "gadm_pipeline",
+  "gbif_summary.csv"
+)
+
+# Read the summary if it exists.
+if (file.exists(summary_path)) {
+  gadm_summary <- read.csv(summary_path, stringsAsFactors = FALSE)
+  gadm_summary
+} else {
+  skip_live_message("summary file was not available from the GADM live example")
+}
+```
+
+For GADM workflows, check that the exported records contain the expected
+administrative identifiers or names for the selected level. Rows without a GADM
+assignment should be reviewed before summaries are produced, especially when
+records fall near borders, coastlines or small administrative units.
+
+# Combining administrative and ecological context
+
+Some workflows need two spatial descriptions for the same occurrence records. For
+example, GADM level 1 may be used for subnational reporting, while FEOW adds the
+freshwater ecoregion associated with each retained record.
+
+These fields should usually remain separate because they represent different
+spatial concepts. GADM identifies administrative location; FEOW identifies
+freshwater ecological context. Keeping both fields visible makes it easier to
+summarise records by the main reporting unit while still retaining ecological
+information for interpretation.
+
+The example below uses GADM as the primary administrative framework and FEOW as a
+secondary ecological overlay. Setting `overlay_mode = "dual_separate"` keeps the
+two joins separate in the exported output.
+
+```{r feow-overlay-pipeline-live, eval = run_live}
+# Run the live GADM + FEOW example only when GBIF credentials are available.
+if (!gbif_ready) {
+
+  skip_live_message("set GBIF_USER, GBIF_PWD, and GBIF_EMAIL to run this example")
+
+} else {
+
+  # Run a pipeline with both administrative and freshwater ecological context.
+  feow_result <- run_live_safely(
+    process_gbif_terrestrial_freshwater_pipeline(
+      df = data.frame(
+        species = "Xenopus laevis",
+        iso2c = "FR",
+        stringsAsFactors = FALSE
+      ),
+
+      output_dir = file.path(output_root, "feow_pipeline"),
+
+      user = gbif_user,
+      pwd = gbif_pwd,
+      email = gbif_email,
+
+      # Use GADM and FEOW together.
+      region_source = c("gadm", "feow"),
+
+      # Keep the two spatial contexts as separate output fields.
+      overlay_mode = "dual_separate",
+
+      # GADM and FEOW cache directories.
+      gadm_unit = 1,
+      cache_dir_gadm = file.path(output_root, "cache", "gadm"),
+      feow_cache_dir = file.path(output_root, "cache", "feow"),
+
+      apply_cleaning = TRUE,
+      apply_thinning = TRUE,
+      dist_km = 5,
+
+      batch_size = 1,
+      export_summary = TRUE,
+      store_in_memory = FALSE,
+      return_all_results = FALSE,
+      quiet = FALSE
+    )
+  )
+
+  feow_result
+}
+```
+
+After the run, inspect the exported occurrence table and `gbif_summary.csv`
+together. The occurrence table shows the spatial fields added to each retained
+record, while the summary file shows whether the row completed successfully and
+where the output was written.
+
+If expected overlay fields are missing or mostly empty, check the selected
+overlay, cache folders and records without spatial assignments before using the
+output in summaries.
+
+# Direct provider loaders
+
+Some spatial layers can be loaded directly before they are used in a pipeline.
+This is useful when the layer itself needs to be inspected, cached or reused
+across more than one workflow.
+
+Direct loading separates provider access from occurrence processing. If a layer
+does not download, cache or open correctly, users can fix that issue before
+running a GBIF workflow. It also allows users to inspect the attributes and
+coverage of a layer before deciding whether it is suitable for their records.
+
+Direct provider loaders are most useful when:
+
+- the project already has a cleaned occurrence table;
+- the same layer will be reused in several workflows;
+- the layer needs to be inspected before joining;
+- the cache should be prepared before a larger run;
+- a provider issue needs to be checked separately from GBIF processing.
+
+```{r provider-loaders-live, eval = run_live}
+# Load Natural Earth administrative level 1 context for Great Britain and Ireland.
+ne_admin1 <- run_live_safely(
+  bf_load_ne_admin1(
+    iso2c = c("GB", "IE"),
+    cache_dir = file.path(output_root, "cache", "ne_admin1"),
+    quiet = FALSE
+  )
+)
+
+# Load a RESOLVE 2017 terrestrial ecoregion subset.
+resolve2017 <- run_live_safely(
+  bf_load_resolve2017(
+    iso2c = c("GB", "IE"),
+    cache_dir = file.path(output_root, "cache", "resolve2017"),
+    quiet = FALSE
+  )
+)
+
+if (!is.null(ne_admin1)) {
+  ne_admin1
+}
+
+if (!is.null(resolve2017)) {
+  resolve2017
+}
+```
+
+After loading a layer directly, check that it contains the expected records,
+attribute columns and geometry. If the layer looks correct, it can then be used
+with greater confidence inside a pipeline or in a separate spatial-join workflow.
+
+# Using overlays with an existing occurrence table
+
+Some projects already have cleaned occurrence records and do not need to submit a
+new GBIF download. In those cases, users can load an overlay directly and join it
+to their own point table.
+
+This approach gives more control, but also moves more responsibility to the
+analysis script. Users need to make sure that coordinates are converted to point
+geometry, coordinate reference systems are compatible, joins are checked, and
+unmatched records are reviewed.
+
+The template below is not evaluated by default. It shows the basic structure of a
+custom point-in-polygon join using an existing occurrence table and a polygon
+overlay.
+
+```{r custom-overlay-template, eval = FALSE}
+# Example only: start from an existing occurrence table with coordinates.
+existing_occurrences <- example_occurrences
+
+# Convert the occurrence table to an sf point object.
+occ_sf <- sf::st_as_sf(
+  existing_occurrences,
+  coords = c("decimalLongitude", "decimalLatitude"),
+  crs = 4326,
+  remove = FALSE
+)
+
+# Load a provider layer.
+resolve2017 <- bf_load_resolve2017(
+  iso2c = c("GB", "FR"),
+  cache_dir = file.path(output_root, "cache", "resolve2017"),
+  quiet = FALSE
+)
+
+# Join points to polygons.
+# In a real workflow, inspect unmatched points and check CRS/geometry validity.
+occ_with_resolve <- sf::st_join(
+  occ_sf,
+  resolve2017,
+  left = TRUE
+)
+
+occ_with_resolve
+```
+
+This pattern is appropriate for polygon overlays. Other spatial resources may
+need different join logic. For example, line or point-like layers may require
+nearest-feature snapping or a distance threshold rather than a simple
+point-in-polygon join.
+
+Custom joins are most useful when the occurrence table has already been reviewed
+or when the project needs a spatial operation that sits outside the high-level
+pipelines. For standard GBIF-based workflows, the pipelines are usually simpler
+because download, cleaning, thinning, attribution and summary outputs are handled
+together.
+
+# Raster context
+
+Raster context is used when retained occurrence records need values from gridded
+datasets. Instead of assigning a point to a named polygon or feature, the
+workflow extracts the raster value at the record location and appends it to the
+occurrence table.
+
+This is useful for variables such as land-cover class, soil properties,
+elevation, human footprint or other environmental and human-pressure layers. The
+added columns can then be used as model covariates, habitat or land-use filters,
+or descriptive summaries of the conditions associated with retained records.
+
+Raster extraction is best added after the main occurrence and vector-overlay
+workflow is working. Raster layers can be large, and extraction may involve
+provider access, local caching, cropping, reading gridded files and checking
+coordinate reference systems. A small one-species test makes it easier to confirm
+that the selected layers are available and that non-missing values are being
+returned.
+
+```{r raster-context-live, eval = run_live}
+# Run the raster-context example only when GBIF credentials are available.
+if (!gbif_ready) {
+
+  skip_live_message("set GBIF_USER, GBIF_PWD, and GBIF_EMAIL to run this example")
+
+} else {
+
+  # Run a small pipeline with GADM attribution and raster context.
+  raster_context_result <- run_live_safely(
+    process_gbif_terrestrial_freshwater_pipeline(
+      df = data.frame(
+        species = "Xenopus laevis",
+        iso2c = "FR",
+        stringsAsFactors = FALSE
+      ),
+
+      output_dir = file.path(output_root, "raster_context"),
+
+      user = gbif_user,
+      pwd = gbif_pwd,
+      email = gbif_email,
+
+      # Keep GADM as the primary vector framework.
+      region_source = "gadm",
+      gadm_unit = 1,
+      cache_dir_gadm = file.path(output_root, "cache", "gadm"),
+
+      # Add gridded environmental or human-pressure context.
+      raster_context = c("worldcover", "soilgrids", "human_footprint"),
+      raster_cache_dir = file.path(output_root, "cache", "raster"),
+
+      apply_cleaning = TRUE,
+      apply_thinning = TRUE,
+      dist_km = 5,
+
+      batch_size = 1,
+      export_summary = TRUE,
+      store_in_memory = FALSE,
+      return_all_results = FALSE,
+      quiet = FALSE
+    )
+  )
+
+  raster_context_result
+}
+```
+
+After the run, inspect the exported occurrence file for the raster-derived
+columns. If the columns are missing or contain mostly missing values, check the
+selected raster source, cache directory, coordinate columns and whether the
+retained records fall within the raster extent.
+
+```{r raster-context-live-example, eval = run_live}
+# Run the raster-context example only when GBIF credentials are available.
+if (!gbif_ready) {
+
+  skip_live_message("set GBIF_USER, GBIF_PWD, and GBIF_EMAIL to run this example")
+
+} else {
+
+  # Run a small pipeline with GADM attribution and raster context.
+  raster_context_result <- run_live_safely(
+    process_gbif_terrestrial_freshwater_pipeline(
+      df = data.frame(
+        species = "Xenopus laevis",
+        iso2c = "FR",
+        stringsAsFactors = FALSE
+      ),
+
+      output_dir = file.path(output_root, "raster_context"),
+
+      user = gbif_user,
+      pwd = gbif_pwd,
+      email = gbif_email,
+
+      # Keep GADM as the primary vector framework.
+      region_source = "gadm",
+      gadm_unit = 1,
+      cache_dir_gadm = file.path(output_root, "cache", "gadm"),
+
+      # Add gridded environmental or human-pressure context.
+      raster_context = c("worldcover", "soilgrids", "human_footprint"),
+      raster_cache_dir = file.path(output_root, "cache", "raster"),
+
+      apply_cleaning = TRUE,
+      apply_thinning = TRUE,
+      dist_km = 5,
+
+      batch_size = 1,
+      export_summary = TRUE,
+      store_in_memory = FALSE,
+      return_all_results = FALSE,
+      quiet = FALSE
+    )
+  )
+
+  raster_context_result
+}
+```
+
+After the run, inspect the exported occurrence file for the raster-derived
+columns. If the columns are missing or contain mostly missing values, check the
+selected raster source, cache directory, coordinate columns and whether the
+retained records fall within the raster extent.
+
+# Protected-area and wetland overlays
+
+WDPA and Ramsar overlays are used when occurrence records need conservation-site
+or designated-wetland context.These overlays are useful for questions such as 
+whether retained records overlap protected area, whether they fall within a 
+Ramsar-listed wetland, or which designated feature is associated with a record.
+
+WDPA and Ramsar are external resources with licensing and attribution
+requirements, so the examples are opt-in. Users should enable these chunks only
+after checking that their intended use is consistent with the relevant provider
+terms.
+
+```{r protected-wetland-loaders-live, eval = run_live}
+# WDPA and Ramsar loading is opt-in because these datasets have
+# external licensing and attribution requirements.
+#
+# To run this chunk locally, set the option below in the console before
+# rendering the vignette:
+#
+# options(biofetchR.wdpa_opt_in = TRUE)
+
+protected_overlay_opt_in <- isTRUE(
+  getOption("biofetchR.wdpa_opt_in", FALSE)
+)
+
+if (!protected_overlay_opt_in) {
+
+  skip_live_message(
+    "set options(biofetchR.wdpa_opt_in = TRUE) after checking provider terms"
+  )
+
+} else {
+
+  # Load protected-area polygons for Great Britain.
+  wdpa_gb <- run_live_safely(
+    bf_load_wdpa(
+      iso2c = "GB",
+      cache_dir = file.path(output_root, "cache", "wdpa"),
+      opt_in = TRUE,
+      quiet = FALSE
+    )
+  )
+
+  # Load Ramsar wetland polygons for Great Britain.
+  ramsar_gb <- run_live_safely(
+    bf_load_ramsar(
+      iso2c = "GB",
+      cache_dir = file.path(output_root, "cache", "ramsar"),
+      opt_in = TRUE,
+      quiet = FALSE
+    )
+  )
+
+  list(
+    wdpa = wdpa_gb,
+    ramsar = ramsar_gb
+  )
+}
+```
+
+Inside the terrestrial/freshwater pipeline, WDPA and Ramsar can be added as
+secondary overlays. The example below keeps GADM as the administrative framework
+and adds WDPA as protected-area context.
+
+```{r protected-overlay-pipeline-live, eval = run_live}
+# Run the live protected-area overlay example only when GBIF credentials
+# are available and WDPA opt-in has been confirmed.
+if (!gbif_ready) {
+
+  skip_live_message("set GBIF_USER, GBIF_PWD, and GBIF_EMAIL to run this example")
+
+} else if (!isTRUE(getOption("biofetchR.wdpa_opt_in", FALSE))) {
+
+  skip_live_message(
+    "set options(biofetchR.wdpa_opt_in = TRUE) after checking provider terms"
+  )
+
+} else {
+
+  protected_overlay_result <- run_live_safely(
+    process_gbif_terrestrial_freshwater_pipeline(
+      df = data.frame(
+        species = "Xenopus laevis",
+        iso2c = "GB",
+        stringsAsFactors = FALSE
+      ),
+
+      output_dir = file.path(output_root, "protected_overlay_pipeline"),
+
+      user = gbif_user,
+      pwd = gbif_pwd,
+      email = gbif_email,
+
+      # Keep GADM as the main administrative framework and add WDPA.
+      region_source = c("gadm", "wdpa"),
+      overlay_mode = "dual_separate",
+      gadm_unit = 1,
+      cache_dir_gadm = file.path(output_root, "cache", "gadm"),
+
+      # WDPA is opt-in because it is an externally licensed dataset.
+      wdpa_cache_dir = file.path(output_root, "cache", "wdpa"),
+      wdpa_opt_in = TRUE,
+      wdpa_exclude_marine = TRUE,
+
+      apply_cleaning = TRUE,
+      apply_thinning = TRUE,
+      dist_km = 5,
+
+      batch_size = 1,
+      export_summary = TRUE,
+      store_in_memory = FALSE,
+      quiet = FALSE
+    )
+  )
+
+  protected_overlay_result
+}
+```
+
+When interpreting these outputs, treat WDPA and Ramsar fields as site-overlap
+information. A missing match does not mean that a record is unimportant or that
+the surrounding habitat has no conservation value. It only means that the record
+was not assigned to the selected protected-area or wetland layer under the
+settings used in that run.
+
+# Inspecting spatial outputs
+
+After a spatial workflow, start with the summary file. This gives a compact view
+of row status, record retention and exported file paths before the occurrence
+tables are opened.
+
+```{r spatial-summary-example}
+spatial_summary_example <- data.frame(
+  species = c(
+    "Xenopus laevis",
+    "Xenopus laevis",
+    "Carcinus maenas"
+  ),
+  workflow = c(
+    "gadm",
+    "gadm_plus_feow",
+    "marine_eez"
+  ),
+  primary_spatial_unit = c(
+    "GADM level 1",
+    "GADM level 1",
+    "EEZ"
+  ),
+  secondary_spatial_context = c(
+    NA,
+    "FEOW",
+    NA
+  ),
+  n_total = c(1340, 1340, 980),
+  n_cleaned = c(1309, 1309, 944),
+  n_thinned = c(861, 861, 702),
+  status = c("success", "success", "success"),
+  output_file = c(
+    "Xenopus_laevis_FR_gadm1.csv",
+    "Xenopus_laevis_FR_gadm1_feow.csv",
+    "Carcinus_maenas_eez.csv"
+  ),
+  stringsAsFactors = FALSE
+)
+
+spatial_summary_example
+```
+
+The values above are illustrative. In a real run, read `gbif_summary.csv` from
+the relevant output directory and inspect the columns most useful for checking
+spatial processing.
+
+```{r inspect-all-summary-template, eval = FALSE}
+summary_path <- file.path("path", "to", "gbif_summary.csv")
+
+summary_tbl <- read.csv(summary_path, stringsAsFactors = FALSE)
+
+summary_tbl[
+  ,
+  intersect(
+    c(
+      "species",
+      "region_id",
+      "region_type",
+      "n_total",
+      "n_cleaned",
+      "n_thinned",
+      "status",
+      "fail_stage",
+      "fail_reason",
+      "output_file"
+    ),
+    names(summary_tbl)
+  ),
+  drop = FALSE
+]
+```
+
+Focus on three checks: whether each row completed, whether record counts changed
+as expected during cleaning and thinning, and whether each successful row has an
+exported file path. Rows with failed status, missing paths or unexpectedly low
+record counts should be reviewed before the spatial outputs are summarised.
+
+# Troubleshooting spatial joins
+
+When a spatial workflow gives unexpected output, use the summary file to identify
+where the problem occurred. Most issues fall into one of four areas: records were
+removed during coordinate processing, the spatial layer did not load, the join
+did not assign many records, or the output was not written where expected.
+
+```{r troubleshooting-table, echo = FALSE}
+troubleshooting <- data.frame(
+  symptom = c(
+    "No records after cleaning",
+    "Many records have no spatial unit",
+    "Provider layer fails to load",
+    "Raster context fails",
+    "Marine records are missing",
+    "Output files are not where expected",
+    "Very large memory use"
+  ),
+  possible_cause = c(
+    "Coordinate cleaning removed records with invalid, missing, or suspicious coordinates.",
+    "Coordinates may fall outside the overlay extent, offshore, near boundaries, or in the wrong CRS.",
+    "Provider service, URL, dependency, cache, or licence/opt-in requirement may be unavailable.",
+    "Raster file may be large, unavailable, in an unexpected format, or incompatible with local memory.",
+    "Marine species may have been submitted through a terrestrial/country-filtered workflow.",
+    "The pipeline may have written split outputs by spatial unit or failed before export.",
+    "Large GBIF downloads, high-resolution overlays, raster extraction, or in-memory storage may be too heavy."
+  ),
+  first_check = c(
+    "Inspect n_total, n_cleaned, n_thinned, fail_stage, and fail_reason in gbif_summary.csv.",
+    "Check coordinates, overlay choice, CRS, coastal/offshore points, and unmatched rows.",
+    "Try the provider loader directly with a small country or overlay subset.",
+    "Test one species-region pair and inspect raster_cache_dir.",
+    "Use process_gbif_marine_pipeline() and a marine overlay such as EEZ, LME, MEOW, or IHO.",
+    "Inspect output_dir, output_file, status, and fail_reason in gbif_summary.csv.",
+    "Set store_in_memory = FALSE and add overlays or raster context in stages."
+  ),
+  stringsAsFactors = FALSE
+)
+
+troubleshooting
+```
+
+For a failed or confusing run, reduce the workflow to the smallest useful test:
+one taxon, one spatial framework and one output directory. Once that works, add
+the next overlay, raster layer or evidence setting and check the summary again.
+
+# Provider caches and citations
+
+`biofetchR` can download or cache third-party spatial resources for use in an
+analysis. These resources remain provider datasets; they are not converted into
+package data. For any workflow that will be reported, shared or rerun, keep
+enough information to identify the exact spatial products used.
+
+Useful details to save include:
+
+- provider name;
+- dataset or product name;
+- version, release date or access date, where available;
+- cache directory used by the workflow;
+- selected spatial layer or overlay name;
+- licence or terms-of-use notes, where relevant;
+- recommended provider citation;
+- `biofetchR` package version and R session information.
+
+Provider citation needs depend on the selected layers. Common examples include:
+
+- **GADM** for administrative boundaries;
+- **Natural Earth** for Natural Earth administrative or urban layers;
+- **FEOW** for freshwater ecoregions;
+- **TEOW or RESOLVE 2017** for terrestrial ecoregions;
+- **HydroBASINS, HydroLAKES, river, dam, reservoir or infrastructure sources**
+  when hydrological overlays are used;
+- **WDPA / Protected Planet** for protected-area context;
+- **Ramsar** for designated wetland context;
+- **Marine Regions** for EEZ, LME, MEOW, IHO or related marine products;
+- **WorldCover, SoilGrids, Human Footprint or other raster providers** when
+  raster context is extracted.
+
+Use the citation supplied by the provider page, download record or metadata file
+for the exact product used. This is especially important for datasets that are
+versioned, updated regularly, licensed separately, or distributed through more
+than one provider route.
+
+# Final checklist
+
+Before using spatially enriched occurrence outputs, check that the spatial
+processing decisions are clear and that the exported files can be traced back to
+their inputs and provider layers.
+
+Useful checks include:
+
+- did the GBIF download or import complete?
+- how many records were removed by coordinate cleaning?
+- how many records were retained after thinning?
+- was the intended primary spatial framework used?
+- were any secondary overlays added as separate fields?
+- do many retained records lack spatial identifiers?
+- were raster fields added only where raster context was needed?
+- were marine taxa processed with the marine workflow where appropriate?
+- were provider caches saved or documented?
+- is `gbif_summary.csv` stored with the exported occurrence files?
+- are provider names, versions or access dates recorded?
+- are licence notes and recommended citations saved where required?
+- are the `biofetchR` package version and R session information recorded?
+
+A good spatial workflow should be easy to inspect later. The key files are the
+input table, `gbif_summary.csv`, exported occurrence files, provider-cache notes
+and any citation or licence information needed for the spatial layers used.

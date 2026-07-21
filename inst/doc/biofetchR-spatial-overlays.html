@@ -1,0 +1,1757 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+
+
+<title>Spatial overlays and raster context in biofetchR</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Spatial overlays and raster context in
+biofetchR</h1>
+
+
+
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">library</span>(biofetchR)</span></code></pre></div>
+<div id="purpose" class="section level1">
+<h1>Purpose</h1>
+<p>Occurrence records become more useful once their coordinates are
+linked to the spatial units needed for an analysis. The right spatial
+framework depends on the question being asked: administrative boundaries
+support reporting, ecoregions support ecological interpretation,
+hydrological layers support freshwater context, marine regions support
+offshore attribution, and raster layers can add local environmental or
+anthropogenic-pressure information.</p>
+<p><code>biofetchR</code> supports these workflows by adding spatial
+context to imported occurrence records. This vignette focuses on how to
+choose vector overlays, add raster context, inspect spatial-attribution
+outputs, and diagnose common problems such as missing joins, boundary
+effects or unsuitable overlay choices.</p>
+<p>The aim is not to add every available layer to every dataset. Start
+with the spatial framework that directly matches the analysis question,
+then add additional overlays or raster context only when they provide a
+clear interpretive benefit.</p>
+</div>
+<div id="using-the-examples" class="section level1">
+<h1>Using the examples</h1>
+<p>The examples use a mixture of local and live code. Local chunks
+create small example tables, inspect registry objects, or show workflow
+templates. These can be read and adapted without contacting external
+services.</p>
+<p>Live chunks may submit GBIF requests, retrieve spatial layers, create
+provider caches, or write example outputs. They are controlled by the
+<code>run_live</code> parameter and are skipped by default.</p>
+<p>To render a live version locally, use:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>rmarkdown<span class="sc">::</span><span class="fu">render</span>(</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>  <span class="st">&quot;vignettes/biofetchR-spatial-overlays.Rmd&quot;</span>,</span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>  <span class="at">params =</span> <span class="fu">list</span>(<span class="at">run_live =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>)</span></code></pre></div>
+<p>Use the default version to inspect the overlay workflow structure.
+Use the live version when you want to test the examples with GBIF
+credentials, spatial-provider access and local cache folders.</p>
+</div>
+<div id="vector-overlays-and-raster-context" class="section level1">
+<h1>Vector overlays and raster context</h1>
+<p><code>biofetchR</code> can add spatial context to occurrence records
+in two main ways: vector overlays and raster extraction.</p>
+<p><strong>Vector overlays</strong> assign occurrence points to spatial
+features with boundaries or geometries. These may include administrative
+units, terrestrial ecoregions, freshwater ecoregions, protected areas,
+Ramsar wetlands, EEZs, marine regions, rivers, lakes, basins,
+reservoirs, dams, wastewater-treatment sites or mining layers. The
+result is usually a feature name, identifier or category attached to
+each record.</p>
+<p><strong>Raster context</strong> extracts values from gridded datasets
+at the occurrence location. These values may describe environmental
+conditions, land cover, soil properties, anthropogenic pressure or other
+cell-based information.</p>
+<p>The distinction is important because the outputs answer different
+spatial questions. A vector overlay asks which mapped feature a record
+falls within, intersects or is nearest to. Raster context asks what
+grid-cell value is associated with the record coordinates. Both can be
+useful, but they should be chosen according to the spatial meaning
+needed for the analysis.</p>
+</div>
+<div id="choosing-a-spatial-framework" class="section level1">
+<h1>Choosing a spatial framework</h1>
+<p>Choose the spatial framework according to the unit that should be
+attached to each occurrence record. The table below gives common matches
+between analysis goals, suitable spatial context and the fields users
+should expect to inspect in the output.</p>
+<pre><code>#&gt;                                         analysis_goal
+#&gt; 1           Summarise records by administrative units
+#&gt; 2             Describe terrestrial ecological setting
+#&gt; 3              Describe freshwater ecological setting
+#&gt; 4    Add freshwater or aquatic-infrastructure context
+#&gt; 5               Add protected-area or wetland context
+#&gt; 6           Assign offshore records to marine regions
+#&gt; 7 Attach local environmental or human-pressure values
+#&gt;                                                     suitable_context
+#&gt; 1                                                               GADM
+#&gt; 2                                               TEOW or RESOLVE 2017
+#&gt; 3                                     FEOW, basins, rivers, or lakes
+#&gt; 4 Rivers, lakes, basins, GDW barriers, HydroWASTE, or GDW reservoirs
+#&gt; 5                                                     WDPA or Ramsar
+#&gt; 6                                             EEZ, LME, MEOW, or IHO
+#&gt; 7                                                     Raster context
+#&gt;                                     typical_output
+#&gt; 1             Administrative identifiers and names
+#&gt; 2    Terrestrial ecoregion, biome, or realm labels
+#&gt; 3 Freshwater ecoregion or hydrological identifiers
+#&gt; 4    Hydrological or infrastructure-context fields
+#&gt; 5         Protected-area or wetland-context fields
+#&gt; 6              Marine region identifiers and names
+#&gt; 7                 Raster-derived covariate columns</code></pre>
+<p>A good overlay choice should match the scale and meaning of the
+analysis. For example, GADM is appropriate when records need to be
+summarised by political or administrative units, while FEOW or basin
+layers are more suitable when the freshwater setting is the main unit of
+interpretation.</p>
+<p>For terrestrial and freshwater workflows, start with the framework
+that will be used for the main summary or grouping variable. Add
+secondary overlays only when they answer a separate question, such as
+whether records also fall in protected areas, wetlands, river basins or
+infrastructure-linked features.</p>
+</div>
+<div id="example-occurrence-table" class="section level1">
+<h1>Example occurrence table</h1>
+<p>Spatial joins require occurrence records with coordinate columns that
+can be converted into point geometry. The example below is a minimal
+table with a taxon name, longitude, latitude, country code and year.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a>example_occurrences <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a>  <span class="at">species =</span> <span class="fu">c</span>(</span>
+<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a>    <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a>    <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a>    <span class="st">&quot;Carcinus maenas&quot;</span></span>
+<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a>  ),</span>
+<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a>  <span class="at">decimalLongitude =</span> <span class="fu">c</span>(<span class="fl">2.35</span>, <span class="fl">1.44</span>, <span class="sc">-</span><span class="fl">5.10</span>),</span>
+<span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a>  <span class="at">decimalLatitude =</span> <span class="fu">c</span>(<span class="fl">48.86</span>, <span class="fl">43.60</span>, <span class="fl">50.15</span>),</span>
+<span id="cb4-9"><a href="#cb4-9" tabindex="-1"></a>  <span class="at">countryCode =</span> <span class="fu">c</span>(<span class="st">&quot;FR&quot;</span>, <span class="st">&quot;FR&quot;</span>, <span class="st">&quot;GB&quot;</span>),</span>
+<span id="cb4-10"><a href="#cb4-10" tabindex="-1"></a>  <span class="at">year =</span> <span class="fu">c</span>(<span class="dv">2019</span>, <span class="dv">2021</span>, <span class="dv">2020</span>),</span>
+<span id="cb4-11"><a href="#cb4-11" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb4-12"><a href="#cb4-12" tabindex="-1"></a>)</span>
+<span id="cb4-13"><a href="#cb4-13" tabindex="-1"></a></span>
+<span id="cb4-14"><a href="#cb4-14" tabindex="-1"></a>example_occurrences</span>
+<span id="cb4-15"><a href="#cb4-15" tabindex="-1"></a><span class="co">#&gt;           species decimalLongitude decimalLatitude countryCode year</span></span>
+<span id="cb4-16"><a href="#cb4-16" tabindex="-1"></a><span class="co">#&gt; 1  Xenopus laevis             2.35           48.86          FR 2019</span></span>
+<span id="cb4-17"><a href="#cb4-17" tabindex="-1"></a><span class="co">#&gt; 2  Xenopus laevis             1.44           43.60          FR 2021</span></span>
+<span id="cb4-18"><a href="#cb4-18" tabindex="-1"></a><span class="co">#&gt; 3 Carcinus maenas            -5.10           50.15          GB 2020</span></span></code></pre></div>
+<p>In a full <code>biofetchR</code> workflow, point tables are usually
+created after GBIF records have been imported and processed. This local
+example is deliberately small so that the overlay examples below focus
+on the spatial-join step rather than the download workflow.</p>
+</div>
+<div id="cleaning-and-thinning-before-spatial-overlays" class="section level1">
+<h1>Cleaning and thinning before spatial overlays</h1>
+<p>Spatial overlays should be applied only after the coordinate columns
+have been checked. Records with missing coordinates, impossible
+longitude or latitude values, exact <code>0,0</code> coordinates, or
+very high coordinate uncertainty can be assigned to the wrong spatial
+unit. These records can then affect summaries by administrative unit,
+ecoregion, basin, protected area or marine region.</p>
+<p><code>biofetchR</code> provides direct access to these checks through
+<code>thin_spatial_points()</code>. The same cleaning and thinning
+controls are also exposed inside the high-level terrestrial/freshwater
+and marine pipelines. Using the helper directly is useful when users
+want to inspect coordinate processing before running a full pipeline, or
+when they already have an occurrence table that only needs spatial
+preparation before overlay assignment.</p>
+<p>The main options are:</p>
+<pre><code>#&gt;                             option                            argument
+#&gt; 1             Coordinate screening                           automatic
+#&gt; 2 Coordinate-uncertainty filtering filter_uncertain, max_uncertainty_m
+#&gt; 3        High-uncertainty flagging                  warn_uncertainty_m
+#&gt; 4               Cleaning-only mode                         dist_km = 0
+#&gt; 5          Distance-based thinning                         dist_km &gt; 0
+#&gt; 6           Density-based thinning                         max_density
+#&gt; 7         Priority-based retention                        priority_col
+#&gt; 8                Diagnostic output                   return_all = TRUE
+#&gt;                                                                                  purpose
+#&gt; 1                Remove missing, non-finite, impossible, or exact zero-zero coordinates.
+#&gt; 2                   Remove records with coordinate uncertainty above a chosen threshold.
+#&gt; 3                                Flag retained records with high coordinate uncertainty.
+#&gt; 4                                            Apply coordinate cleaning without thinning.
+#&gt; 5         Reduce spatial clustering by retaining points separated by a minimum distance.
+#&gt; 6                               Limit the approximate number of retained points per km².
+#&gt; 7                         Preferentially retain higher-priority records during thinning.
+#&gt; 8 Return all post-cleaning rows with a `.thinned` flag showing which rows were retained.</code></pre>
+<p>The example below deliberately includes several common coordinate
+problems: valid records, nearby clustered records, an impossible
+longitude, an exact <code>0,0</code> point, a missing coordinate and one
+record with high coordinate uncertainty. It also includes
+<code>individualCount</code> as an example priority field that can be
+used during thinning.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="co"># Example occurrence table for demonstrating cleaning and thinning.</span></span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a><span class="co"># This is deliberately small and includes several common coordinate problems.</span></span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a>cleaning_example <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a>  <span class="at">species =</span> <span class="fu">c</span>(</span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a>    <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a>    <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a>    <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb6-8"><a href="#cb6-8" tabindex="-1"></a>    <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb6-9"><a href="#cb6-9" tabindex="-1"></a>    <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb6-10"><a href="#cb6-10" tabindex="-1"></a>    <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb6-11"><a href="#cb6-11" tabindex="-1"></a>    <span class="st">&quot;Xenopus laevis&quot;</span></span>
+<span id="cb6-12"><a href="#cb6-12" tabindex="-1"></a>  ),</span>
+<span id="cb6-13"><a href="#cb6-13" tabindex="-1"></a></span>
+<span id="cb6-14"><a href="#cb6-14" tabindex="-1"></a>  <span class="co"># Longitude values include valid coordinates, an impossible longitude,</span></span>
+<span id="cb6-15"><a href="#cb6-15" tabindex="-1"></a>  <span class="co"># an exact zero-zero point, and a missing value.</span></span>
+<span id="cb6-16"><a href="#cb6-16" tabindex="-1"></a>  <span class="at">decimalLongitude =</span> <span class="fu">c</span>(</span>
+<span id="cb6-17"><a href="#cb6-17" tabindex="-1"></a>    <span class="fl">2.3500</span>,</span>
+<span id="cb6-18"><a href="#cb6-18" tabindex="-1"></a>    <span class="fl">2.3505</span>,</span>
+<span id="cb6-19"><a href="#cb6-19" tabindex="-1"></a>    <span class="fl">2.3520</span>,</span>
+<span id="cb6-20"><a href="#cb6-20" tabindex="-1"></a>    <span class="fl">181.0000</span>,</span>
+<span id="cb6-21"><a href="#cb6-21" tabindex="-1"></a>    <span class="fl">0.0000</span>,</span>
+<span id="cb6-22"><a href="#cb6-22" tabindex="-1"></a>    <span class="cn">NA</span>,</span>
+<span id="cb6-23"><a href="#cb6-23" tabindex="-1"></a>    <span class="fl">1.4400</span></span>
+<span id="cb6-24"><a href="#cb6-24" tabindex="-1"></a>  ),</span>
+<span id="cb6-25"><a href="#cb6-25" tabindex="-1"></a></span>
+<span id="cb6-26"><a href="#cb6-26" tabindex="-1"></a>  <span class="co"># Latitude values include valid coordinates and an exact zero-zero point.</span></span>
+<span id="cb6-27"><a href="#cb6-27" tabindex="-1"></a>  <span class="at">decimalLatitude =</span> <span class="fu">c</span>(</span>
+<span id="cb6-28"><a href="#cb6-28" tabindex="-1"></a>    <span class="fl">48.8600</span>,</span>
+<span id="cb6-29"><a href="#cb6-29" tabindex="-1"></a>    <span class="fl">48.8605</span>,</span>
+<span id="cb6-30"><a href="#cb6-30" tabindex="-1"></a>    <span class="fl">48.8620</span>,</span>
+<span id="cb6-31"><a href="#cb6-31" tabindex="-1"></a>    <span class="fl">48.8600</span>,</span>
+<span id="cb6-32"><a href="#cb6-32" tabindex="-1"></a>    <span class="fl">0.0000</span>,</span>
+<span id="cb6-33"><a href="#cb6-33" tabindex="-1"></a>    <span class="fl">43.6000</span>,</span>
+<span id="cb6-34"><a href="#cb6-34" tabindex="-1"></a>    <span class="fl">43.6000</span></span>
+<span id="cb6-35"><a href="#cb6-35" tabindex="-1"></a>  ),</span>
+<span id="cb6-36"><a href="#cb6-36" tabindex="-1"></a></span>
+<span id="cb6-37"><a href="#cb6-37" tabindex="-1"></a>  <span class="co"># Coordinate uncertainty is optional in GBIF-style data.</span></span>
+<span id="cb6-38"><a href="#cb6-38" tabindex="-1"></a>  <span class="co"># Here, one otherwise valid record has high uncertainty.</span></span>
+<span id="cb6-39"><a href="#cb6-39" tabindex="-1"></a>  <span class="at">coordinateUncertaintyInMeters =</span> <span class="fu">c</span>(</span>
+<span id="cb6-40"><a href="#cb6-40" tabindex="-1"></a>    <span class="dv">30</span>,</span>
+<span id="cb6-41"><a href="#cb6-41" tabindex="-1"></a>    <span class="dv">50</span>,</span>
+<span id="cb6-42"><a href="#cb6-42" tabindex="-1"></a>    <span class="dv">12000</span>,</span>
+<span id="cb6-43"><a href="#cb6-43" tabindex="-1"></a>    <span class="dv">20</span>,</span>
+<span id="cb6-44"><a href="#cb6-44" tabindex="-1"></a>    <span class="dv">10</span>,</span>
+<span id="cb6-45"><a href="#cb6-45" tabindex="-1"></a>    <span class="dv">100</span>,</span>
+<span id="cb6-46"><a href="#cb6-46" tabindex="-1"></a>    <span class="dv">300</span></span>
+<span id="cb6-47"><a href="#cb6-47" tabindex="-1"></a>  ),</span>
+<span id="cb6-48"><a href="#cb6-48" tabindex="-1"></a></span>
+<span id="cb6-49"><a href="#cb6-49" tabindex="-1"></a>  <span class="co"># individualCount is used here as an example priority column.</span></span>
+<span id="cb6-50"><a href="#cb6-50" tabindex="-1"></a>  <span class="co"># Higher values are retained first during thinning when priority_col is used.</span></span>
+<span id="cb6-51"><a href="#cb6-51" tabindex="-1"></a>  <span class="at">individualCount =</span> <span class="fu">c</span>(</span>
+<span id="cb6-52"><a href="#cb6-52" tabindex="-1"></a>    <span class="dv">10</span>,</span>
+<span id="cb6-53"><a href="#cb6-53" tabindex="-1"></a>    <span class="dv">2</span>,</span>
+<span id="cb6-54"><a href="#cb6-54" tabindex="-1"></a>    <span class="dv">1</span>,</span>
+<span id="cb6-55"><a href="#cb6-55" tabindex="-1"></a>    <span class="dv">1</span>,</span>
+<span id="cb6-56"><a href="#cb6-56" tabindex="-1"></a>    <span class="dv">1</span>,</span>
+<span id="cb6-57"><a href="#cb6-57" tabindex="-1"></a>    <span class="dv">1</span>,</span>
+<span id="cb6-58"><a href="#cb6-58" tabindex="-1"></a>    <span class="dv">5</span></span>
+<span id="cb6-59"><a href="#cb6-59" tabindex="-1"></a>  ),</span>
+<span id="cb6-60"><a href="#cb6-60" tabindex="-1"></a></span>
+<span id="cb6-61"><a href="#cb6-61" tabindex="-1"></a>  <span class="at">year =</span> <span class="fu">c</span>(<span class="dv">2019</span>, <span class="dv">2019</span>, <span class="dv">2020</span>, <span class="dv">2020</span>, <span class="dv">2021</span>, <span class="dv">2021</span>, <span class="dv">2022</span>),</span>
+<span id="cb6-62"><a href="#cb6-62" tabindex="-1"></a></span>
+<span id="cb6-63"><a href="#cb6-63" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb6-64"><a href="#cb6-64" tabindex="-1"></a>)</span>
+<span id="cb6-65"><a href="#cb6-65" tabindex="-1"></a></span>
+<span id="cb6-66"><a href="#cb6-66" tabindex="-1"></a>cleaning_example</span>
+<span id="cb6-67"><a href="#cb6-67" tabindex="-1"></a><span class="co">#&gt;          species decimalLongitude decimalLatitude coordinateUncertaintyInMeters</span></span>
+<span id="cb6-68"><a href="#cb6-68" tabindex="-1"></a><span class="co">#&gt; 1 Xenopus laevis           2.3500         48.8600                            30</span></span>
+<span id="cb6-69"><a href="#cb6-69" tabindex="-1"></a><span class="co">#&gt; 2 Xenopus laevis           2.3505         48.8605                            50</span></span>
+<span id="cb6-70"><a href="#cb6-70" tabindex="-1"></a><span class="co">#&gt; 3 Xenopus laevis           2.3520         48.8620                         12000</span></span>
+<span id="cb6-71"><a href="#cb6-71" tabindex="-1"></a><span class="co">#&gt; 4 Xenopus laevis         181.0000         48.8600                            20</span></span>
+<span id="cb6-72"><a href="#cb6-72" tabindex="-1"></a><span class="co">#&gt; 5 Xenopus laevis           0.0000          0.0000                            10</span></span>
+<span id="cb6-73"><a href="#cb6-73" tabindex="-1"></a><span class="co">#&gt; 6 Xenopus laevis               NA         43.6000                           100</span></span>
+<span id="cb6-74"><a href="#cb6-74" tabindex="-1"></a><span class="co">#&gt; 7 Xenopus laevis           1.4400         43.6000                           300</span></span>
+<span id="cb6-75"><a href="#cb6-75" tabindex="-1"></a><span class="co">#&gt;   individualCount year</span></span>
+<span id="cb6-76"><a href="#cb6-76" tabindex="-1"></a><span class="co">#&gt; 1              10 2019</span></span>
+<span id="cb6-77"><a href="#cb6-77" tabindex="-1"></a><span class="co">#&gt; 2               2 2019</span></span>
+<span id="cb6-78"><a href="#cb6-78" tabindex="-1"></a><span class="co">#&gt; 3               1 2020</span></span>
+<span id="cb6-79"><a href="#cb6-79" tabindex="-1"></a><span class="co">#&gt; 4               1 2020</span></span>
+<span id="cb6-80"><a href="#cb6-80" tabindex="-1"></a><span class="co">#&gt; 5               1 2021</span></span>
+<span id="cb6-81"><a href="#cb6-81" tabindex="-1"></a><span class="co">#&gt; 6               1 2021</span></span>
+<span id="cb6-82"><a href="#cb6-82" tabindex="-1"></a><span class="co">#&gt; 7               5 2022</span></span></code></pre></div>
+<div id="cleaning-only" class="section level2">
+<h2>Cleaning only</h2>
+<p>Use cleaning-only mode when records should be checked for coordinate
+quality but their spatial clustering should be left unchanged. This is
+useful before assigning records to an overlay when the analysis needs
+all retained locations, rather than a thinned subset.</p>
+<p>Set <code>dist_km = 0</code> to apply the coordinate checks without
+distance-based thinning. In the example below, records with missing,
+impossible or exact <code>0,0</code> coordinates are removed. Records
+with coordinate uncertainty greater than <code>max_uncertainty_m</code>
+are also removed because <code>filter_uncertain = TRUE</code>.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="co"># Apply coordinate cleaning only.</span></span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a><span class="co"># Records with missing, impossible, or exact zero-zero coordinates are removed.</span></span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a><span class="co"># Records above max_uncertainty_m are also removed because filter_uncertain = TRUE.</span></span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a>cleaned_only <span class="ot">&lt;-</span> <span class="fu">thin_spatial_points</span>(</span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a>  cleaning_example,</span>
+<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a>  <span class="at">dist_km =</span> <span class="dv">0</span>,</span>
+<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a>  <span class="at">filter_uncertain =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb7-8"><a href="#cb7-8" tabindex="-1"></a>  <span class="at">max_uncertainty_m =</span> <span class="dv">10000</span>,</span>
+<span id="cb7-9"><a href="#cb7-9" tabindex="-1"></a>  <span class="at">quiet =</span> <span class="cn">TRUE</span></span>
+<span id="cb7-10"><a href="#cb7-10" tabindex="-1"></a>)</span>
+<span id="cb7-11"><a href="#cb7-11" tabindex="-1"></a></span>
+<span id="cb7-12"><a href="#cb7-12" tabindex="-1"></a><span class="co"># Drop geometry for compact display in the vignette.</span></span>
+<span id="cb7-13"><a href="#cb7-13" tabindex="-1"></a>sf<span class="sc">::</span><span class="fu">st_drop_geometry</span>(cleaned_only)</span>
+<span id="cb7-14"><a href="#cb7-14" tabindex="-1"></a><span class="co">#&gt;          species decimalLongitude decimalLatitude coordinateUncertaintyInMeters</span></span>
+<span id="cb7-15"><a href="#cb7-15" tabindex="-1"></a><span class="co">#&gt; 1 Xenopus laevis           2.3500         48.8600                            30</span></span>
+<span id="cb7-16"><a href="#cb7-16" tabindex="-1"></a><span class="co">#&gt; 2 Xenopus laevis           2.3505         48.8605                            50</span></span>
+<span id="cb7-17"><a href="#cb7-17" tabindex="-1"></a><span class="co">#&gt; 7 Xenopus laevis           1.4400         43.6000                           300</span></span>
+<span id="cb7-18"><a href="#cb7-18" tabindex="-1"></a><span class="co">#&gt;   individualCount year .high_uncertainty</span></span>
+<span id="cb7-19"><a href="#cb7-19" tabindex="-1"></a><span class="co">#&gt; 1              10 2019             FALSE</span></span>
+<span id="cb7-20"><a href="#cb7-20" tabindex="-1"></a><span class="co">#&gt; 2               2 2019             FALSE</span></span>
+<span id="cb7-21"><a href="#cb7-21" tabindex="-1"></a><span class="co">#&gt; 7               5 2022             FALSE</span></span></code></pre></div>
+<p>The returned table keeps the records that passed the
+coordinate-quality checks. This is the safest option when the user wants
+cleaner coordinates for overlay assignment but does not want to remove
+nearby records only because they are spatially clustered.</p>
+</div>
+<div id="keeping-high-uncertainty-records-but-flagging-them" class="section level2">
+<h2>Keeping high-uncertainty records but flagging them</h2>
+<p>High coordinate uncertainty does not always mean a record should be
+removed. In some workflows, users may want to retain uncertain records
+so they can be reviewed later, compared with other evidence, or excluded
+only in a sensitivity analysis.</p>
+<p>Set <code>filter_uncertain = FALSE</code> to keep these records.
+Records above <code>warn_uncertainty_m</code> are retained, but flagged
+in the <code>.high_uncertainty</code> column so they can be inspected
+before overlay results are interpreted.</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="co"># Retain high-uncertainty records but flag them for review.</span></span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a>cleaned_with_uncertainty_flags <span class="ot">&lt;-</span> <span class="fu">thin_spatial_points</span>(</span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a>  cleaning_example,</span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a>  <span class="at">dist_km =</span> <span class="dv">0</span>,</span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a>  <span class="at">filter_uncertain =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a>  <span class="at">warn_uncertainty_m =</span> <span class="dv">5000</span>,</span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a>  <span class="at">quiet =</span> <span class="cn">TRUE</span></span>
+<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a>)</span>
+<span id="cb8-9"><a href="#cb8-9" tabindex="-1"></a></span>
+<span id="cb8-10"><a href="#cb8-10" tabindex="-1"></a><span class="co"># Inspect the retained records and the uncertainty flag.</span></span>
+<span id="cb8-11"><a href="#cb8-11" tabindex="-1"></a>sf<span class="sc">::</span><span class="fu">st_drop_geometry</span>(cleaned_with_uncertainty_flags)[</span>
+<span id="cb8-12"><a href="#cb8-12" tabindex="-1"></a>  ,</span>
+<span id="cb8-13"><a href="#cb8-13" tabindex="-1"></a>  <span class="fu">intersect</span>(</span>
+<span id="cb8-14"><a href="#cb8-14" tabindex="-1"></a>    <span class="fu">c</span>(</span>
+<span id="cb8-15"><a href="#cb8-15" tabindex="-1"></a>      <span class="st">&quot;species&quot;</span>,</span>
+<span id="cb8-16"><a href="#cb8-16" tabindex="-1"></a>      <span class="st">&quot;decimalLongitude&quot;</span>,</span>
+<span id="cb8-17"><a href="#cb8-17" tabindex="-1"></a>      <span class="st">&quot;decimalLatitude&quot;</span>,</span>
+<span id="cb8-18"><a href="#cb8-18" tabindex="-1"></a>      <span class="st">&quot;coordinateUncertaintyInMeters&quot;</span>,</span>
+<span id="cb8-19"><a href="#cb8-19" tabindex="-1"></a>      <span class="st">&quot;.high_uncertainty&quot;</span></span>
+<span id="cb8-20"><a href="#cb8-20" tabindex="-1"></a>    ),</span>
+<span id="cb8-21"><a href="#cb8-21" tabindex="-1"></a>    <span class="fu">names</span>(cleaned_with_uncertainty_flags)</span>
+<span id="cb8-22"><a href="#cb8-22" tabindex="-1"></a>  ),</span>
+<span id="cb8-23"><a href="#cb8-23" tabindex="-1"></a>  drop <span class="ot">=</span> <span class="cn">FALSE</span></span>
+<span id="cb8-24"><a href="#cb8-24" tabindex="-1"></a>]</span>
+<span id="cb8-25"><a href="#cb8-25" tabindex="-1"></a><span class="co">#&gt;          species decimalLongitude decimalLatitude coordinateUncertaintyInMeters</span></span>
+<span id="cb8-26"><a href="#cb8-26" tabindex="-1"></a><span class="co">#&gt; 1 Xenopus laevis           2.3500         48.8600                            30</span></span>
+<span id="cb8-27"><a href="#cb8-27" tabindex="-1"></a><span class="co">#&gt; 2 Xenopus laevis           2.3505         48.8605                            50</span></span>
+<span id="cb8-28"><a href="#cb8-28" tabindex="-1"></a><span class="co">#&gt; 3 Xenopus laevis           2.3520         48.8620                         12000</span></span>
+<span id="cb8-29"><a href="#cb8-29" tabindex="-1"></a><span class="co">#&gt; 7 Xenopus laevis           1.4400         43.6000                           300</span></span>
+<span id="cb8-30"><a href="#cb8-30" tabindex="-1"></a><span class="co">#&gt;   .high_uncertainty</span></span>
+<span id="cb8-31"><a href="#cb8-31" tabindex="-1"></a><span class="co">#&gt; 1             FALSE</span></span>
+<span id="cb8-32"><a href="#cb8-32" tabindex="-1"></a><span class="co">#&gt; 2             FALSE</span></span>
+<span id="cb8-33"><a href="#cb8-33" tabindex="-1"></a><span class="co">#&gt; 3              TRUE</span></span>
+<span id="cb8-34"><a href="#cb8-34" tabindex="-1"></a><span class="co">#&gt; 7             FALSE</span></span></code></pre></div>
+<p>This mode is useful when uncertain records should remain visible
+rather than being removed automatically. The flag allows users to decide
+later whether those records are suitable for the selected overlay,
+should be checked manually, or should be excluded from a stricter
+analysis.</p>
+</div>
+<div id="distance-based-thinning" class="section level2">
+<h2>Distance-based thinning</h2>
+<p>Spatial thinning reduces clustering by retaining points that are at
+least a chosen distance apart. This is useful when heavily sampled
+locations would otherwise dominate maps, summaries, or models. It can
+also reduce sampling-driven spatial autocorrelation in downstream
+analyses, although it should not be treated as a substitute for checking
+spatial structure during model diagnostics.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="co"># Apply coordinate cleaning and then distance-based thinning.</span></span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a><span class="co"># return_all = TRUE keeps all cleaned records and adds a `.thinned` diagnostic</span></span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a><span class="co"># column showing which rows were retained by thinning.</span></span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a>distance_thinned <span class="ot">&lt;-</span> <span class="fu">thin_spatial_points</span>(</span>
+<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a>  cleaning_example,</span>
+<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a>  <span class="at">dist_km =</span> <span class="dv">5</span>,</span>
+<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a>  <span class="at">priority_col =</span> <span class="st">&quot;individualCount&quot;</span>,</span>
+<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a>  <span class="at">return_all =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a>  <span class="at">filter_uncertain =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb9-10"><a href="#cb9-10" tabindex="-1"></a>  <span class="at">warn_uncertainty_m =</span> <span class="dv">5000</span>,</span>
+<span id="cb9-11"><a href="#cb9-11" tabindex="-1"></a>  <span class="at">quiet =</span> <span class="cn">TRUE</span></span>
+<span id="cb9-12"><a href="#cb9-12" tabindex="-1"></a>)</span>
+<span id="cb9-13"><a href="#cb9-13" tabindex="-1"></a></span>
+<span id="cb9-14"><a href="#cb9-14" tabindex="-1"></a><span class="co"># Inspect thinning diagnostics.</span></span>
+<span id="cb9-15"><a href="#cb9-15" tabindex="-1"></a>sf<span class="sc">::</span><span class="fu">st_drop_geometry</span>(distance_thinned)[</span>
+<span id="cb9-16"><a href="#cb9-16" tabindex="-1"></a>  ,</span>
+<span id="cb9-17"><a href="#cb9-17" tabindex="-1"></a>  <span class="fu">intersect</span>(</span>
+<span id="cb9-18"><a href="#cb9-18" tabindex="-1"></a>    <span class="fu">c</span>(</span>
+<span id="cb9-19"><a href="#cb9-19" tabindex="-1"></a>      <span class="st">&quot;species&quot;</span>,</span>
+<span id="cb9-20"><a href="#cb9-20" tabindex="-1"></a>      <span class="st">&quot;decimalLongitude&quot;</span>,</span>
+<span id="cb9-21"><a href="#cb9-21" tabindex="-1"></a>      <span class="st">&quot;decimalLatitude&quot;</span>,</span>
+<span id="cb9-22"><a href="#cb9-22" tabindex="-1"></a>      <span class="st">&quot;individualCount&quot;</span>,</span>
+<span id="cb9-23"><a href="#cb9-23" tabindex="-1"></a>      <span class="st">&quot;coordinateUncertaintyInMeters&quot;</span>,</span>
+<span id="cb9-24"><a href="#cb9-24" tabindex="-1"></a>      <span class="st">&quot;.high_uncertainty&quot;</span>,</span>
+<span id="cb9-25"><a href="#cb9-25" tabindex="-1"></a>      <span class="st">&quot;.thinned&quot;</span></span>
+<span id="cb9-26"><a href="#cb9-26" tabindex="-1"></a>    ),</span>
+<span id="cb9-27"><a href="#cb9-27" tabindex="-1"></a>    <span class="fu">names</span>(distance_thinned)</span>
+<span id="cb9-28"><a href="#cb9-28" tabindex="-1"></a>  ),</span>
+<span id="cb9-29"><a href="#cb9-29" tabindex="-1"></a>  drop <span class="ot">=</span> <span class="cn">FALSE</span></span>
+<span id="cb9-30"><a href="#cb9-30" tabindex="-1"></a>]</span>
+<span id="cb9-31"><a href="#cb9-31" tabindex="-1"></a><span class="co">#&gt;          species decimalLongitude decimalLatitude individualCount</span></span>
+<span id="cb9-32"><a href="#cb9-32" tabindex="-1"></a><span class="co">#&gt; 1 Xenopus laevis           2.3500         48.8600              10</span></span>
+<span id="cb9-33"><a href="#cb9-33" tabindex="-1"></a><span class="co">#&gt; 7 Xenopus laevis           1.4400         43.6000               5</span></span>
+<span id="cb9-34"><a href="#cb9-34" tabindex="-1"></a><span class="co">#&gt; 2 Xenopus laevis           2.3505         48.8605               2</span></span>
+<span id="cb9-35"><a href="#cb9-35" tabindex="-1"></a><span class="co">#&gt; 3 Xenopus laevis           2.3520         48.8620               1</span></span>
+<span id="cb9-36"><a href="#cb9-36" tabindex="-1"></a><span class="co">#&gt;   coordinateUncertaintyInMeters .high_uncertainty .thinned</span></span>
+<span id="cb9-37"><a href="#cb9-37" tabindex="-1"></a><span class="co">#&gt; 1                            30             FALSE     TRUE</span></span>
+<span id="cb9-38"><a href="#cb9-38" tabindex="-1"></a><span class="co">#&gt; 7                           300             FALSE     TRUE</span></span>
+<span id="cb9-39"><a href="#cb9-39" tabindex="-1"></a><span class="co">#&gt; 2                            50             FALSE    FALSE</span></span>
+<span id="cb9-40"><a href="#cb9-40" tabindex="-1"></a><span class="co">#&gt; 3                         12000              TRUE    FALSE</span></span></code></pre></div>
+</div>
+<div id="distance-based-thinning-1" class="section level2">
+<h2>Distance-based thinning</h2>
+<p>Distance-based thinning retains a subset of records so that kept
+points are separated by at least the chosen distance. This is useful
+when many records come from the same locality or from very densely
+sampled areas, and those clusters would otherwise dominate maps, overlay
+summaries or spatial analyses. In downstream modelling, strong spatial
+clustering can also contribute to spatial autocorrelation, so thinning
+can help reduce one source of sampling-driven dependence before model
+fitting.</p>
+<p>In this example, <code>dist_km = 5</code> applies a 5 km thinning
+distance after coordinate cleaning. The <code>priority_col</code>
+argument is used to retain higher-priority records first when nearby
+records compete for the same retained location. Here,
+<code>individualCount</code> is used only as an example priority
+field.</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="co"># Apply coordinate cleaning and then distance-based thinning.</span></span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a><span class="co"># return_all = TRUE keeps all cleaned records and adds a `.thinned` diagnostic</span></span>
+<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a><span class="co"># column showing which rows were retained by thinning.</span></span>
+<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a>distance_thinned <span class="ot">&lt;-</span> <span class="fu">thin_spatial_points</span>(</span>
+<span id="cb10-5"><a href="#cb10-5" tabindex="-1"></a>  cleaning_example,</span>
+<span id="cb10-6"><a href="#cb10-6" tabindex="-1"></a>  <span class="at">dist_km =</span> <span class="dv">5</span>,</span>
+<span id="cb10-7"><a href="#cb10-7" tabindex="-1"></a>  <span class="at">priority_col =</span> <span class="st">&quot;individualCount&quot;</span>,</span>
+<span id="cb10-8"><a href="#cb10-8" tabindex="-1"></a>  <span class="at">return_all =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb10-9"><a href="#cb10-9" tabindex="-1"></a>  <span class="at">filter_uncertain =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb10-10"><a href="#cb10-10" tabindex="-1"></a>  <span class="at">warn_uncertainty_m =</span> <span class="dv">5000</span>,</span>
+<span id="cb10-11"><a href="#cb10-11" tabindex="-1"></a>  <span class="at">quiet =</span> <span class="cn">TRUE</span></span>
+<span id="cb10-12"><a href="#cb10-12" tabindex="-1"></a>)</span>
+<span id="cb10-13"><a href="#cb10-13" tabindex="-1"></a></span>
+<span id="cb10-14"><a href="#cb10-14" tabindex="-1"></a><span class="co"># Inspect thinning diagnostics.</span></span>
+<span id="cb10-15"><a href="#cb10-15" tabindex="-1"></a>sf<span class="sc">::</span><span class="fu">st_drop_geometry</span>(distance_thinned)[</span>
+<span id="cb10-16"><a href="#cb10-16" tabindex="-1"></a>  ,</span>
+<span id="cb10-17"><a href="#cb10-17" tabindex="-1"></a>  <span class="fu">intersect</span>(</span>
+<span id="cb10-18"><a href="#cb10-18" tabindex="-1"></a>    <span class="fu">c</span>(</span>
+<span id="cb10-19"><a href="#cb10-19" tabindex="-1"></a>      <span class="st">&quot;species&quot;</span>,</span>
+<span id="cb10-20"><a href="#cb10-20" tabindex="-1"></a>      <span class="st">&quot;decimalLongitude&quot;</span>,</span>
+<span id="cb10-21"><a href="#cb10-21" tabindex="-1"></a>      <span class="st">&quot;decimalLatitude&quot;</span>,</span>
+<span id="cb10-22"><a href="#cb10-22" tabindex="-1"></a>      <span class="st">&quot;individualCount&quot;</span>,</span>
+<span id="cb10-23"><a href="#cb10-23" tabindex="-1"></a>      <span class="st">&quot;coordinateUncertaintyInMeters&quot;</span>,</span>
+<span id="cb10-24"><a href="#cb10-24" tabindex="-1"></a>      <span class="st">&quot;.high_uncertainty&quot;</span>,</span>
+<span id="cb10-25"><a href="#cb10-25" tabindex="-1"></a>      <span class="st">&quot;.thinned&quot;</span></span>
+<span id="cb10-26"><a href="#cb10-26" tabindex="-1"></a>    ),</span>
+<span id="cb10-27"><a href="#cb10-27" tabindex="-1"></a>    <span class="fu">names</span>(distance_thinned)</span>
+<span id="cb10-28"><a href="#cb10-28" tabindex="-1"></a>  ),</span>
+<span id="cb10-29"><a href="#cb10-29" tabindex="-1"></a>  drop <span class="ot">=</span> <span class="cn">FALSE</span></span>
+<span id="cb10-30"><a href="#cb10-30" tabindex="-1"></a>]</span>
+<span id="cb10-31"><a href="#cb10-31" tabindex="-1"></a><span class="co">#&gt;          species decimalLongitude decimalLatitude individualCount</span></span>
+<span id="cb10-32"><a href="#cb10-32" tabindex="-1"></a><span class="co">#&gt; 1 Xenopus laevis           2.3500         48.8600              10</span></span>
+<span id="cb10-33"><a href="#cb10-33" tabindex="-1"></a><span class="co">#&gt; 7 Xenopus laevis           1.4400         43.6000               5</span></span>
+<span id="cb10-34"><a href="#cb10-34" tabindex="-1"></a><span class="co">#&gt; 2 Xenopus laevis           2.3505         48.8605               2</span></span>
+<span id="cb10-35"><a href="#cb10-35" tabindex="-1"></a><span class="co">#&gt; 3 Xenopus laevis           2.3520         48.8620               1</span></span>
+<span id="cb10-36"><a href="#cb10-36" tabindex="-1"></a><span class="co">#&gt;   coordinateUncertaintyInMeters .high_uncertainty .thinned</span></span>
+<span id="cb10-37"><a href="#cb10-37" tabindex="-1"></a><span class="co">#&gt; 1                            30             FALSE     TRUE</span></span>
+<span id="cb10-38"><a href="#cb10-38" tabindex="-1"></a><span class="co">#&gt; 7                           300             FALSE     TRUE</span></span>
+<span id="cb10-39"><a href="#cb10-39" tabindex="-1"></a><span class="co">#&gt; 2                            50             FALSE    FALSE</span></span>
+<span id="cb10-40"><a href="#cb10-40" tabindex="-1"></a><span class="co">#&gt; 3                         12000              TRUE    FALSE</span></span></code></pre></div>
+<p>Because <code>return_all = TRUE</code>, the output keeps all cleaned
+records and adds the <code>.thinned</code> column. Rows marked
+<code>TRUE</code> are the records retained by thinning; rows marked
+<code>FALSE</code> passed coordinate cleaning but were not selected for
+the thinned subset. This makes it possible to inspect what thinning
+changed before using the retained records in an overlay workflow.</p>
+<p>Thinning is a sampling-bias reduction step, not a complete solution
+to spatial autocorrelation. If the retained records are used in models,
+users should still check spatial structure during model diagnostics and
+consider whether additional spatial terms, blocking, or sensitivity
+analyses are needed.</p>
+</div>
+<div id="cleaning-and-thinning-inside-the-pipelines" class="section level2">
+<h2>Cleaning and thinning inside the pipelines</h2>
+<p>The same cleaning and thinning controls can be used directly inside
+the high-level pipelines. This is usually the simplest route when
+records are being downloaded, processed and assigned to overlays in one
+workflow.</p>
+<p>Use <code>apply_cleaning = TRUE</code> to run coordinate-quality
+checks before spatial attribution. Use
+<code>apply_thinning = TRUE</code> with <code>dist_km</code> to apply
+distance-based thinning after cleaning.</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="fu">process_gbif_terrestrial_freshwater_pipeline</span>(</span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a>  <span class="at">df =</span> <span class="fu">data.frame</span>(</span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a>    <span class="at">species =</span> <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a>    <span class="at">iso2c =</span> <span class="st">&quot;FR&quot;</span>,</span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a>    <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a>  ),</span>
+<span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a>  <span class="at">output_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;example_outputs&quot;</span>),</span>
+<span id="cb11-8"><a href="#cb11-8" tabindex="-1"></a>  <span class="at">user =</span> <span class="fu">Sys.getenv</span>(<span class="st">&quot;GBIF_USER&quot;</span>),</span>
+<span id="cb11-9"><a href="#cb11-9" tabindex="-1"></a>  <span class="at">pwd =</span> <span class="fu">Sys.getenv</span>(<span class="st">&quot;GBIF_PWD&quot;</span>),</span>
+<span id="cb11-10"><a href="#cb11-10" tabindex="-1"></a>  <span class="at">email =</span> <span class="fu">Sys.getenv</span>(<span class="st">&quot;GBIF_EMAIL&quot;</span>),</span>
+<span id="cb11-11"><a href="#cb11-11" tabindex="-1"></a></span>
+<span id="cb11-12"><a href="#cb11-12" tabindex="-1"></a>  <span class="at">region_source =</span> <span class="st">&quot;gadm&quot;</span>,</span>
+<span id="cb11-13"><a href="#cb11-13" tabindex="-1"></a>  <span class="at">gadm_unit =</span> <span class="dv">1</span>,</span>
+<span id="cb11-14"><a href="#cb11-14" tabindex="-1"></a>  <span class="at">cache_dir_gadm =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;gadm&quot;</span>),</span>
+<span id="cb11-15"><a href="#cb11-15" tabindex="-1"></a></span>
+<span id="cb11-16"><a href="#cb11-16" tabindex="-1"></a>  <span class="co"># Apply coordinate quality control.</span></span>
+<span id="cb11-17"><a href="#cb11-17" tabindex="-1"></a>  <span class="at">apply_cleaning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb11-18"><a href="#cb11-18" tabindex="-1"></a></span>
+<span id="cb11-19"><a href="#cb11-19" tabindex="-1"></a>  <span class="co"># Apply spatial thinning after cleaning.</span></span>
+<span id="cb11-20"><a href="#cb11-20" tabindex="-1"></a>  <span class="at">apply_thinning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb11-21"><a href="#cb11-21" tabindex="-1"></a></span>
+<span id="cb11-22"><a href="#cb11-22" tabindex="-1"></a>  <span class="co"># Retain records separated by at least 5 km where possible.</span></span>
+<span id="cb11-23"><a href="#cb11-23" tabindex="-1"></a>  <span class="at">dist_km =</span> <span class="dv">5</span>,</span>
+<span id="cb11-24"><a href="#cb11-24" tabindex="-1"></a></span>
+<span id="cb11-25"><a href="#cb11-25" tabindex="-1"></a>  <span class="at">export_summary =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb11-26"><a href="#cb11-26" tabindex="-1"></a>  <span class="at">store_in_memory =</span> <span class="cn">FALSE</span></span>
+<span id="cb11-27"><a href="#cb11-27" tabindex="-1"></a>)</span></code></pre></div>
+<p>After the run, inspect the record-count fields in
+<code>gbif_summary.csv</code>. These show how many records were returned
+from GBIF, how many remained after coordinate cleaning, and how many
+remained after thinning. Check these values before interpreting the
+overlay fields, especially when few records remain or when thinning
+removes a large proportion of the cleaned dataset.</p>
+</div>
+</div>
+<div id="primary-and-secondary-spatial-context" class="section level1">
+<h1>Primary and secondary spatial context</h1>
+<p>A primary spatial framework is the main unit used to organise the
+output. This is usually the unit that records will be grouped by,
+summarised across, mapped or used in later analyses. For example, a
+terrestrial workflow may use GADM level 1 as the primary framework when
+the main output needs to be interpreted by subnational administrative
+units.</p>
+<p>A secondary overlay adds another layer of context to the same
+records. It should not be treated as a replacement for the primary
+framework. For example, a freshwater workflow may retain GADM level 1 as
+the reporting unit while also adding FEOW identifiers to describe the
+freshwater ecoregion associated with each record.</p>
+<p>The key point is to keep these fields interpretable. Administrative
+units, ecoregions, hydrological features, protected areas, marine
+regions and raster values describe different spatial concepts. Keeping
+them as separate fields makes it easier to check the output, compare
+alternative summaries and decide which spatial unit is appropriate for
+each part of the analysis.</p>
+<pre><code>#&gt;                            workflow                          primary_context
+#&gt; 1 Subnational terrestrial reporting                             GADM level 1
+#&gt; 2      Freshwater invasion analysis               GADM level 1 or basin unit
+#&gt; 3          Protected-area screening                GADM or ecological region
+#&gt; 4    Marine jurisdictional analysis                                      EEZ
+#&gt; 5  Environmental-covariate analysis GADM, ecoregion, basin, or marine region
+#&gt;                       secondary_context
+#&gt; 1                  TEOW or RESOLVE 2017
+#&gt; 2 FEOW, rivers, lakes, dams, reservoirs
+#&gt; 3                        WDPA or Ramsar
+#&gt; 4          LME, MEOW, IHO, or high seas
+#&gt; 5                        Raster context
+#&gt;                                                                                   reason
+#&gt; 1                Administrative outputs can be interpreted alongside ecological regions.
+#&gt; 2            Reporting units and freshwater ecological units answer different questions.
+#&gt; 3 Protected-area context is usually an additional attribute, not the main grouping unit.
+#&gt; 4                  Marine records need marine spatial units rather than land boundaries.
+#&gt; 5          Raster values describe point-level covariates rather than polygon membership.</code></pre>
+<p>Use the primary framework for the main grouping structure, then add
+secondary fields only when they support a specific interpretation. This
+avoids forcing different spatial concepts into one combined unit too
+early.</p>
+</div>
+<div id="common-overlay-types" class="section level1">
+<h1>Common overlay types</h1>
+<p>The table below provides a quick reference to overlay names commonly
+used in <code>biofetchR</code> workflows. It is intended as a guide to
+the main spatial meaning of each overlay, not as a complete description
+of every provider layer.</p>
+<p>Availability can depend on optional packages, internet access,
+provider availability and local cache settings. Before scaling up, test
+the selected overlay on a small example and check that the output
+contains the spatial names or identifiers you need.</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a>overlay_reference <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a>  <span class="at">overlay =</span> <span class="fu">c</span>(</span>
+<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a>    <span class="st">&quot;gadm&quot;</span>,</span>
+<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a>    <span class="st">&quot;teow&quot;</span>,</span>
+<span id="cb13-5"><a href="#cb13-5" tabindex="-1"></a>    <span class="st">&quot;feow&quot;</span>,</span>
+<span id="cb13-6"><a href="#cb13-6" tabindex="-1"></a>    <span class="st">&quot;lakes&quot;</span>,</span>
+<span id="cb13-7"><a href="#cb13-7" tabindex="-1"></a>    <span class="st">&quot;rivers&quot;</span>,</span>
+<span id="cb13-8"><a href="#cb13-8" tabindex="-1"></a>    <span class="st">&quot;basins&quot;</span>,</span>
+<span id="cb13-9"><a href="#cb13-9" tabindex="-1"></a>    <span class="st">&quot;ne_admin1&quot;</span>,</span>
+<span id="cb13-10"><a href="#cb13-10" tabindex="-1"></a>    <span class="st">&quot;resolve2017&quot;</span>,</span>
+<span id="cb13-11"><a href="#cb13-11" tabindex="-1"></a>    <span class="st">&quot;wdpa&quot;</span>,</span>
+<span id="cb13-12"><a href="#cb13-12" tabindex="-1"></a>    <span class="st">&quot;ramsar&quot;</span>,</span>
+<span id="cb13-13"><a href="#cb13-13" tabindex="-1"></a>    <span class="st">&quot;gdw_barriers&quot;</span>,</span>
+<span id="cb13-14"><a href="#cb13-14" tabindex="-1"></a>    <span class="st">&quot;hydrowaste&quot;</span>,</span>
+<span id="cb13-15"><a href="#cb13-15" tabindex="-1"></a>    <span class="st">&quot;gdw_reservoirs&quot;</span>,</span>
+<span id="cb13-16"><a href="#cb13-16" tabindex="-1"></a>    <span class="st">&quot;global_mining&quot;</span>,</span>
+<span id="cb13-17"><a href="#cb13-17" tabindex="-1"></a>    <span class="st">&quot;eez&quot;</span>,</span>
+<span id="cb13-18"><a href="#cb13-18" tabindex="-1"></a>    <span class="st">&quot;lme&quot;</span>,</span>
+<span id="cb13-19"><a href="#cb13-19" tabindex="-1"></a>    <span class="st">&quot;meow&quot;</span>,</span>
+<span id="cb13-20"><a href="#cb13-20" tabindex="-1"></a>    <span class="st">&quot;iho&quot;</span></span>
+<span id="cb13-21"><a href="#cb13-21" tabindex="-1"></a>  ),</span>
+<span id="cb13-22"><a href="#cb13-22" tabindex="-1"></a>  <span class="at">typical_use =</span> <span class="fu">c</span>(</span>
+<span id="cb13-23"><a href="#cb13-23" tabindex="-1"></a>    <span class="st">&quot;Administrative attribution for terrestrial and freshwater records&quot;</span>,</span>
+<span id="cb13-24"><a href="#cb13-24" tabindex="-1"></a>    <span class="st">&quot;Terrestrial ecoregion context&quot;</span>,</span>
+<span id="cb13-25"><a href="#cb13-25" tabindex="-1"></a>    <span class="st">&quot;Freshwater ecoregion context&quot;</span>,</span>
+<span id="cb13-26"><a href="#cb13-26" tabindex="-1"></a>    <span class="st">&quot;Lake-associated occurrence context&quot;</span>,</span>
+<span id="cb13-27"><a href="#cb13-27" tabindex="-1"></a>    <span class="st">&quot;River-associated occurrence context&quot;</span>,</span>
+<span id="cb13-28"><a href="#cb13-28" tabindex="-1"></a>    <span class="st">&quot;Hydrological basin context&quot;</span>,</span>
+<span id="cb13-29"><a href="#cb13-29" tabindex="-1"></a>    <span class="st">&quot;Natural Earth administrative-unit context&quot;</span>,</span>
+<span id="cb13-30"><a href="#cb13-30" tabindex="-1"></a>    <span class="st">&quot;RESOLVE ecoregion and biome context&quot;</span>,</span>
+<span id="cb13-31"><a href="#cb13-31" tabindex="-1"></a>    <span class="st">&quot;Protected-area context&quot;</span>,</span>
+<span id="cb13-32"><a href="#cb13-32" tabindex="-1"></a>    <span class="st">&quot;Ramsar wetland context&quot;</span>,</span>
+<span id="cb13-33"><a href="#cb13-33" tabindex="-1"></a>    <span class="st">&quot;Barrier and dam context&quot;</span>,</span>
+<span id="cb13-34"><a href="#cb13-34" tabindex="-1"></a>    <span class="st">&quot;Wastewater-treatment context&quot;</span>,</span>
+<span id="cb13-35"><a href="#cb13-35" tabindex="-1"></a>    <span class="st">&quot;Reservoir context&quot;</span>,</span>
+<span id="cb13-36"><a href="#cb13-36" tabindex="-1"></a>    <span class="st">&quot;Mining or extraction-pressure context&quot;</span>,</span>
+<span id="cb13-37"><a href="#cb13-37" tabindex="-1"></a>    <span class="st">&quot;Marine jurisdictional attribution&quot;</span>,</span>
+<span id="cb13-38"><a href="#cb13-38" tabindex="-1"></a>    <span class="st">&quot;Large Marine Ecosystem attribution&quot;</span>,</span>
+<span id="cb13-39"><a href="#cb13-39" tabindex="-1"></a>    <span class="st">&quot;Marine ecoregion attribution&quot;</span>,</span>
+<span id="cb13-40"><a href="#cb13-40" tabindex="-1"></a>    <span class="st">&quot;Sea-area attribution&quot;</span></span>
+<span id="cb13-41"><a href="#cb13-41" tabindex="-1"></a>  ),</span>
+<span id="cb13-42"><a href="#cb13-42" tabindex="-1"></a>  <span class="at">broad_domain =</span> <span class="fu">c</span>(</span>
+<span id="cb13-43"><a href="#cb13-43" tabindex="-1"></a>    <span class="st">&quot;terrestrial/freshwater&quot;</span>,</span>
+<span id="cb13-44"><a href="#cb13-44" tabindex="-1"></a>    <span class="st">&quot;terrestrial&quot;</span>,</span>
+<span id="cb13-45"><a href="#cb13-45" tabindex="-1"></a>    <span class="st">&quot;freshwater&quot;</span>,</span>
+<span id="cb13-46"><a href="#cb13-46" tabindex="-1"></a>    <span class="st">&quot;freshwater&quot;</span>,</span>
+<span id="cb13-47"><a href="#cb13-47" tabindex="-1"></a>    <span class="st">&quot;freshwater&quot;</span>,</span>
+<span id="cb13-48"><a href="#cb13-48" tabindex="-1"></a>    <span class="st">&quot;freshwater&quot;</span>,</span>
+<span id="cb13-49"><a href="#cb13-49" tabindex="-1"></a>    <span class="st">&quot;terrestrial/freshwater&quot;</span>,</span>
+<span id="cb13-50"><a href="#cb13-50" tabindex="-1"></a>    <span class="st">&quot;terrestrial&quot;</span>,</span>
+<span id="cb13-51"><a href="#cb13-51" tabindex="-1"></a>    <span class="st">&quot;terrestrial/freshwater/marine depending on source&quot;</span>,</span>
+<span id="cb13-52"><a href="#cb13-52" tabindex="-1"></a>    <span class="st">&quot;wetland/freshwater/coastal&quot;</span>,</span>
+<span id="cb13-53"><a href="#cb13-53" tabindex="-1"></a>    <span class="st">&quot;freshwater&quot;</span>,</span>
+<span id="cb13-54"><a href="#cb13-54" tabindex="-1"></a>    <span class="st">&quot;freshwater/infrastructure&quot;</span>,</span>
+<span id="cb13-55"><a href="#cb13-55" tabindex="-1"></a>    <span class="st">&quot;freshwater&quot;</span>,</span>
+<span id="cb13-56"><a href="#cb13-56" tabindex="-1"></a>    <span class="st">&quot;terrestrial/infrastructure&quot;</span>,</span>
+<span id="cb13-57"><a href="#cb13-57" tabindex="-1"></a>    <span class="st">&quot;marine&quot;</span>,</span>
+<span id="cb13-58"><a href="#cb13-58" tabindex="-1"></a>    <span class="st">&quot;marine&quot;</span>,</span>
+<span id="cb13-59"><a href="#cb13-59" tabindex="-1"></a>    <span class="st">&quot;marine&quot;</span>,</span>
+<span id="cb13-60"><a href="#cb13-60" tabindex="-1"></a>    <span class="st">&quot;marine&quot;</span></span>
+<span id="cb13-61"><a href="#cb13-61" tabindex="-1"></a>  ),</span>
+<span id="cb13-62"><a href="#cb13-62" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb13-63"><a href="#cb13-63" tabindex="-1"></a>)</span>
+<span id="cb13-64"><a href="#cb13-64" tabindex="-1"></a></span>
+<span id="cb13-65"><a href="#cb13-65" tabindex="-1"></a>overlay_reference</span>
+<span id="cb13-66"><a href="#cb13-66" tabindex="-1"></a><span class="co">#&gt;           overlay</span></span>
+<span id="cb13-67"><a href="#cb13-67" tabindex="-1"></a><span class="co">#&gt; 1            gadm</span></span>
+<span id="cb13-68"><a href="#cb13-68" tabindex="-1"></a><span class="co">#&gt; 2            teow</span></span>
+<span id="cb13-69"><a href="#cb13-69" tabindex="-1"></a><span class="co">#&gt; 3            feow</span></span>
+<span id="cb13-70"><a href="#cb13-70" tabindex="-1"></a><span class="co">#&gt; 4           lakes</span></span>
+<span id="cb13-71"><a href="#cb13-71" tabindex="-1"></a><span class="co">#&gt; 5          rivers</span></span>
+<span id="cb13-72"><a href="#cb13-72" tabindex="-1"></a><span class="co">#&gt; 6          basins</span></span>
+<span id="cb13-73"><a href="#cb13-73" tabindex="-1"></a><span class="co">#&gt; 7       ne_admin1</span></span>
+<span id="cb13-74"><a href="#cb13-74" tabindex="-1"></a><span class="co">#&gt; 8     resolve2017</span></span>
+<span id="cb13-75"><a href="#cb13-75" tabindex="-1"></a><span class="co">#&gt; 9            wdpa</span></span>
+<span id="cb13-76"><a href="#cb13-76" tabindex="-1"></a><span class="co">#&gt; 10         ramsar</span></span>
+<span id="cb13-77"><a href="#cb13-77" tabindex="-1"></a><span class="co">#&gt; 11   gdw_barriers</span></span>
+<span id="cb13-78"><a href="#cb13-78" tabindex="-1"></a><span class="co">#&gt; 12     hydrowaste</span></span>
+<span id="cb13-79"><a href="#cb13-79" tabindex="-1"></a><span class="co">#&gt; 13 gdw_reservoirs</span></span>
+<span id="cb13-80"><a href="#cb13-80" tabindex="-1"></a><span class="co">#&gt; 14  global_mining</span></span>
+<span id="cb13-81"><a href="#cb13-81" tabindex="-1"></a><span class="co">#&gt; 15            eez</span></span>
+<span id="cb13-82"><a href="#cb13-82" tabindex="-1"></a><span class="co">#&gt; 16            lme</span></span>
+<span id="cb13-83"><a href="#cb13-83" tabindex="-1"></a><span class="co">#&gt; 17           meow</span></span>
+<span id="cb13-84"><a href="#cb13-84" tabindex="-1"></a><span class="co">#&gt; 18            iho</span></span>
+<span id="cb13-85"><a href="#cb13-85" tabindex="-1"></a><span class="co">#&gt;                                                          typical_use</span></span>
+<span id="cb13-86"><a href="#cb13-86" tabindex="-1"></a><span class="co">#&gt; 1  Administrative attribution for terrestrial and freshwater records</span></span>
+<span id="cb13-87"><a href="#cb13-87" tabindex="-1"></a><span class="co">#&gt; 2                                      Terrestrial ecoregion context</span></span>
+<span id="cb13-88"><a href="#cb13-88" tabindex="-1"></a><span class="co">#&gt; 3                                       Freshwater ecoregion context</span></span>
+<span id="cb13-89"><a href="#cb13-89" tabindex="-1"></a><span class="co">#&gt; 4                                 Lake-associated occurrence context</span></span>
+<span id="cb13-90"><a href="#cb13-90" tabindex="-1"></a><span class="co">#&gt; 5                                River-associated occurrence context</span></span>
+<span id="cb13-91"><a href="#cb13-91" tabindex="-1"></a><span class="co">#&gt; 6                                         Hydrological basin context</span></span>
+<span id="cb13-92"><a href="#cb13-92" tabindex="-1"></a><span class="co">#&gt; 7                          Natural Earth administrative-unit context</span></span>
+<span id="cb13-93"><a href="#cb13-93" tabindex="-1"></a><span class="co">#&gt; 8                                RESOLVE ecoregion and biome context</span></span>
+<span id="cb13-94"><a href="#cb13-94" tabindex="-1"></a><span class="co">#&gt; 9                                             Protected-area context</span></span>
+<span id="cb13-95"><a href="#cb13-95" tabindex="-1"></a><span class="co">#&gt; 10                                            Ramsar wetland context</span></span>
+<span id="cb13-96"><a href="#cb13-96" tabindex="-1"></a><span class="co">#&gt; 11                                           Barrier and dam context</span></span>
+<span id="cb13-97"><a href="#cb13-97" tabindex="-1"></a><span class="co">#&gt; 12                                      Wastewater-treatment context</span></span>
+<span id="cb13-98"><a href="#cb13-98" tabindex="-1"></a><span class="co">#&gt; 13                                                 Reservoir context</span></span>
+<span id="cb13-99"><a href="#cb13-99" tabindex="-1"></a><span class="co">#&gt; 14                             Mining or extraction-pressure context</span></span>
+<span id="cb13-100"><a href="#cb13-100" tabindex="-1"></a><span class="co">#&gt; 15                                 Marine jurisdictional attribution</span></span>
+<span id="cb13-101"><a href="#cb13-101" tabindex="-1"></a><span class="co">#&gt; 16                                Large Marine Ecosystem attribution</span></span>
+<span id="cb13-102"><a href="#cb13-102" tabindex="-1"></a><span class="co">#&gt; 17                                      Marine ecoregion attribution</span></span>
+<span id="cb13-103"><a href="#cb13-103" tabindex="-1"></a><span class="co">#&gt; 18                                              Sea-area attribution</span></span>
+<span id="cb13-104"><a href="#cb13-104" tabindex="-1"></a><span class="co">#&gt;                                         broad_domain</span></span>
+<span id="cb13-105"><a href="#cb13-105" tabindex="-1"></a><span class="co">#&gt; 1                             terrestrial/freshwater</span></span>
+<span id="cb13-106"><a href="#cb13-106" tabindex="-1"></a><span class="co">#&gt; 2                                        terrestrial</span></span>
+<span id="cb13-107"><a href="#cb13-107" tabindex="-1"></a><span class="co">#&gt; 3                                         freshwater</span></span>
+<span id="cb13-108"><a href="#cb13-108" tabindex="-1"></a><span class="co">#&gt; 4                                         freshwater</span></span>
+<span id="cb13-109"><a href="#cb13-109" tabindex="-1"></a><span class="co">#&gt; 5                                         freshwater</span></span>
+<span id="cb13-110"><a href="#cb13-110" tabindex="-1"></a><span class="co">#&gt; 6                                         freshwater</span></span>
+<span id="cb13-111"><a href="#cb13-111" tabindex="-1"></a><span class="co">#&gt; 7                             terrestrial/freshwater</span></span>
+<span id="cb13-112"><a href="#cb13-112" tabindex="-1"></a><span class="co">#&gt; 8                                        terrestrial</span></span>
+<span id="cb13-113"><a href="#cb13-113" tabindex="-1"></a><span class="co">#&gt; 9  terrestrial/freshwater/marine depending on source</span></span>
+<span id="cb13-114"><a href="#cb13-114" tabindex="-1"></a><span class="co">#&gt; 10                        wetland/freshwater/coastal</span></span>
+<span id="cb13-115"><a href="#cb13-115" tabindex="-1"></a><span class="co">#&gt; 11                                        freshwater</span></span>
+<span id="cb13-116"><a href="#cb13-116" tabindex="-1"></a><span class="co">#&gt; 12                         freshwater/infrastructure</span></span>
+<span id="cb13-117"><a href="#cb13-117" tabindex="-1"></a><span class="co">#&gt; 13                                        freshwater</span></span>
+<span id="cb13-118"><a href="#cb13-118" tabindex="-1"></a><span class="co">#&gt; 14                        terrestrial/infrastructure</span></span>
+<span id="cb13-119"><a href="#cb13-119" tabindex="-1"></a><span class="co">#&gt; 15                                            marine</span></span>
+<span id="cb13-120"><a href="#cb13-120" tabindex="-1"></a><span class="co">#&gt; 16                                            marine</span></span>
+<span id="cb13-121"><a href="#cb13-121" tabindex="-1"></a><span class="co">#&gt; 17                                            marine</span></span>
+<span id="cb13-122"><a href="#cb13-122" tabindex="-1"></a><span class="co">#&gt; 18                                            marine</span></span></code></pre></div>
+<p>Use this table to narrow the overlay choice before running a
+pipeline. For example, choose <code>gadm</code> when the output needs
+administrative units, <code>feow</code> or basin layers when freshwater
+context is central, <code>wdpa</code> or <code>ramsar</code> when
+conservation-site context is needed, and marine overlays when records
+should be interpreted in offshore or coastal marine space.</p>
+</div>
+<div id="gadm-administrative-attribution" class="section level1">
+<h1>GADM administrative attribution</h1>
+<p>GADM is used when occurrence records need to be assigned to
+administrative boundaries. In <code>biofetchR</code>, this is most
+useful when the analysis needs outputs by country, first-level
+administrative unit, or finer subnational subdivision.</p>
+<p>Administrative attribution is different from ecological or
+hydrological context. It is useful when records need to be summarised
+for reporting units, management regions, national or subnational
+comparisons, or first-detection summaries within political
+boundaries.</p>
+<p>In the high-level pipeline, GADM attribution is requested with
+<code>region_source = &quot;gadm&quot;</code>. The <code>gadm_unit</code> argument
+sets the administrative level: level 0 refers to the country, level 1 to
+the first subnational unit, and level 2 to the next subdivision below
+that.</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a><span class="co"># Load GADM level 1 polygons for Portugal.</span></span>
+<span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a><span class="co"># This is useful for checking that GADM can be retrieved and cached before</span></span>
+<span id="cb14-3"><a href="#cb14-3" tabindex="-1"></a><span class="co"># running a larger GBIF workflow.</span></span>
+<span id="cb14-4"><a href="#cb14-4" tabindex="-1"></a>gadm_prt_l1 <span class="ot">&lt;-</span> <span class="fu">run_live_safely</span>(</span>
+<span id="cb14-5"><a href="#cb14-5" tabindex="-1"></a>  <span class="fu">load_gadm</span>(</span>
+<span id="cb14-6"><a href="#cb14-6" tabindex="-1"></a>    <span class="at">iso2c =</span> <span class="st">&quot;PT&quot;</span>,</span>
+<span id="cb14-7"><a href="#cb14-7" tabindex="-1"></a>    <span class="at">level =</span> <span class="dv">1</span>,</span>
+<span id="cb14-8"><a href="#cb14-8" tabindex="-1"></a>    <span class="at">cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;gadm&quot;</span>),</span>
+<span id="cb14-9"><a href="#cb14-9" tabindex="-1"></a>    <span class="at">quiet =</span> <span class="cn">FALSE</span></span>
+<span id="cb14-10"><a href="#cb14-10" tabindex="-1"></a>  )</span>
+<span id="cb14-11"><a href="#cb14-11" tabindex="-1"></a>)</span>
+<span id="cb14-12"><a href="#cb14-12" tabindex="-1"></a></span>
+<span id="cb14-13"><a href="#cb14-13" tabindex="-1"></a><span class="co"># Inspect the returned GADM object if loading succeeded.</span></span>
+<span id="cb14-14"><a href="#cb14-14" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.null</span>(gadm_prt_l1)) {</span>
+<span id="cb14-15"><a href="#cb14-15" tabindex="-1"></a>  gadm_prt_l1</span>
+<span id="cb14-16"><a href="#cb14-16" tabindex="-1"></a>}</span></code></pre></div>
+<p>Choose the GADM level according to the scale of the question and the
+density of the occurrence data. Level 0 is suitable for country-level
+summaries, but it can hide important subnational variation. Level 2
+provides finer spatial detail, but may produce sparse or uneven outputs
+when records are limited.</p>
+<p>GADM level 1 is often a practical default for subnational work. It
+provides more detail than country-level summaries while usually
+retaining enough records per unit for maps, tables and comparative
+analyses.</p>
+</div>
+<div id="gadm-inside-the-terrestrial-and-freshwater-pipeline" class="section level1">
+<h1>GADM inside the terrestrial and freshwater pipeline</h1>
+<p>GADM can also be used directly inside the terrestrial and freshwater
+pipeline. The example below runs a small species-country workflow,
+processes the GBIF records, and assigns the retained occurrences to GADM
+level 1 units.</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a><span class="co"># Run the live GADM pipeline example only when GBIF credentials are available.</span></span>
+<span id="cb15-2"><a href="#cb15-2" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span>gbif_ready) {</span>
+<span id="cb15-3"><a href="#cb15-3" tabindex="-1"></a></span>
+<span id="cb15-4"><a href="#cb15-4" tabindex="-1"></a>  <span class="co"># Skip cleanly rather than failing the vignette.</span></span>
+<span id="cb15-5"><a href="#cb15-5" tabindex="-1"></a>  <span class="fu">skip_live_message</span>(<span class="st">&quot;set GBIF_USER, GBIF_PWD, and GBIF_EMAIL to run this example&quot;</span>)</span>
+<span id="cb15-6"><a href="#cb15-6" tabindex="-1"></a></span>
+<span id="cb15-7"><a href="#cb15-7" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb15-8"><a href="#cb15-8" tabindex="-1"></a></span>
+<span id="cb15-9"><a href="#cb15-9" tabindex="-1"></a>  <span class="co"># Run a minimal terrestrial/freshwater pipeline with GADM attribution.</span></span>
+<span id="cb15-10"><a href="#cb15-10" tabindex="-1"></a>  gadm_pipeline_result <span class="ot">&lt;-</span> <span class="fu">run_live_safely</span>(</span>
+<span id="cb15-11"><a href="#cb15-11" tabindex="-1"></a>    <span class="fu">process_gbif_terrestrial_freshwater_pipeline</span>(</span>
+<span id="cb15-12"><a href="#cb15-12" tabindex="-1"></a></span>
+<span id="cb15-13"><a href="#cb15-13" tabindex="-1"></a>      <span class="co"># Species-country input table.</span></span>
+<span id="cb15-14"><a href="#cb15-14" tabindex="-1"></a>      <span class="at">df =</span> <span class="fu">data.frame</span>(</span>
+<span id="cb15-15"><a href="#cb15-15" tabindex="-1"></a>        <span class="at">species =</span> <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb15-16"><a href="#cb15-16" tabindex="-1"></a>        <span class="at">iso2c =</span> <span class="st">&quot;FR&quot;</span>,</span>
+<span id="cb15-17"><a href="#cb15-17" tabindex="-1"></a>        <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb15-18"><a href="#cb15-18" tabindex="-1"></a>      ),</span>
+<span id="cb15-19"><a href="#cb15-19" tabindex="-1"></a></span>
+<span id="cb15-20"><a href="#cb15-20" tabindex="-1"></a>      <span class="co"># Output folder for this example.</span></span>
+<span id="cb15-21"><a href="#cb15-21" tabindex="-1"></a>      <span class="at">output_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;gadm_pipeline&quot;</span>),</span>
+<span id="cb15-22"><a href="#cb15-22" tabindex="-1"></a></span>
+<span id="cb15-23"><a href="#cb15-23" tabindex="-1"></a>      <span class="co"># GBIF credentials read from environment variables.</span></span>
+<span id="cb15-24"><a href="#cb15-24" tabindex="-1"></a>      <span class="at">user =</span> gbif_user,</span>
+<span id="cb15-25"><a href="#cb15-25" tabindex="-1"></a>      <span class="at">pwd =</span> gbif_pwd,</span>
+<span id="cb15-26"><a href="#cb15-26" tabindex="-1"></a>      <span class="at">email =</span> gbif_email,</span>
+<span id="cb15-27"><a href="#cb15-27" tabindex="-1"></a></span>
+<span id="cb15-28"><a href="#cb15-28" tabindex="-1"></a>      <span class="co"># Use GADM level 1 as the primary spatial framework.</span></span>
+<span id="cb15-29"><a href="#cb15-29" tabindex="-1"></a>      <span class="at">region_source =</span> <span class="st">&quot;gadm&quot;</span>,</span>
+<span id="cb15-30"><a href="#cb15-30" tabindex="-1"></a>      <span class="at">gadm_unit =</span> <span class="dv">1</span>,</span>
+<span id="cb15-31"><a href="#cb15-31" tabindex="-1"></a>      <span class="at">cache_dir_gadm =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;gadm&quot;</span>),</span>
+<span id="cb15-32"><a href="#cb15-32" tabindex="-1"></a></span>
+<span id="cb15-33"><a href="#cb15-33" tabindex="-1"></a>      <span class="co"># Clean coordinates and thin retained records.</span></span>
+<span id="cb15-34"><a href="#cb15-34" tabindex="-1"></a>      <span class="at">apply_cleaning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb15-35"><a href="#cb15-35" tabindex="-1"></a>      <span class="at">apply_thinning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb15-36"><a href="#cb15-36" tabindex="-1"></a>      <span class="at">dist_km =</span> <span class="dv">5</span>,</span>
+<span id="cb15-37"><a href="#cb15-37" tabindex="-1"></a></span>
+<span id="cb15-38"><a href="#cb15-38" tabindex="-1"></a>      <span class="co"># Keep the example small and write outputs to disk.</span></span>
+<span id="cb15-39"><a href="#cb15-39" tabindex="-1"></a>      <span class="at">batch_size =</span> <span class="dv">1</span>,</span>
+<span id="cb15-40"><a href="#cb15-40" tabindex="-1"></a>      <span class="at">export_summary =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb15-41"><a href="#cb15-41" tabindex="-1"></a>      <span class="at">store_in_memory =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb15-42"><a href="#cb15-42" tabindex="-1"></a>      <span class="at">return_all_results =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb15-43"><a href="#cb15-43" tabindex="-1"></a></span>
+<span id="cb15-44"><a href="#cb15-44" tabindex="-1"></a>      <span class="co"># Show progress messages.</span></span>
+<span id="cb15-45"><a href="#cb15-45" tabindex="-1"></a>      <span class="at">quiet =</span> <span class="cn">FALSE</span></span>
+<span id="cb15-46"><a href="#cb15-46" tabindex="-1"></a>    )</span>
+<span id="cb15-47"><a href="#cb15-47" tabindex="-1"></a>  )</span>
+<span id="cb15-48"><a href="#cb15-48" tabindex="-1"></a></span>
+<span id="cb15-49"><a href="#cb15-49" tabindex="-1"></a>  gadm_pipeline_result</span>
+<span id="cb15-50"><a href="#cb15-50" tabindex="-1"></a>}</span></code></pre></div>
+<p>After a live run, inspect <code>gbif_summary.csv</code> before
+opening the exported occurrence file. The summary shows whether the row
+completed, how many records were retained after processing, and where
+the output file was written.</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" tabindex="-1"></a><span class="co"># Path to the summary file written by the GADM example.</span></span>
+<span id="cb16-2"><a href="#cb16-2" tabindex="-1"></a>summary_path <span class="ot">&lt;-</span> <span class="fu">file.path</span>(</span>
+<span id="cb16-3"><a href="#cb16-3" tabindex="-1"></a>  output_root,</span>
+<span id="cb16-4"><a href="#cb16-4" tabindex="-1"></a>  <span class="st">&quot;gadm_pipeline&quot;</span>,</span>
+<span id="cb16-5"><a href="#cb16-5" tabindex="-1"></a>  <span class="st">&quot;gbif_summary.csv&quot;</span></span>
+<span id="cb16-6"><a href="#cb16-6" tabindex="-1"></a>)</span>
+<span id="cb16-7"><a href="#cb16-7" tabindex="-1"></a></span>
+<span id="cb16-8"><a href="#cb16-8" tabindex="-1"></a><span class="co"># Read the summary if it exists.</span></span>
+<span id="cb16-9"><a href="#cb16-9" tabindex="-1"></a><span class="cf">if</span> (<span class="fu">file.exists</span>(summary_path)) {</span>
+<span id="cb16-10"><a href="#cb16-10" tabindex="-1"></a>  gadm_summary <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(summary_path, <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb16-11"><a href="#cb16-11" tabindex="-1"></a>  gadm_summary</span>
+<span id="cb16-12"><a href="#cb16-12" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb16-13"><a href="#cb16-13" tabindex="-1"></a>  <span class="fu">skip_live_message</span>(<span class="st">&quot;summary file was not available from the GADM live example&quot;</span>)</span>
+<span id="cb16-14"><a href="#cb16-14" tabindex="-1"></a>}</span></code></pre></div>
+<p>For GADM workflows, check that the exported records contain the
+expected administrative identifiers or names for the selected level.
+Rows without a GADM assignment should be reviewed before summaries are
+produced, especially when records fall near borders, coastlines or small
+administrative units.</p>
+</div>
+<div id="combining-administrative-and-ecological-context" class="section level1">
+<h1>Combining administrative and ecological context</h1>
+<p>Some workflows need two spatial descriptions for the same occurrence
+records. For example, GADM level 1 may be used for subnational
+reporting, while FEOW adds the freshwater ecoregion associated with each
+retained record.</p>
+<p>These fields should usually remain separate because they represent
+different spatial concepts. GADM identifies administrative location;
+FEOW identifies freshwater ecological context. Keeping both fields
+visible makes it easier to summarise records by the main reporting unit
+while still retaining ecological information for interpretation.</p>
+<p>The example below uses GADM as the primary administrative framework
+and FEOW as a secondary ecological overlay. Setting
+<code>overlay_mode = &quot;dual_separate&quot;</code> keeps the two joins separate
+in the exported output.</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" tabindex="-1"></a><span class="co"># Run the live GADM + FEOW example only when GBIF credentials are available.</span></span>
+<span id="cb17-2"><a href="#cb17-2" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span>gbif_ready) {</span>
+<span id="cb17-3"><a href="#cb17-3" tabindex="-1"></a></span>
+<span id="cb17-4"><a href="#cb17-4" tabindex="-1"></a>  <span class="fu">skip_live_message</span>(<span class="st">&quot;set GBIF_USER, GBIF_PWD, and GBIF_EMAIL to run this example&quot;</span>)</span>
+<span id="cb17-5"><a href="#cb17-5" tabindex="-1"></a></span>
+<span id="cb17-6"><a href="#cb17-6" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb17-7"><a href="#cb17-7" tabindex="-1"></a></span>
+<span id="cb17-8"><a href="#cb17-8" tabindex="-1"></a>  <span class="co"># Run a pipeline with both administrative and freshwater ecological context.</span></span>
+<span id="cb17-9"><a href="#cb17-9" tabindex="-1"></a>  feow_result <span class="ot">&lt;-</span> <span class="fu">run_live_safely</span>(</span>
+<span id="cb17-10"><a href="#cb17-10" tabindex="-1"></a>    <span class="fu">process_gbif_terrestrial_freshwater_pipeline</span>(</span>
+<span id="cb17-11"><a href="#cb17-11" tabindex="-1"></a>      <span class="at">df =</span> <span class="fu">data.frame</span>(</span>
+<span id="cb17-12"><a href="#cb17-12" tabindex="-1"></a>        <span class="at">species =</span> <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb17-13"><a href="#cb17-13" tabindex="-1"></a>        <span class="at">iso2c =</span> <span class="st">&quot;FR&quot;</span>,</span>
+<span id="cb17-14"><a href="#cb17-14" tabindex="-1"></a>        <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb17-15"><a href="#cb17-15" tabindex="-1"></a>      ),</span>
+<span id="cb17-16"><a href="#cb17-16" tabindex="-1"></a></span>
+<span id="cb17-17"><a href="#cb17-17" tabindex="-1"></a>      <span class="at">output_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;feow_pipeline&quot;</span>),</span>
+<span id="cb17-18"><a href="#cb17-18" tabindex="-1"></a></span>
+<span id="cb17-19"><a href="#cb17-19" tabindex="-1"></a>      <span class="at">user =</span> gbif_user,</span>
+<span id="cb17-20"><a href="#cb17-20" tabindex="-1"></a>      <span class="at">pwd =</span> gbif_pwd,</span>
+<span id="cb17-21"><a href="#cb17-21" tabindex="-1"></a>      <span class="at">email =</span> gbif_email,</span>
+<span id="cb17-22"><a href="#cb17-22" tabindex="-1"></a></span>
+<span id="cb17-23"><a href="#cb17-23" tabindex="-1"></a>      <span class="co"># Use GADM and FEOW together.</span></span>
+<span id="cb17-24"><a href="#cb17-24" tabindex="-1"></a>      <span class="at">region_source =</span> <span class="fu">c</span>(<span class="st">&quot;gadm&quot;</span>, <span class="st">&quot;feow&quot;</span>),</span>
+<span id="cb17-25"><a href="#cb17-25" tabindex="-1"></a></span>
+<span id="cb17-26"><a href="#cb17-26" tabindex="-1"></a>      <span class="co"># Keep the two spatial contexts as separate output fields.</span></span>
+<span id="cb17-27"><a href="#cb17-27" tabindex="-1"></a>      <span class="at">overlay_mode =</span> <span class="st">&quot;dual_separate&quot;</span>,</span>
+<span id="cb17-28"><a href="#cb17-28" tabindex="-1"></a></span>
+<span id="cb17-29"><a href="#cb17-29" tabindex="-1"></a>      <span class="co"># GADM and FEOW cache directories.</span></span>
+<span id="cb17-30"><a href="#cb17-30" tabindex="-1"></a>      <span class="at">gadm_unit =</span> <span class="dv">1</span>,</span>
+<span id="cb17-31"><a href="#cb17-31" tabindex="-1"></a>      <span class="at">cache_dir_gadm =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;gadm&quot;</span>),</span>
+<span id="cb17-32"><a href="#cb17-32" tabindex="-1"></a>      <span class="at">feow_cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;feow&quot;</span>),</span>
+<span id="cb17-33"><a href="#cb17-33" tabindex="-1"></a></span>
+<span id="cb17-34"><a href="#cb17-34" tabindex="-1"></a>      <span class="at">apply_cleaning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb17-35"><a href="#cb17-35" tabindex="-1"></a>      <span class="at">apply_thinning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb17-36"><a href="#cb17-36" tabindex="-1"></a>      <span class="at">dist_km =</span> <span class="dv">5</span>,</span>
+<span id="cb17-37"><a href="#cb17-37" tabindex="-1"></a></span>
+<span id="cb17-38"><a href="#cb17-38" tabindex="-1"></a>      <span class="at">batch_size =</span> <span class="dv">1</span>,</span>
+<span id="cb17-39"><a href="#cb17-39" tabindex="-1"></a>      <span class="at">export_summary =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb17-40"><a href="#cb17-40" tabindex="-1"></a>      <span class="at">store_in_memory =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb17-41"><a href="#cb17-41" tabindex="-1"></a>      <span class="at">return_all_results =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb17-42"><a href="#cb17-42" tabindex="-1"></a>      <span class="at">quiet =</span> <span class="cn">FALSE</span></span>
+<span id="cb17-43"><a href="#cb17-43" tabindex="-1"></a>    )</span>
+<span id="cb17-44"><a href="#cb17-44" tabindex="-1"></a>  )</span>
+<span id="cb17-45"><a href="#cb17-45" tabindex="-1"></a></span>
+<span id="cb17-46"><a href="#cb17-46" tabindex="-1"></a>  feow_result</span>
+<span id="cb17-47"><a href="#cb17-47" tabindex="-1"></a>}</span></code></pre></div>
+<p>After the run, inspect the exported occurrence table and
+<code>gbif_summary.csv</code> together. The occurrence table shows the
+spatial fields added to each retained record, while the summary file
+shows whether the row completed successfully and where the output was
+written.</p>
+<p>If expected overlay fields are missing or mostly empty, check the
+selected overlay, cache folders and records without spatial assignments
+before using the output in summaries.</p>
+</div>
+<div id="direct-provider-loaders" class="section level1">
+<h1>Direct provider loaders</h1>
+<p>Some spatial layers can be loaded directly before they are used in a
+pipeline. This is useful when the layer itself needs to be inspected,
+cached or reused across more than one workflow.</p>
+<p>Direct loading separates provider access from occurrence processing.
+If a layer does not download, cache or open correctly, users can fix
+that issue before running a GBIF workflow. It also allows users to
+inspect the attributes and coverage of a layer before deciding whether
+it is suitable for their records.</p>
+<p>Direct provider loaders are most useful when:</p>
+<ul>
+<li>the project already has a cleaned occurrence table;</li>
+<li>the same layer will be reused in several workflows;</li>
+<li>the layer needs to be inspected before joining;</li>
+<li>the cache should be prepared before a larger run;</li>
+<li>a provider issue needs to be checked separately from GBIF
+processing.</li>
+</ul>
+<div class="sourceCode" id="cb18"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" tabindex="-1"></a><span class="co"># Load Natural Earth administrative level 1 context for Great Britain and Ireland.</span></span>
+<span id="cb18-2"><a href="#cb18-2" tabindex="-1"></a>ne_admin1 <span class="ot">&lt;-</span> <span class="fu">run_live_safely</span>(</span>
+<span id="cb18-3"><a href="#cb18-3" tabindex="-1"></a>  <span class="fu">bf_load_ne_admin1</span>(</span>
+<span id="cb18-4"><a href="#cb18-4" tabindex="-1"></a>    <span class="at">iso2c =</span> <span class="fu">c</span>(<span class="st">&quot;GB&quot;</span>, <span class="st">&quot;IE&quot;</span>),</span>
+<span id="cb18-5"><a href="#cb18-5" tabindex="-1"></a>    <span class="at">cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;ne_admin1&quot;</span>),</span>
+<span id="cb18-6"><a href="#cb18-6" tabindex="-1"></a>    <span class="at">quiet =</span> <span class="cn">FALSE</span></span>
+<span id="cb18-7"><a href="#cb18-7" tabindex="-1"></a>  )</span>
+<span id="cb18-8"><a href="#cb18-8" tabindex="-1"></a>)</span>
+<span id="cb18-9"><a href="#cb18-9" tabindex="-1"></a></span>
+<span id="cb18-10"><a href="#cb18-10" tabindex="-1"></a><span class="co"># Load a RESOLVE 2017 terrestrial ecoregion subset.</span></span>
+<span id="cb18-11"><a href="#cb18-11" tabindex="-1"></a>resolve2017 <span class="ot">&lt;-</span> <span class="fu">run_live_safely</span>(</span>
+<span id="cb18-12"><a href="#cb18-12" tabindex="-1"></a>  <span class="fu">bf_load_resolve2017</span>(</span>
+<span id="cb18-13"><a href="#cb18-13" tabindex="-1"></a>    <span class="at">iso2c =</span> <span class="fu">c</span>(<span class="st">&quot;GB&quot;</span>, <span class="st">&quot;IE&quot;</span>),</span>
+<span id="cb18-14"><a href="#cb18-14" tabindex="-1"></a>    <span class="at">cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;resolve2017&quot;</span>),</span>
+<span id="cb18-15"><a href="#cb18-15" tabindex="-1"></a>    <span class="at">quiet =</span> <span class="cn">FALSE</span></span>
+<span id="cb18-16"><a href="#cb18-16" tabindex="-1"></a>  )</span>
+<span id="cb18-17"><a href="#cb18-17" tabindex="-1"></a>)</span>
+<span id="cb18-18"><a href="#cb18-18" tabindex="-1"></a></span>
+<span id="cb18-19"><a href="#cb18-19" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.null</span>(ne_admin1)) {</span>
+<span id="cb18-20"><a href="#cb18-20" tabindex="-1"></a>  ne_admin1</span>
+<span id="cb18-21"><a href="#cb18-21" tabindex="-1"></a>}</span>
+<span id="cb18-22"><a href="#cb18-22" tabindex="-1"></a></span>
+<span id="cb18-23"><a href="#cb18-23" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.null</span>(resolve2017)) {</span>
+<span id="cb18-24"><a href="#cb18-24" tabindex="-1"></a>  resolve2017</span>
+<span id="cb18-25"><a href="#cb18-25" tabindex="-1"></a>}</span></code></pre></div>
+<p>After loading a layer directly, check that it contains the expected
+records, attribute columns and geometry. If the layer looks correct, it
+can then be used with greater confidence inside a pipeline or in a
+separate spatial-join workflow.</p>
+</div>
+<div id="using-overlays-with-an-existing-occurrence-table" class="section level1">
+<h1>Using overlays with an existing occurrence table</h1>
+<p>Some projects already have cleaned occurrence records and do not need
+to submit a new GBIF download. In those cases, users can load an overlay
+directly and join it to their own point table.</p>
+<p>This approach gives more control, but also moves more responsibility
+to the analysis script. Users need to make sure that coordinates are
+converted to point geometry, coordinate reference systems are
+compatible, joins are checked, and unmatched records are reviewed.</p>
+<p>The template below is not evaluated by default. It shows the basic
+structure of a custom point-in-polygon join using an existing occurrence
+table and a polygon overlay.</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" tabindex="-1"></a><span class="co"># Example only: start from an existing occurrence table with coordinates.</span></span>
+<span id="cb19-2"><a href="#cb19-2" tabindex="-1"></a>existing_occurrences <span class="ot">&lt;-</span> example_occurrences</span>
+<span id="cb19-3"><a href="#cb19-3" tabindex="-1"></a></span>
+<span id="cb19-4"><a href="#cb19-4" tabindex="-1"></a><span class="co"># Convert the occurrence table to an sf point object.</span></span>
+<span id="cb19-5"><a href="#cb19-5" tabindex="-1"></a>occ_sf <span class="ot">&lt;-</span> sf<span class="sc">::</span><span class="fu">st_as_sf</span>(</span>
+<span id="cb19-6"><a href="#cb19-6" tabindex="-1"></a>  existing_occurrences,</span>
+<span id="cb19-7"><a href="#cb19-7" tabindex="-1"></a>  <span class="at">coords =</span> <span class="fu">c</span>(<span class="st">&quot;decimalLongitude&quot;</span>, <span class="st">&quot;decimalLatitude&quot;</span>),</span>
+<span id="cb19-8"><a href="#cb19-8" tabindex="-1"></a>  <span class="at">crs =</span> <span class="dv">4326</span>,</span>
+<span id="cb19-9"><a href="#cb19-9" tabindex="-1"></a>  <span class="at">remove =</span> <span class="cn">FALSE</span></span>
+<span id="cb19-10"><a href="#cb19-10" tabindex="-1"></a>)</span>
+<span id="cb19-11"><a href="#cb19-11" tabindex="-1"></a></span>
+<span id="cb19-12"><a href="#cb19-12" tabindex="-1"></a><span class="co"># Load a provider layer.</span></span>
+<span id="cb19-13"><a href="#cb19-13" tabindex="-1"></a>resolve2017 <span class="ot">&lt;-</span> <span class="fu">bf_load_resolve2017</span>(</span>
+<span id="cb19-14"><a href="#cb19-14" tabindex="-1"></a>  <span class="at">iso2c =</span> <span class="fu">c</span>(<span class="st">&quot;GB&quot;</span>, <span class="st">&quot;FR&quot;</span>),</span>
+<span id="cb19-15"><a href="#cb19-15" tabindex="-1"></a>  <span class="at">cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;resolve2017&quot;</span>),</span>
+<span id="cb19-16"><a href="#cb19-16" tabindex="-1"></a>  <span class="at">quiet =</span> <span class="cn">FALSE</span></span>
+<span id="cb19-17"><a href="#cb19-17" tabindex="-1"></a>)</span>
+<span id="cb19-18"><a href="#cb19-18" tabindex="-1"></a></span>
+<span id="cb19-19"><a href="#cb19-19" tabindex="-1"></a><span class="co"># Join points to polygons.</span></span>
+<span id="cb19-20"><a href="#cb19-20" tabindex="-1"></a><span class="co"># In a real workflow, inspect unmatched points and check CRS/geometry validity.</span></span>
+<span id="cb19-21"><a href="#cb19-21" tabindex="-1"></a>occ_with_resolve <span class="ot">&lt;-</span> sf<span class="sc">::</span><span class="fu">st_join</span>(</span>
+<span id="cb19-22"><a href="#cb19-22" tabindex="-1"></a>  occ_sf,</span>
+<span id="cb19-23"><a href="#cb19-23" tabindex="-1"></a>  resolve2017,</span>
+<span id="cb19-24"><a href="#cb19-24" tabindex="-1"></a>  <span class="at">left =</span> <span class="cn">TRUE</span></span>
+<span id="cb19-25"><a href="#cb19-25" tabindex="-1"></a>)</span>
+<span id="cb19-26"><a href="#cb19-26" tabindex="-1"></a></span>
+<span id="cb19-27"><a href="#cb19-27" tabindex="-1"></a>occ_with_resolve</span></code></pre></div>
+<p>This pattern is appropriate for polygon overlays. Other spatial
+resources may need different join logic. For example, line or point-like
+layers may require nearest-feature snapping or a distance threshold
+rather than a simple point-in-polygon join.</p>
+<p>Custom joins are most useful when the occurrence table has already
+been reviewed or when the project needs a spatial operation that sits
+outside the high-level pipelines. For standard GBIF-based workflows, the
+pipelines are usually simpler because download, cleaning, thinning,
+attribution and summary outputs are handled together.</p>
+</div>
+<div id="raster-context" class="section level1">
+<h1>Raster context</h1>
+<p>Raster context is used when retained occurrence records need values
+from gridded datasets. Instead of assigning a point to a named polygon
+or feature, the workflow extracts the raster value at the record
+location and appends it to the occurrence table.</p>
+<p>This is useful for variables such as land-cover class, soil
+properties, elevation, human footprint or other environmental and
+human-pressure layers. The added columns can then be used as model
+covariates, habitat or land-use filters, or descriptive summaries of the
+conditions associated with retained records.</p>
+<p>Raster extraction is best added after the main occurrence and
+vector-overlay workflow is working. Raster layers can be large, and
+extraction may involve provider access, local caching, cropping, reading
+gridded files and checking coordinate reference systems. A small
+one-species test makes it easier to confirm that the selected layers are
+available and that non-missing values are being returned.</p>
+<div class="sourceCode" id="cb20"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" tabindex="-1"></a><span class="co"># Run the raster-context example only when GBIF credentials are available.</span></span>
+<span id="cb20-2"><a href="#cb20-2" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span>gbif_ready) {</span>
+<span id="cb20-3"><a href="#cb20-3" tabindex="-1"></a></span>
+<span id="cb20-4"><a href="#cb20-4" tabindex="-1"></a>  <span class="fu">skip_live_message</span>(<span class="st">&quot;set GBIF_USER, GBIF_PWD, and GBIF_EMAIL to run this example&quot;</span>)</span>
+<span id="cb20-5"><a href="#cb20-5" tabindex="-1"></a></span>
+<span id="cb20-6"><a href="#cb20-6" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb20-7"><a href="#cb20-7" tabindex="-1"></a></span>
+<span id="cb20-8"><a href="#cb20-8" tabindex="-1"></a>  <span class="co"># Run a small pipeline with GADM attribution and raster context.</span></span>
+<span id="cb20-9"><a href="#cb20-9" tabindex="-1"></a>  raster_context_result <span class="ot">&lt;-</span> <span class="fu">run_live_safely</span>(</span>
+<span id="cb20-10"><a href="#cb20-10" tabindex="-1"></a>    <span class="fu">process_gbif_terrestrial_freshwater_pipeline</span>(</span>
+<span id="cb20-11"><a href="#cb20-11" tabindex="-1"></a>      <span class="at">df =</span> <span class="fu">data.frame</span>(</span>
+<span id="cb20-12"><a href="#cb20-12" tabindex="-1"></a>        <span class="at">species =</span> <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb20-13"><a href="#cb20-13" tabindex="-1"></a>        <span class="at">iso2c =</span> <span class="st">&quot;FR&quot;</span>,</span>
+<span id="cb20-14"><a href="#cb20-14" tabindex="-1"></a>        <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb20-15"><a href="#cb20-15" tabindex="-1"></a>      ),</span>
+<span id="cb20-16"><a href="#cb20-16" tabindex="-1"></a></span>
+<span id="cb20-17"><a href="#cb20-17" tabindex="-1"></a>      <span class="at">output_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;raster_context&quot;</span>),</span>
+<span id="cb20-18"><a href="#cb20-18" tabindex="-1"></a></span>
+<span id="cb20-19"><a href="#cb20-19" tabindex="-1"></a>      <span class="at">user =</span> gbif_user,</span>
+<span id="cb20-20"><a href="#cb20-20" tabindex="-1"></a>      <span class="at">pwd =</span> gbif_pwd,</span>
+<span id="cb20-21"><a href="#cb20-21" tabindex="-1"></a>      <span class="at">email =</span> gbif_email,</span>
+<span id="cb20-22"><a href="#cb20-22" tabindex="-1"></a></span>
+<span id="cb20-23"><a href="#cb20-23" tabindex="-1"></a>      <span class="co"># Keep GADM as the primary vector framework.</span></span>
+<span id="cb20-24"><a href="#cb20-24" tabindex="-1"></a>      <span class="at">region_source =</span> <span class="st">&quot;gadm&quot;</span>,</span>
+<span id="cb20-25"><a href="#cb20-25" tabindex="-1"></a>      <span class="at">gadm_unit =</span> <span class="dv">1</span>,</span>
+<span id="cb20-26"><a href="#cb20-26" tabindex="-1"></a>      <span class="at">cache_dir_gadm =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;gadm&quot;</span>),</span>
+<span id="cb20-27"><a href="#cb20-27" tabindex="-1"></a></span>
+<span id="cb20-28"><a href="#cb20-28" tabindex="-1"></a>      <span class="co"># Add gridded environmental or human-pressure context.</span></span>
+<span id="cb20-29"><a href="#cb20-29" tabindex="-1"></a>      <span class="at">raster_context =</span> <span class="fu">c</span>(<span class="st">&quot;worldcover&quot;</span>, <span class="st">&quot;soilgrids&quot;</span>, <span class="st">&quot;human_footprint&quot;</span>),</span>
+<span id="cb20-30"><a href="#cb20-30" tabindex="-1"></a>      <span class="at">raster_cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;raster&quot;</span>),</span>
+<span id="cb20-31"><a href="#cb20-31" tabindex="-1"></a></span>
+<span id="cb20-32"><a href="#cb20-32" tabindex="-1"></a>      <span class="at">apply_cleaning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb20-33"><a href="#cb20-33" tabindex="-1"></a>      <span class="at">apply_thinning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb20-34"><a href="#cb20-34" tabindex="-1"></a>      <span class="at">dist_km =</span> <span class="dv">5</span>,</span>
+<span id="cb20-35"><a href="#cb20-35" tabindex="-1"></a></span>
+<span id="cb20-36"><a href="#cb20-36" tabindex="-1"></a>      <span class="at">batch_size =</span> <span class="dv">1</span>,</span>
+<span id="cb20-37"><a href="#cb20-37" tabindex="-1"></a>      <span class="at">export_summary =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb20-38"><a href="#cb20-38" tabindex="-1"></a>      <span class="at">store_in_memory =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb20-39"><a href="#cb20-39" tabindex="-1"></a>      <span class="at">return_all_results =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb20-40"><a href="#cb20-40" tabindex="-1"></a>      <span class="at">quiet =</span> <span class="cn">FALSE</span></span>
+<span id="cb20-41"><a href="#cb20-41" tabindex="-1"></a>    )</span>
+<span id="cb20-42"><a href="#cb20-42" tabindex="-1"></a>  )</span>
+<span id="cb20-43"><a href="#cb20-43" tabindex="-1"></a></span>
+<span id="cb20-44"><a href="#cb20-44" tabindex="-1"></a>  raster_context_result</span>
+<span id="cb20-45"><a href="#cb20-45" tabindex="-1"></a>}</span></code></pre></div>
+<p>After the run, inspect the exported occurrence file for the
+raster-derived columns. If the columns are missing or contain mostly
+missing values, check the selected raster source, cache directory,
+coordinate columns and whether the retained records fall within the
+raster extent.</p>
+<div class="sourceCode" id="cb21"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" tabindex="-1"></a><span class="co"># Run the raster-context example only when GBIF credentials are available.</span></span>
+<span id="cb21-2"><a href="#cb21-2" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span>gbif_ready) {</span>
+<span id="cb21-3"><a href="#cb21-3" tabindex="-1"></a></span>
+<span id="cb21-4"><a href="#cb21-4" tabindex="-1"></a>  <span class="fu">skip_live_message</span>(<span class="st">&quot;set GBIF_USER, GBIF_PWD, and GBIF_EMAIL to run this example&quot;</span>)</span>
+<span id="cb21-5"><a href="#cb21-5" tabindex="-1"></a></span>
+<span id="cb21-6"><a href="#cb21-6" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb21-7"><a href="#cb21-7" tabindex="-1"></a></span>
+<span id="cb21-8"><a href="#cb21-8" tabindex="-1"></a>  <span class="co"># Run a small pipeline with GADM attribution and raster context.</span></span>
+<span id="cb21-9"><a href="#cb21-9" tabindex="-1"></a>  raster_context_result <span class="ot">&lt;-</span> <span class="fu">run_live_safely</span>(</span>
+<span id="cb21-10"><a href="#cb21-10" tabindex="-1"></a>    <span class="fu">process_gbif_terrestrial_freshwater_pipeline</span>(</span>
+<span id="cb21-11"><a href="#cb21-11" tabindex="-1"></a>      <span class="at">df =</span> <span class="fu">data.frame</span>(</span>
+<span id="cb21-12"><a href="#cb21-12" tabindex="-1"></a>        <span class="at">species =</span> <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb21-13"><a href="#cb21-13" tabindex="-1"></a>        <span class="at">iso2c =</span> <span class="st">&quot;FR&quot;</span>,</span>
+<span id="cb21-14"><a href="#cb21-14" tabindex="-1"></a>        <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb21-15"><a href="#cb21-15" tabindex="-1"></a>      ),</span>
+<span id="cb21-16"><a href="#cb21-16" tabindex="-1"></a></span>
+<span id="cb21-17"><a href="#cb21-17" tabindex="-1"></a>      <span class="at">output_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;raster_context&quot;</span>),</span>
+<span id="cb21-18"><a href="#cb21-18" tabindex="-1"></a></span>
+<span id="cb21-19"><a href="#cb21-19" tabindex="-1"></a>      <span class="at">user =</span> gbif_user,</span>
+<span id="cb21-20"><a href="#cb21-20" tabindex="-1"></a>      <span class="at">pwd =</span> gbif_pwd,</span>
+<span id="cb21-21"><a href="#cb21-21" tabindex="-1"></a>      <span class="at">email =</span> gbif_email,</span>
+<span id="cb21-22"><a href="#cb21-22" tabindex="-1"></a></span>
+<span id="cb21-23"><a href="#cb21-23" tabindex="-1"></a>      <span class="co"># Keep GADM as the primary vector framework.</span></span>
+<span id="cb21-24"><a href="#cb21-24" tabindex="-1"></a>      <span class="at">region_source =</span> <span class="st">&quot;gadm&quot;</span>,</span>
+<span id="cb21-25"><a href="#cb21-25" tabindex="-1"></a>      <span class="at">gadm_unit =</span> <span class="dv">1</span>,</span>
+<span id="cb21-26"><a href="#cb21-26" tabindex="-1"></a>      <span class="at">cache_dir_gadm =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;gadm&quot;</span>),</span>
+<span id="cb21-27"><a href="#cb21-27" tabindex="-1"></a></span>
+<span id="cb21-28"><a href="#cb21-28" tabindex="-1"></a>      <span class="co"># Add gridded environmental or human-pressure context.</span></span>
+<span id="cb21-29"><a href="#cb21-29" tabindex="-1"></a>      <span class="at">raster_context =</span> <span class="fu">c</span>(<span class="st">&quot;worldcover&quot;</span>, <span class="st">&quot;soilgrids&quot;</span>, <span class="st">&quot;human_footprint&quot;</span>),</span>
+<span id="cb21-30"><a href="#cb21-30" tabindex="-1"></a>      <span class="at">raster_cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;raster&quot;</span>),</span>
+<span id="cb21-31"><a href="#cb21-31" tabindex="-1"></a></span>
+<span id="cb21-32"><a href="#cb21-32" tabindex="-1"></a>      <span class="at">apply_cleaning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb21-33"><a href="#cb21-33" tabindex="-1"></a>      <span class="at">apply_thinning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb21-34"><a href="#cb21-34" tabindex="-1"></a>      <span class="at">dist_km =</span> <span class="dv">5</span>,</span>
+<span id="cb21-35"><a href="#cb21-35" tabindex="-1"></a></span>
+<span id="cb21-36"><a href="#cb21-36" tabindex="-1"></a>      <span class="at">batch_size =</span> <span class="dv">1</span>,</span>
+<span id="cb21-37"><a href="#cb21-37" tabindex="-1"></a>      <span class="at">export_summary =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb21-38"><a href="#cb21-38" tabindex="-1"></a>      <span class="at">store_in_memory =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb21-39"><a href="#cb21-39" tabindex="-1"></a>      <span class="at">return_all_results =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb21-40"><a href="#cb21-40" tabindex="-1"></a>      <span class="at">quiet =</span> <span class="cn">FALSE</span></span>
+<span id="cb21-41"><a href="#cb21-41" tabindex="-1"></a>    )</span>
+<span id="cb21-42"><a href="#cb21-42" tabindex="-1"></a>  )</span>
+<span id="cb21-43"><a href="#cb21-43" tabindex="-1"></a></span>
+<span id="cb21-44"><a href="#cb21-44" tabindex="-1"></a>  raster_context_result</span>
+<span id="cb21-45"><a href="#cb21-45" tabindex="-1"></a>}</span></code></pre></div>
+<p>After the run, inspect the exported occurrence file for the
+raster-derived columns. If the columns are missing or contain mostly
+missing values, check the selected raster source, cache directory,
+coordinate columns and whether the retained records fall within the
+raster extent.</p>
+</div>
+<div id="protected-area-and-wetland-overlays" class="section level1">
+<h1>Protected-area and wetland overlays</h1>
+<p>WDPA and Ramsar overlays are used when occurrence records need
+conservation-site or designated-wetland context.These overlays are
+useful for questions such as whether retained records overlap protected
+area, whether they fall within a Ramsar-listed wetland, or which
+designated feature is associated with a record.</p>
+<p>WDPA and Ramsar are external resources with licensing and attribution
+requirements, so the examples are opt-in. Users should enable these
+chunks only after checking that their intended use is consistent with
+the relevant provider terms.</p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" tabindex="-1"></a><span class="co"># WDPA and Ramsar loading is opt-in because these datasets have</span></span>
+<span id="cb22-2"><a href="#cb22-2" tabindex="-1"></a><span class="co"># external licensing and attribution requirements.</span></span>
+<span id="cb22-3"><a href="#cb22-3" tabindex="-1"></a><span class="co">#</span></span>
+<span id="cb22-4"><a href="#cb22-4" tabindex="-1"></a><span class="co"># To run this chunk locally, set the option below in the console before</span></span>
+<span id="cb22-5"><a href="#cb22-5" tabindex="-1"></a><span class="co"># rendering the vignette:</span></span>
+<span id="cb22-6"><a href="#cb22-6" tabindex="-1"></a><span class="co">#</span></span>
+<span id="cb22-7"><a href="#cb22-7" tabindex="-1"></a><span class="co"># options(biofetchR.wdpa_opt_in = TRUE)</span></span>
+<span id="cb22-8"><a href="#cb22-8" tabindex="-1"></a></span>
+<span id="cb22-9"><a href="#cb22-9" tabindex="-1"></a>protected_overlay_opt_in <span class="ot">&lt;-</span> <span class="fu">isTRUE</span>(</span>
+<span id="cb22-10"><a href="#cb22-10" tabindex="-1"></a>  <span class="fu">getOption</span>(<span class="st">&quot;biofetchR.wdpa_opt_in&quot;</span>, <span class="cn">FALSE</span>)</span>
+<span id="cb22-11"><a href="#cb22-11" tabindex="-1"></a>)</span>
+<span id="cb22-12"><a href="#cb22-12" tabindex="-1"></a></span>
+<span id="cb22-13"><a href="#cb22-13" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span>protected_overlay_opt_in) {</span>
+<span id="cb22-14"><a href="#cb22-14" tabindex="-1"></a></span>
+<span id="cb22-15"><a href="#cb22-15" tabindex="-1"></a>  <span class="fu">skip_live_message</span>(</span>
+<span id="cb22-16"><a href="#cb22-16" tabindex="-1"></a>    <span class="st">&quot;set options(biofetchR.wdpa_opt_in = TRUE) after checking provider terms&quot;</span></span>
+<span id="cb22-17"><a href="#cb22-17" tabindex="-1"></a>  )</span>
+<span id="cb22-18"><a href="#cb22-18" tabindex="-1"></a></span>
+<span id="cb22-19"><a href="#cb22-19" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb22-20"><a href="#cb22-20" tabindex="-1"></a></span>
+<span id="cb22-21"><a href="#cb22-21" tabindex="-1"></a>  <span class="co"># Load protected-area polygons for Great Britain.</span></span>
+<span id="cb22-22"><a href="#cb22-22" tabindex="-1"></a>  wdpa_gb <span class="ot">&lt;-</span> <span class="fu">run_live_safely</span>(</span>
+<span id="cb22-23"><a href="#cb22-23" tabindex="-1"></a>    <span class="fu">bf_load_wdpa</span>(</span>
+<span id="cb22-24"><a href="#cb22-24" tabindex="-1"></a>      <span class="at">iso2c =</span> <span class="st">&quot;GB&quot;</span>,</span>
+<span id="cb22-25"><a href="#cb22-25" tabindex="-1"></a>      <span class="at">cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;wdpa&quot;</span>),</span>
+<span id="cb22-26"><a href="#cb22-26" tabindex="-1"></a>      <span class="at">opt_in =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb22-27"><a href="#cb22-27" tabindex="-1"></a>      <span class="at">quiet =</span> <span class="cn">FALSE</span></span>
+<span id="cb22-28"><a href="#cb22-28" tabindex="-1"></a>    )</span>
+<span id="cb22-29"><a href="#cb22-29" tabindex="-1"></a>  )</span>
+<span id="cb22-30"><a href="#cb22-30" tabindex="-1"></a></span>
+<span id="cb22-31"><a href="#cb22-31" tabindex="-1"></a>  <span class="co"># Load Ramsar wetland polygons for Great Britain.</span></span>
+<span id="cb22-32"><a href="#cb22-32" tabindex="-1"></a>  ramsar_gb <span class="ot">&lt;-</span> <span class="fu">run_live_safely</span>(</span>
+<span id="cb22-33"><a href="#cb22-33" tabindex="-1"></a>    <span class="fu">bf_load_ramsar</span>(</span>
+<span id="cb22-34"><a href="#cb22-34" tabindex="-1"></a>      <span class="at">iso2c =</span> <span class="st">&quot;GB&quot;</span>,</span>
+<span id="cb22-35"><a href="#cb22-35" tabindex="-1"></a>      <span class="at">cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;ramsar&quot;</span>),</span>
+<span id="cb22-36"><a href="#cb22-36" tabindex="-1"></a>      <span class="at">opt_in =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb22-37"><a href="#cb22-37" tabindex="-1"></a>      <span class="at">quiet =</span> <span class="cn">FALSE</span></span>
+<span id="cb22-38"><a href="#cb22-38" tabindex="-1"></a>    )</span>
+<span id="cb22-39"><a href="#cb22-39" tabindex="-1"></a>  )</span>
+<span id="cb22-40"><a href="#cb22-40" tabindex="-1"></a></span>
+<span id="cb22-41"><a href="#cb22-41" tabindex="-1"></a>  <span class="fu">list</span>(</span>
+<span id="cb22-42"><a href="#cb22-42" tabindex="-1"></a>    <span class="at">wdpa =</span> wdpa_gb,</span>
+<span id="cb22-43"><a href="#cb22-43" tabindex="-1"></a>    <span class="at">ramsar =</span> ramsar_gb</span>
+<span id="cb22-44"><a href="#cb22-44" tabindex="-1"></a>  )</span>
+<span id="cb22-45"><a href="#cb22-45" tabindex="-1"></a>}</span></code></pre></div>
+<p>Inside the terrestrial/freshwater pipeline, WDPA and Ramsar can be
+added as secondary overlays. The example below keeps GADM as the
+administrative framework and adds WDPA as protected-area context.</p>
+<div class="sourceCode" id="cb23"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" tabindex="-1"></a><span class="co"># Run the live protected-area overlay example only when GBIF credentials</span></span>
+<span id="cb23-2"><a href="#cb23-2" tabindex="-1"></a><span class="co"># are available and WDPA opt-in has been confirmed.</span></span>
+<span id="cb23-3"><a href="#cb23-3" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span>gbif_ready) {</span>
+<span id="cb23-4"><a href="#cb23-4" tabindex="-1"></a></span>
+<span id="cb23-5"><a href="#cb23-5" tabindex="-1"></a>  <span class="fu">skip_live_message</span>(<span class="st">&quot;set GBIF_USER, GBIF_PWD, and GBIF_EMAIL to run this example&quot;</span>)</span>
+<span id="cb23-6"><a href="#cb23-6" tabindex="-1"></a></span>
+<span id="cb23-7"><a href="#cb23-7" tabindex="-1"></a>} <span class="cf">else</span> <span class="cf">if</span> (<span class="sc">!</span><span class="fu">isTRUE</span>(<span class="fu">getOption</span>(<span class="st">&quot;biofetchR.wdpa_opt_in&quot;</span>, <span class="cn">FALSE</span>))) {</span>
+<span id="cb23-8"><a href="#cb23-8" tabindex="-1"></a></span>
+<span id="cb23-9"><a href="#cb23-9" tabindex="-1"></a>  <span class="fu">skip_live_message</span>(</span>
+<span id="cb23-10"><a href="#cb23-10" tabindex="-1"></a>    <span class="st">&quot;set options(biofetchR.wdpa_opt_in = TRUE) after checking provider terms&quot;</span></span>
+<span id="cb23-11"><a href="#cb23-11" tabindex="-1"></a>  )</span>
+<span id="cb23-12"><a href="#cb23-12" tabindex="-1"></a></span>
+<span id="cb23-13"><a href="#cb23-13" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb23-14"><a href="#cb23-14" tabindex="-1"></a></span>
+<span id="cb23-15"><a href="#cb23-15" tabindex="-1"></a>  protected_overlay_result <span class="ot">&lt;-</span> <span class="fu">run_live_safely</span>(</span>
+<span id="cb23-16"><a href="#cb23-16" tabindex="-1"></a>    <span class="fu">process_gbif_terrestrial_freshwater_pipeline</span>(</span>
+<span id="cb23-17"><a href="#cb23-17" tabindex="-1"></a>      <span class="at">df =</span> <span class="fu">data.frame</span>(</span>
+<span id="cb23-18"><a href="#cb23-18" tabindex="-1"></a>        <span class="at">species =</span> <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb23-19"><a href="#cb23-19" tabindex="-1"></a>        <span class="at">iso2c =</span> <span class="st">&quot;GB&quot;</span>,</span>
+<span id="cb23-20"><a href="#cb23-20" tabindex="-1"></a>        <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb23-21"><a href="#cb23-21" tabindex="-1"></a>      ),</span>
+<span id="cb23-22"><a href="#cb23-22" tabindex="-1"></a></span>
+<span id="cb23-23"><a href="#cb23-23" tabindex="-1"></a>      <span class="at">output_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;protected_overlay_pipeline&quot;</span>),</span>
+<span id="cb23-24"><a href="#cb23-24" tabindex="-1"></a></span>
+<span id="cb23-25"><a href="#cb23-25" tabindex="-1"></a>      <span class="at">user =</span> gbif_user,</span>
+<span id="cb23-26"><a href="#cb23-26" tabindex="-1"></a>      <span class="at">pwd =</span> gbif_pwd,</span>
+<span id="cb23-27"><a href="#cb23-27" tabindex="-1"></a>      <span class="at">email =</span> gbif_email,</span>
+<span id="cb23-28"><a href="#cb23-28" tabindex="-1"></a></span>
+<span id="cb23-29"><a href="#cb23-29" tabindex="-1"></a>      <span class="co"># Keep GADM as the main administrative framework and add WDPA.</span></span>
+<span id="cb23-30"><a href="#cb23-30" tabindex="-1"></a>      <span class="at">region_source =</span> <span class="fu">c</span>(<span class="st">&quot;gadm&quot;</span>, <span class="st">&quot;wdpa&quot;</span>),</span>
+<span id="cb23-31"><a href="#cb23-31" tabindex="-1"></a>      <span class="at">overlay_mode =</span> <span class="st">&quot;dual_separate&quot;</span>,</span>
+<span id="cb23-32"><a href="#cb23-32" tabindex="-1"></a>      <span class="at">gadm_unit =</span> <span class="dv">1</span>,</span>
+<span id="cb23-33"><a href="#cb23-33" tabindex="-1"></a>      <span class="at">cache_dir_gadm =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;gadm&quot;</span>),</span>
+<span id="cb23-34"><a href="#cb23-34" tabindex="-1"></a></span>
+<span id="cb23-35"><a href="#cb23-35" tabindex="-1"></a>      <span class="co"># WDPA is opt-in because it is an externally licensed dataset.</span></span>
+<span id="cb23-36"><a href="#cb23-36" tabindex="-1"></a>      <span class="at">wdpa_cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;wdpa&quot;</span>),</span>
+<span id="cb23-37"><a href="#cb23-37" tabindex="-1"></a>      <span class="at">wdpa_opt_in =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb23-38"><a href="#cb23-38" tabindex="-1"></a>      <span class="at">wdpa_exclude_marine =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb23-39"><a href="#cb23-39" tabindex="-1"></a></span>
+<span id="cb23-40"><a href="#cb23-40" tabindex="-1"></a>      <span class="at">apply_cleaning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb23-41"><a href="#cb23-41" tabindex="-1"></a>      <span class="at">apply_thinning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb23-42"><a href="#cb23-42" tabindex="-1"></a>      <span class="at">dist_km =</span> <span class="dv">5</span>,</span>
+<span id="cb23-43"><a href="#cb23-43" tabindex="-1"></a></span>
+<span id="cb23-44"><a href="#cb23-44" tabindex="-1"></a>      <span class="at">batch_size =</span> <span class="dv">1</span>,</span>
+<span id="cb23-45"><a href="#cb23-45" tabindex="-1"></a>      <span class="at">export_summary =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb23-46"><a href="#cb23-46" tabindex="-1"></a>      <span class="at">store_in_memory =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb23-47"><a href="#cb23-47" tabindex="-1"></a>      <span class="at">quiet =</span> <span class="cn">FALSE</span></span>
+<span id="cb23-48"><a href="#cb23-48" tabindex="-1"></a>    )</span>
+<span id="cb23-49"><a href="#cb23-49" tabindex="-1"></a>  )</span>
+<span id="cb23-50"><a href="#cb23-50" tabindex="-1"></a></span>
+<span id="cb23-51"><a href="#cb23-51" tabindex="-1"></a>  protected_overlay_result</span>
+<span id="cb23-52"><a href="#cb23-52" tabindex="-1"></a>}</span></code></pre></div>
+<p>When interpreting these outputs, treat WDPA and Ramsar fields as
+site-overlap information. A missing match does not mean that a record is
+unimportant or that the surrounding habitat has no conservation value.
+It only means that the record was not assigned to the selected
+protected-area or wetland layer under the settings used in that run.</p>
+</div>
+<div id="inspecting-spatial-outputs" class="section level1">
+<h1>Inspecting spatial outputs</h1>
+<p>After a spatial workflow, start with the summary file. This gives a
+compact view of row status, record retention and exported file paths
+before the occurrence tables are opened.</p>
+<div class="sourceCode" id="cb24"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" tabindex="-1"></a>spatial_summary_example <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb24-2"><a href="#cb24-2" tabindex="-1"></a>  <span class="at">species =</span> <span class="fu">c</span>(</span>
+<span id="cb24-3"><a href="#cb24-3" tabindex="-1"></a>    <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb24-4"><a href="#cb24-4" tabindex="-1"></a>    <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb24-5"><a href="#cb24-5" tabindex="-1"></a>    <span class="st">&quot;Carcinus maenas&quot;</span></span>
+<span id="cb24-6"><a href="#cb24-6" tabindex="-1"></a>  ),</span>
+<span id="cb24-7"><a href="#cb24-7" tabindex="-1"></a>  <span class="at">workflow =</span> <span class="fu">c</span>(</span>
+<span id="cb24-8"><a href="#cb24-8" tabindex="-1"></a>    <span class="st">&quot;gadm&quot;</span>,</span>
+<span id="cb24-9"><a href="#cb24-9" tabindex="-1"></a>    <span class="st">&quot;gadm_plus_feow&quot;</span>,</span>
+<span id="cb24-10"><a href="#cb24-10" tabindex="-1"></a>    <span class="st">&quot;marine_eez&quot;</span></span>
+<span id="cb24-11"><a href="#cb24-11" tabindex="-1"></a>  ),</span>
+<span id="cb24-12"><a href="#cb24-12" tabindex="-1"></a>  <span class="at">primary_spatial_unit =</span> <span class="fu">c</span>(</span>
+<span id="cb24-13"><a href="#cb24-13" tabindex="-1"></a>    <span class="st">&quot;GADM level 1&quot;</span>,</span>
+<span id="cb24-14"><a href="#cb24-14" tabindex="-1"></a>    <span class="st">&quot;GADM level 1&quot;</span>,</span>
+<span id="cb24-15"><a href="#cb24-15" tabindex="-1"></a>    <span class="st">&quot;EEZ&quot;</span></span>
+<span id="cb24-16"><a href="#cb24-16" tabindex="-1"></a>  ),</span>
+<span id="cb24-17"><a href="#cb24-17" tabindex="-1"></a>  <span class="at">secondary_spatial_context =</span> <span class="fu">c</span>(</span>
+<span id="cb24-18"><a href="#cb24-18" tabindex="-1"></a>    <span class="cn">NA</span>,</span>
+<span id="cb24-19"><a href="#cb24-19" tabindex="-1"></a>    <span class="st">&quot;FEOW&quot;</span>,</span>
+<span id="cb24-20"><a href="#cb24-20" tabindex="-1"></a>    <span class="cn">NA</span></span>
+<span id="cb24-21"><a href="#cb24-21" tabindex="-1"></a>  ),</span>
+<span id="cb24-22"><a href="#cb24-22" tabindex="-1"></a>  <span class="at">n_total =</span> <span class="fu">c</span>(<span class="dv">1340</span>, <span class="dv">1340</span>, <span class="dv">980</span>),</span>
+<span id="cb24-23"><a href="#cb24-23" tabindex="-1"></a>  <span class="at">n_cleaned =</span> <span class="fu">c</span>(<span class="dv">1309</span>, <span class="dv">1309</span>, <span class="dv">944</span>),</span>
+<span id="cb24-24"><a href="#cb24-24" tabindex="-1"></a>  <span class="at">n_thinned =</span> <span class="fu">c</span>(<span class="dv">861</span>, <span class="dv">861</span>, <span class="dv">702</span>),</span>
+<span id="cb24-25"><a href="#cb24-25" tabindex="-1"></a>  <span class="at">status =</span> <span class="fu">c</span>(<span class="st">&quot;success&quot;</span>, <span class="st">&quot;success&quot;</span>, <span class="st">&quot;success&quot;</span>),</span>
+<span id="cb24-26"><a href="#cb24-26" tabindex="-1"></a>  <span class="at">output_file =</span> <span class="fu">c</span>(</span>
+<span id="cb24-27"><a href="#cb24-27" tabindex="-1"></a>    <span class="st">&quot;Xenopus_laevis_FR_gadm1.csv&quot;</span>,</span>
+<span id="cb24-28"><a href="#cb24-28" tabindex="-1"></a>    <span class="st">&quot;Xenopus_laevis_FR_gadm1_feow.csv&quot;</span>,</span>
+<span id="cb24-29"><a href="#cb24-29" tabindex="-1"></a>    <span class="st">&quot;Carcinus_maenas_eez.csv&quot;</span></span>
+<span id="cb24-30"><a href="#cb24-30" tabindex="-1"></a>  ),</span>
+<span id="cb24-31"><a href="#cb24-31" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb24-32"><a href="#cb24-32" tabindex="-1"></a>)</span>
+<span id="cb24-33"><a href="#cb24-33" tabindex="-1"></a></span>
+<span id="cb24-34"><a href="#cb24-34" tabindex="-1"></a>spatial_summary_example</span>
+<span id="cb24-35"><a href="#cb24-35" tabindex="-1"></a><span class="co">#&gt;           species       workflow primary_spatial_unit secondary_spatial_context</span></span>
+<span id="cb24-36"><a href="#cb24-36" tabindex="-1"></a><span class="co">#&gt; 1  Xenopus laevis           gadm         GADM level 1                      &lt;NA&gt;</span></span>
+<span id="cb24-37"><a href="#cb24-37" tabindex="-1"></a><span class="co">#&gt; 2  Xenopus laevis gadm_plus_feow         GADM level 1                      FEOW</span></span>
+<span id="cb24-38"><a href="#cb24-38" tabindex="-1"></a><span class="co">#&gt; 3 Carcinus maenas     marine_eez                  EEZ                      &lt;NA&gt;</span></span>
+<span id="cb24-39"><a href="#cb24-39" tabindex="-1"></a><span class="co">#&gt;   n_total n_cleaned n_thinned  status                      output_file</span></span>
+<span id="cb24-40"><a href="#cb24-40" tabindex="-1"></a><span class="co">#&gt; 1    1340      1309       861 success      Xenopus_laevis_FR_gadm1.csv</span></span>
+<span id="cb24-41"><a href="#cb24-41" tabindex="-1"></a><span class="co">#&gt; 2    1340      1309       861 success Xenopus_laevis_FR_gadm1_feow.csv</span></span>
+<span id="cb24-42"><a href="#cb24-42" tabindex="-1"></a><span class="co">#&gt; 3     980       944       702 success          Carcinus_maenas_eez.csv</span></span></code></pre></div>
+<p>The values above are illustrative. In a real run, read
+<code>gbif_summary.csv</code> from the relevant output directory and
+inspect the columns most useful for checking spatial processing.</p>
+<div class="sourceCode" id="cb25"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" tabindex="-1"></a>summary_path <span class="ot">&lt;-</span> <span class="fu">file.path</span>(<span class="st">&quot;path&quot;</span>, <span class="st">&quot;to&quot;</span>, <span class="st">&quot;gbif_summary.csv&quot;</span>)</span>
+<span id="cb25-2"><a href="#cb25-2" tabindex="-1"></a></span>
+<span id="cb25-3"><a href="#cb25-3" tabindex="-1"></a>summary_tbl <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(summary_path, <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb25-4"><a href="#cb25-4" tabindex="-1"></a></span>
+<span id="cb25-5"><a href="#cb25-5" tabindex="-1"></a>summary_tbl[</span>
+<span id="cb25-6"><a href="#cb25-6" tabindex="-1"></a>  ,</span>
+<span id="cb25-7"><a href="#cb25-7" tabindex="-1"></a>  <span class="fu">intersect</span>(</span>
+<span id="cb25-8"><a href="#cb25-8" tabindex="-1"></a>    <span class="fu">c</span>(</span>
+<span id="cb25-9"><a href="#cb25-9" tabindex="-1"></a>      <span class="st">&quot;species&quot;</span>,</span>
+<span id="cb25-10"><a href="#cb25-10" tabindex="-1"></a>      <span class="st">&quot;region_id&quot;</span>,</span>
+<span id="cb25-11"><a href="#cb25-11" tabindex="-1"></a>      <span class="st">&quot;region_type&quot;</span>,</span>
+<span id="cb25-12"><a href="#cb25-12" tabindex="-1"></a>      <span class="st">&quot;n_total&quot;</span>,</span>
+<span id="cb25-13"><a href="#cb25-13" tabindex="-1"></a>      <span class="st">&quot;n_cleaned&quot;</span>,</span>
+<span id="cb25-14"><a href="#cb25-14" tabindex="-1"></a>      <span class="st">&quot;n_thinned&quot;</span>,</span>
+<span id="cb25-15"><a href="#cb25-15" tabindex="-1"></a>      <span class="st">&quot;status&quot;</span>,</span>
+<span id="cb25-16"><a href="#cb25-16" tabindex="-1"></a>      <span class="st">&quot;fail_stage&quot;</span>,</span>
+<span id="cb25-17"><a href="#cb25-17" tabindex="-1"></a>      <span class="st">&quot;fail_reason&quot;</span>,</span>
+<span id="cb25-18"><a href="#cb25-18" tabindex="-1"></a>      <span class="st">&quot;output_file&quot;</span></span>
+<span id="cb25-19"><a href="#cb25-19" tabindex="-1"></a>    ),</span>
+<span id="cb25-20"><a href="#cb25-20" tabindex="-1"></a>    <span class="fu">names</span>(summary_tbl)</span>
+<span id="cb25-21"><a href="#cb25-21" tabindex="-1"></a>  ),</span>
+<span id="cb25-22"><a href="#cb25-22" tabindex="-1"></a>  drop <span class="ot">=</span> <span class="cn">FALSE</span></span>
+<span id="cb25-23"><a href="#cb25-23" tabindex="-1"></a>]</span></code></pre></div>
+<p>Focus on three checks: whether each row completed, whether record
+counts changed as expected during cleaning and thinning, and whether
+each successful row has an exported file path. Rows with failed status,
+missing paths or unexpectedly low record counts should be reviewed
+before the spatial outputs are summarised.</p>
+</div>
+<div id="troubleshooting-spatial-joins" class="section level1">
+<h1>Troubleshooting spatial joins</h1>
+<p>When a spatial workflow gives unexpected output, use the summary file
+to identify where the problem occurred. Most issues fall into one of
+four areas: records were removed during coordinate processing, the
+spatial layer did not load, the join did not assign many records, or the
+output was not written where expected.</p>
+<pre><code>#&gt;                               symptom
+#&gt; 1           No records after cleaning
+#&gt; 2   Many records have no spatial unit
+#&gt; 3        Provider layer fails to load
+#&gt; 4                Raster context fails
+#&gt; 5          Marine records are missing
+#&gt; 6 Output files are not where expected
+#&gt; 7               Very large memory use
+#&gt;                                                                                              possible_cause
+#&gt; 1                     Coordinate cleaning removed records with invalid, missing, or suspicious coordinates.
+#&gt; 2          Coordinates may fall outside the overlay extent, offshore, near boundaries, or in the wrong CRS.
+#&gt; 3               Provider service, URL, dependency, cache, or licence/opt-in requirement may be unavailable.
+#&gt; 4        Raster file may be large, unavailable, in an unexpected format, or incompatible with local memory.
+#&gt; 5                   Marine species may have been submitted through a terrestrial/country-filtered workflow.
+#&gt; 6                      The pipeline may have written split outputs by spatial unit or failed before export.
+#&gt; 7 Large GBIF downloads, high-resolution overlays, raster extraction, or in-memory storage may be too heavy.
+#&gt;                                                                               first_check
+#&gt; 1 Inspect n_total, n_cleaned, n_thinned, fail_stage, and fail_reason in gbif_summary.csv.
+#&gt; 2    Check coordinates, overlay choice, CRS, coastal/offshore points, and unmatched rows.
+#&gt; 3                Try the provider loader directly with a small country or overlay subset.
+#&gt; 4                              Test one species-region pair and inspect raster_cache_dir.
+#&gt; 5 Use process_gbif_marine_pipeline() and a marine overlay such as EEZ, LME, MEOW, or IHO.
+#&gt; 6           Inspect output_dir, output_file, status, and fail_reason in gbif_summary.csv.
+#&gt; 7               Set store_in_memory = FALSE and add overlays or raster context in stages.</code></pre>
+<p>For a failed or confusing run, reduce the workflow to the smallest
+useful test: one taxon, one spatial framework and one output directory.
+Once that works, add the next overlay, raster layer or evidence setting
+and check the summary again.</p>
+</div>
+<div id="provider-caches-and-citations" class="section level1">
+<h1>Provider caches and citations</h1>
+<p><code>biofetchR</code> can download or cache third-party spatial
+resources for use in an analysis. These resources remain provider
+datasets; they are not converted into package data. For any workflow
+that will be reported, shared or rerun, keep enough information to
+identify the exact spatial products used.</p>
+<p>Useful details to save include:</p>
+<ul>
+<li>provider name;</li>
+<li>dataset or product name;</li>
+<li>version, release date or access date, where available;</li>
+<li>cache directory used by the workflow;</li>
+<li>selected spatial layer or overlay name;</li>
+<li>licence or terms-of-use notes, where relevant;</li>
+<li>recommended provider citation;</li>
+<li><code>biofetchR</code> package version and R session
+information.</li>
+</ul>
+<p>Provider citation needs depend on the selected layers. Common
+examples include:</p>
+<ul>
+<li><strong>GADM</strong> for administrative boundaries;</li>
+<li><strong>Natural Earth</strong> for Natural Earth administrative or
+urban layers;</li>
+<li><strong>FEOW</strong> for freshwater ecoregions;</li>
+<li><strong>TEOW or RESOLVE 2017</strong> for terrestrial
+ecoregions;</li>
+<li><strong>HydroBASINS, HydroLAKES, river, dam, reservoir or
+infrastructure sources</strong> when hydrological overlays are
+used;</li>
+<li><strong>WDPA / Protected Planet</strong> for protected-area
+context;</li>
+<li><strong>Ramsar</strong> for designated wetland context;</li>
+<li><strong>Marine Regions</strong> for EEZ, LME, MEOW, IHO or related
+marine products;</li>
+<li><strong>WorldCover, SoilGrids, Human Footprint or other raster
+providers</strong> when raster context is extracted.</li>
+</ul>
+<p>Use the citation supplied by the provider page, download record or
+metadata file for the exact product used. This is especially important
+for datasets that are versioned, updated regularly, licensed separately,
+or distributed through more than one provider route.</p>
+</div>
+<div id="final-checklist" class="section level1">
+<h1>Final checklist</h1>
+<p>Before using spatially enriched occurrence outputs, check that the
+spatial processing decisions are clear and that the exported files can
+be traced back to their inputs and provider layers.</p>
+<p>Useful checks include:</p>
+<ul>
+<li>did the GBIF download or import complete?</li>
+<li>how many records were removed by coordinate cleaning?</li>
+<li>how many records were retained after thinning?</li>
+<li>was the intended primary spatial framework used?</li>
+<li>were any secondary overlays added as separate fields?</li>
+<li>do many retained records lack spatial identifiers?</li>
+<li>were raster fields added only where raster context was needed?</li>
+<li>were marine taxa processed with the marine workflow where
+appropriate?</li>
+<li>were provider caches saved or documented?</li>
+<li>is <code>gbif_summary.csv</code> stored with the exported occurrence
+files?</li>
+<li>are provider names, versions or access dates recorded?</li>
+<li>are licence notes and recommended citations saved where
+required?</li>
+<li>are the <code>biofetchR</code> package version and R session
+information recorded?</li>
+</ul>
+<p>A good spatial workflow should be easy to inspect later. The key
+files are the input table, <code>gbif_summary.csv</code>, exported
+occurrence files, provider-cache notes and any citation or licence
+information needed for the spatial layers used.</p>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

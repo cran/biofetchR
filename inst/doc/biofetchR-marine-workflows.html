@@ -1,0 +1,1426 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+
+
+<title>Marine occurrence workflows in biofetchR</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Marine occurrence workflows in
+biofetchR</h1>
+
+
+
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">library</span>(biofetchR)</span></code></pre></div>
+<div id="purpose" class="section level1">
+<h1>Purpose</h1>
+<p>Marine occurrence records often need to be processed differently from
+terrestrial and freshwater records. Many valid records fall in offshore
+waters, coastal zones, ports, Exclusive Economic Zones, Large Marine
+Ecosystems, marine ecoregions or named sea areas. These records may be
+difficult to interpret with a workflow that relies first on land-based
+country filters or administrative polygons, because the relevant spatial
+unit may be marine rather than terrestrial.</p>
+<p><code>biofetchR</code> provides a dedicated marine pipeline through
+<code>process_gbif_marine_pipeline()</code>. The marine workflow usually
+starts from a species list rather than a species-country table. Records
+are downloaded by species, cleaned, optionally thinned, and then
+assigned to the selected marine overlay.</p>
+<p>This vignette focuses on the marine-specific parts of the workflow:
+preparing marine input tables, choosing an overlay, running a small
+test, inspecting marine-region assignments, comparing overlay outputs,
+using evidence fields in audit mode, and organising outputs for larger
+marine batches.</p>
+<p>The key distinction is that occurrence retrieval and marine spatial
+attribution are separated. Records are imported first; the marine
+interpretation is then added using the overlay that best matches the
+analysis question.</p>
+</div>
+<div id="using-the-examples" class="section level1">
+<h1>Using the examples</h1>
+<p>The examples in this vignette are either local examples or live
+examples. Local examples create small tables or show workflow templates
+without contacting external services. Live examples can submit GBIF
+requests or retrieve marine overlay resources, and are controlled by the
+<code>run_live</code> parameter.</p>
+<p>By default, <code>run_live = FALSE</code>, so the vignette can be
+read and rendered without running live provider steps.</p>
+<p>To render a live version locally, use:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>rmarkdown<span class="sc">::</span><span class="fu">render</span>(</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>  <span class="st">&quot;vignettes/biofetchR-marine-workflows.Rmd&quot;</span>,</span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>  <span class="at">params =</span> <span class="fu">list</span>(<span class="at">run_live =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>)</span></code></pre></div>
+<p>Use the live version when you want to test the workflow with GBIF
+credentials and the selected marine overlay sources. Keep
+<code>run_live = FALSE</code> when you only want to inspect the workflow
+structure or adapt the examples for a project script.</p>
+</div>
+<div id="marine-workflow-sequence" class="section level1">
+<h1>Marine workflow sequence</h1>
+<p>A marine workflow is easiest to interpret when the main steps are
+kept in a clear order. The sequence below describes the processing logic
+rather than a requirement to run each step separately.</p>
+<ol style="list-style-type: decimal">
+<li>Start from a species list.</li>
+<li>Download GBIF records by species.</li>
+<li>Apply coordinate cleaning.</li>
+<li>Optionally thin dense occurrence clusters.</li>
+<li>Assign retained records to the selected marine overlay.</li>
+<li>Attach origin or invasive-status evidence if needed.</li>
+<li>Inspect <code>gbif_summary.csv</code> and the exported occurrence
+files.</li>
+</ol>
+<p>This order keeps the main decisions visible. Users can check which
+records were retrieved, which records were removed during coordinate
+processing, which marine regions were assigned, and where the exported
+files were written.</p>
+</div>
+<div id="marine-input-tables" class="section level1">
+<h1>Marine input tables</h1>
+<p>A simple marine input table only needs a <code>species</code> column.
+The marine pipeline uses this column to request GBIF records for each
+taxon. Unlike the terrestrial and freshwater pipeline, the primary input
+is not organised around species-country rows; marine-region assignment
+happens after the occurrence records have been imported.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a>marine_species <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>  <span class="at">species =</span> <span class="fu">c</span>(</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>    <span class="st">&quot;Carcinus maenas&quot;</span>,</span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>    <span class="st">&quot;Mnemiopsis leidyi&quot;</span>,</span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>    <span class="st">&quot;Undaria pinnatifida&quot;</span>,</span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>    <span class="st">&quot;Didemnum vexillum&quot;</span></span>
+<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a>  ),</span>
+<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a>)</span>
+<span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" tabindex="-1"></a>marine_species</span>
+<span id="cb3-12"><a href="#cb3-12" tabindex="-1"></a><span class="co">#&gt;               species</span></span>
+<span id="cb3-13"><a href="#cb3-13" tabindex="-1"></a><span class="co">#&gt; 1     Carcinus maenas</span></span>
+<span id="cb3-14"><a href="#cb3-14" tabindex="-1"></a><span class="co">#&gt; 2   Mnemiopsis leidyi</span></span>
+<span id="cb3-15"><a href="#cb3-15" tabindex="-1"></a><span class="co">#&gt; 3 Undaria pinnatifida</span></span>
+<span id="cb3-16"><a href="#cb3-16" tabindex="-1"></a><span class="co">#&gt; 4   Didemnum vexillum</span></span></code></pre></div>
+<p>Project metadata can be included when it helps organise the batch.
+For example, users may want to keep a broad taxonomic group, expected
+habitat or internal project identifier alongside the species name.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a>marine_species_with_metadata <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a>  <span class="at">species =</span> <span class="fu">c</span>(</span>
+<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a>    <span class="st">&quot;Carcinus maenas&quot;</span>,</span>
+<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a>    <span class="st">&quot;Mnemiopsis leidyi&quot;</span>,</span>
+<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a>    <span class="st">&quot;Undaria pinnatifida&quot;</span></span>
+<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a>  ),</span>
+<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a>  <span class="at">broad_group =</span> <span class="fu">c</span>(</span>
+<span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a>    <span class="st">&quot;crustacean&quot;</span>,</span>
+<span id="cb4-9"><a href="#cb4-9" tabindex="-1"></a>    <span class="st">&quot;ctenophore&quot;</span>,</span>
+<span id="cb4-10"><a href="#cb4-10" tabindex="-1"></a>    <span class="st">&quot;macroalga&quot;</span></span>
+<span id="cb4-11"><a href="#cb4-11" tabindex="-1"></a>  ),</span>
+<span id="cb4-12"><a href="#cb4-12" tabindex="-1"></a>  <span class="at">expected_habitat =</span> <span class="fu">c</span>(</span>
+<span id="cb4-13"><a href="#cb4-13" tabindex="-1"></a>    <span class="st">&quot;coastal_benthic&quot;</span>,</span>
+<span id="cb4-14"><a href="#cb4-14" tabindex="-1"></a>    <span class="st">&quot;pelagic_coastal&quot;</span>,</span>
+<span id="cb4-15"><a href="#cb4-15" tabindex="-1"></a>    <span class="st">&quot;coastal_benthic&quot;</span></span>
+<span id="cb4-16"><a href="#cb4-16" tabindex="-1"></a>  ),</span>
+<span id="cb4-17"><a href="#cb4-17" tabindex="-1"></a>  <span class="at">project_id =</span> <span class="fu">c</span>(</span>
+<span id="cb4-18"><a href="#cb4-18" tabindex="-1"></a>    <span class="st">&quot;marine_001&quot;</span>,</span>
+<span id="cb4-19"><a href="#cb4-19" tabindex="-1"></a>    <span class="st">&quot;marine_002&quot;</span>,</span>
+<span id="cb4-20"><a href="#cb4-20" tabindex="-1"></a>    <span class="st">&quot;marine_003&quot;</span></span>
+<span id="cb4-21"><a href="#cb4-21" tabindex="-1"></a>  ),</span>
+<span id="cb4-22"><a href="#cb4-22" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb4-23"><a href="#cb4-23" tabindex="-1"></a>)</span>
+<span id="cb4-24"><a href="#cb4-24" tabindex="-1"></a></span>
+<span id="cb4-25"><a href="#cb4-25" tabindex="-1"></a>marine_species_with_metadata</span>
+<span id="cb4-26"><a href="#cb4-26" tabindex="-1"></a><span class="co">#&gt;               species broad_group expected_habitat project_id</span></span>
+<span id="cb4-27"><a href="#cb4-27" tabindex="-1"></a><span class="co">#&gt; 1     Carcinus maenas  crustacean  coastal_benthic marine_001</span></span>
+<span id="cb4-28"><a href="#cb4-28" tabindex="-1"></a><span class="co">#&gt; 2   Mnemiopsis leidyi  ctenophore  pelagic_coastal marine_002</span></span>
+<span id="cb4-29"><a href="#cb4-29" tabindex="-1"></a><span class="co">#&gt; 3 Undaria pinnatifida   macroalga  coastal_benthic marine_003</span></span></code></pre></div>
+<p>These extra columns should be treated as project metadata. They can
+help users track and interpret a marine batch, even though the key
+column needed for GBIF querying is the species name.</p>
+</div>
+<div id="choosing-a-marine-overlay" class="section level1">
+<h1>Choosing a marine overlay</h1>
+<p>Marine overlays divide ocean space in different ways. The best choice
+depends on whether the analysis needs jurisdictional, ecosystem,
+biogeographic or named sea-area context.</p>
+<p>Use EEZs when records need to be linked to country-associated marine
+jurisdictions. Use LMEs when broad ecosystem-scale reporting is needed.
+Use MEOW for coastal marine ecoregions and nearshore biogeographic
+patterns. Use IHO sea areas when named seas, basins or hydrographic
+regions are the most useful labels.</p>
+<pre><code>#&gt;   overlay                                        represents
+#&gt; 1     EEZ                          Exclusive Economic Zones
+#&gt; 2     LME                           Large Marine Ecosystems
+#&gt; 3    MEOW                    Marine Ecoregions of the World
+#&gt; 4     IHO International Hydrographic Organization sea areas
+#&gt;                                                                                  use_when
+#&gt; 1 The analysis needs country-associated marine jurisdiction or offshore management areas.
+#&gt; 2 The analysis needs broad marine ecosystem regions for large-scale ecological summaries.
+#&gt; 3  The analysis focuses on coastal marine biogeography or nearshore ecoregional patterns.
+#&gt; 4                 The analysis needs named seas, basins, or hydrographic sea-area labels.
+#&gt;                                               typical_question
+#&gt; 1 Which country-associated marine area contains these records?
+#&gt; 2         Which broad marine ecosystem contains these records?
+#&gt; 3       Which coastal marine ecoregion contains these records?
+#&gt; 4                 Which named sea area contains these records?</code></pre>
+<p>Before running a marine pipeline, check which overlay names are
+available in the installed package version.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="co"># Core marine overlays.</span></span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a><span class="fu">bf_available_marine_overlays</span>()</span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a><span class="co">#&gt;   overlay                    description workflow</span></span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a><span class="co">#&gt; 1     eez       Exclusive Economic Zones   marine</span></span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a><span class="co">#&gt; 2     lme        Large Marine Ecosystems   marine</span></span>
+<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a><span class="co">#&gt; 3    meow Marine Ecoregions of the World   marine</span></span>
+<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a><span class="co">#&gt; 4     iho                  IHO Sea Areas   marine</span></span></code></pre></div>
+<p>Some overlays can also be requested using aliases. This is useful
+when a project or data provider uses a different name for the same
+marine product.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="co"># Core overlays plus aliases.</span></span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a><span class="fu">bf_available_marine_overlays</span>(<span class="at">include_aliases =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a><span class="co">#&gt;   overlay                    description workflow      aliases</span></span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a><span class="co">#&gt; 1     eez       Exclusive Economic Zones   marine          eez</span></span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a><span class="co">#&gt; 2     lme        Large Marine Ecosystems   marine          lme</span></span>
+<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a><span class="co">#&gt; 3    meow Marine Ecoregions of the World   marine meow, ec....</span></span>
+<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a><span class="co">#&gt; 4     iho                  IHO Sea Areas   marine iho, iho....</span></span></code></pre></div>
+<p>Different overlays should not be expected to assign records in the
+same way. They use different boundaries, spatial definitions and
+reporting units, so the selected overlay should be recorded with the
+outputs and reported with the analysis.</p>
+<div id="extended-marine-overlays" class="section level2">
+<h2>Extended marine overlays</h2>
+<p>Some marine analyses need spatial units beyond the core EEZ, LME,
+MEOW and IHO options. Extended overlays can be useful when records need
+to be interpreted in relation to areas beyond national jurisdiction,
+coastal-state maritime zones, continental shelf areas, combined
+jurisdictional and sea-area layers, or broad oceanographic
+provinces.</p>
+<p>These layers answer different questions. For example, a record
+assigned to the high seas is being interpreted in relation to areas
+beyond national jurisdiction, whereas a record assigned to an extended
+continental shelf layer is being interpreted in relation to seabed and
+shelf context. The appropriate overlay depends on the spatial meaning
+needed for the analysis.</p>
+<p>Inspect the extended overlay registry when these additional marine
+spatial units are relevant.</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="fu">bf_available_marine_overlays</span>(<span class="at">include_extended =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a><span class="co">#&gt;                overlay                        description workflow</span></span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a><span class="co">#&gt; 1                  eez           Exclusive Economic Zones   marine</span></span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a><span class="co">#&gt; 2                  lme            Large Marine Ecosystems   marine</span></span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a><span class="co">#&gt; 3                 meow     Marine Ecoregions of the World   marine</span></span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a><span class="co">#&gt; 4                  iho                      IHO Sea Areas   marine</span></span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a><span class="co">#&gt; 5            high_seas                          High seas   marine</span></span>
+<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a><span class="co">#&gt; 6     territorial_seas                   Territorial seas   marine</span></span>
+<span id="cb8-9"><a href="#cb8-9" tabindex="-1"></a><span class="co">#&gt; 7      contiguous_zone                   Contiguous zones   marine</span></span>
+<span id="cb8-10"><a href="#cb8-10" tabindex="-1"></a><span class="co">#&gt; 8      internal_waters                    Internal waters   marine</span></span>
+<span id="cb8-11"><a href="#cb8-11" tabindex="-1"></a><span class="co">#&gt; 9  archipelagic_waters                Archipelagic waters   marine</span></span>
+<span id="cb8-12"><a href="#cb8-12" tabindex="-1"></a><span class="co">#&gt; 10                 ecs       Extended continental shelves   marine</span></span>
+<span id="cb8-13"><a href="#cb8-13" tabindex="-1"></a><span class="co">#&gt; 11                goas             Global Oceans and Seas   marine</span></span>
+<span id="cb8-14"><a href="#cb8-14" tabindex="-1"></a><span class="co">#&gt; 12             eez_iho            EEZ by IHO intersection   marine</span></span>
+<span id="cb8-15"><a href="#cb8-15" tabindex="-1"></a><span class="co">#&gt; 13            eez_land EEZ-land union / marine-land zones   marine</span></span>
+<span id="cb8-16"><a href="#cb8-16" tabindex="-1"></a><span class="co">#&gt; 14           longhurst Longhurst biogeochemical provinces   marine</span></span>
+<span id="cb8-17"><a href="#cb8-17" tabindex="-1"></a><span class="co">#&gt; 15 worldheritagemarine UNESCO World Heritage marine sites   marine</span></span></code></pre></div>
+<p>Common extended overlays include:</p>
+<pre><code>#&gt;               overlay
+#&gt; 1           high_seas
+#&gt; 2    territorial_seas
+#&gt; 3     contiguous_zone
+#&gt; 4     internal_waters
+#&gt; 5 archipelagic_waters
+#&gt; 6                 ecs
+#&gt; 7                goas
+#&gt; 8             eez_iho
+#&gt; 9           longhurst
+#&gt;                                                                spatial_meaning
+#&gt; 1                                    Marine areas beyond national jurisdiction
+#&gt; 2                                  Coastal waters close to national coastlines
+#&gt; 3 Zones beyond territorial seas but still linked to coastal-state jurisdiction
+#&gt; 4                                         Waters landward of coastal baselines
+#&gt; 5                                    Waters enclosed by archipelagic baselines
+#&gt; 6                                                 Extended continental shelves
+#&gt; 7                                               Global Oceans and Seas regions
+#&gt; 8                                  Intersection of EEZ and IHO sea-area layers
+#&gt; 9                                               Biogeochemical ocean provinces
+#&gt;                                                                       useful_when
+#&gt; 1 The analysis needs to identify records outside EEZ-style national marine areas.
+#&gt; 2                      The analysis focuses on nearshore or coastal-state waters.
+#&gt; 3 The analysis needs a broader coastal jurisdictional zone than territorial seas.
+#&gt; 4    The analysis includes records in enclosed coastal or port-associated waters.
+#&gt; 5                    The analysis includes island or archipelagic marine regions.
+#&gt; 6              The analysis needs continental shelf context for offshore records.
+#&gt; 7                            The analysis needs broad named ocean or sea regions.
+#&gt; 8     The analysis needs both jurisdictional and named sea-area context together.
+#&gt; 9          The analysis needs broad oceanographic or productivity-region context.</code></pre>
+<p>Extended overlays should be selected for a specific reason rather
+than added by default. They can provide useful context for offshore,
+coastal, shelf or open-ocean records, but they are not substitutes for
+each other. The selected overlay should be recorded with the outputs so
+that the spatial interpretation remains clear.</p>
+</div>
+<div id="running-complementary-marine-overlays" class="section level2">
+<h2>Running complementary marine overlays</h2>
+<p>Some projects benefit from running the same species records against
+more than one marine overlay because no single marine layer represents
+all relevant marine space. For example, <code>high_seas</code> can help
+identify records in open-ocean areas beyond national jurisdiction, while
+<code>ecs</code> can provide extended continental shelf context for
+offshore records associated with shelf areas.</p>
+<p>This is useful when the aim is broader marine coverage rather than
+repeated versions of the same analysis. Open-ocean areas,
+shelf-associated areas, jurisdictional zones, named sea areas, and
+marine ecoregions represent different spatial concepts. Running
+complementary overlays allows users to check how the same retained
+records are distributed across these different marine settings.</p>
+<p>The clearest workflow is to run each overlay separately and compare
+the resulting <code>gbif_summary.csv</code> files and exported
+occurrence tables. This keeps the outputs easy to audit because each
+directory represents one marine spatial interpretation.</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="co"># Example overlays for a project interested in complementary offshore coverage.</span></span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a><span class="co"># high_seas is useful for open-ocean areas beyond national jurisdiction.</span></span>
+<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a><span class="co"># ecs is useful for extended continental shelf context.</span></span>
+<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a>marine_overlays_to_run <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb10-5"><a href="#cb10-5" tabindex="-1"></a>  <span class="st">&quot;high_seas&quot;</span>,</span>
+<span id="cb10-6"><a href="#cb10-6" tabindex="-1"></a>  <span class="st">&quot;ecs&quot;</span></span>
+<span id="cb10-7"><a href="#cb10-7" tabindex="-1"></a>)</span>
+<span id="cb10-8"><a href="#cb10-8" tabindex="-1"></a></span>
+<span id="cb10-9"><a href="#cb10-9" tabindex="-1"></a>complementary_overlay_results <span class="ot">&lt;-</span> <span class="fu">lapply</span>(</span>
+<span id="cb10-10"><a href="#cb10-10" tabindex="-1"></a>  marine_overlays_to_run,</span>
+<span id="cb10-11"><a href="#cb10-11" tabindex="-1"></a>  <span class="cf">function</span>(this_overlay) {</span>
+<span id="cb10-12"><a href="#cb10-12" tabindex="-1"></a></span>
+<span id="cb10-13"><a href="#cb10-13" tabindex="-1"></a>    <span class="fu">process_gbif_marine_pipeline</span>(</span>
+<span id="cb10-14"><a href="#cb10-14" tabindex="-1"></a>      <span class="at">df =</span> marine_species,</span>
+<span id="cb10-15"><a href="#cb10-15" tabindex="-1"></a></span>
+<span id="cb10-16"><a href="#cb10-16" tabindex="-1"></a>      <span class="at">output_dir =</span> <span class="fu">file.path</span>(</span>
+<span id="cb10-17"><a href="#cb10-17" tabindex="-1"></a>        output_root,</span>
+<span id="cb10-18"><a href="#cb10-18" tabindex="-1"></a>        <span class="fu">paste0</span>(<span class="st">&quot;marine_&quot;</span>, this_overlay)</span>
+<span id="cb10-19"><a href="#cb10-19" tabindex="-1"></a>      ),</span>
+<span id="cb10-20"><a href="#cb10-20" tabindex="-1"></a></span>
+<span id="cb10-21"><a href="#cb10-21" tabindex="-1"></a>      <span class="at">user =</span> <span class="fu">Sys.getenv</span>(<span class="st">&quot;GBIF_USER&quot;</span>),</span>
+<span id="cb10-22"><a href="#cb10-22" tabindex="-1"></a>      <span class="at">pwd =</span> <span class="fu">Sys.getenv</span>(<span class="st">&quot;GBIF_PWD&quot;</span>),</span>
+<span id="cb10-23"><a href="#cb10-23" tabindex="-1"></a>      <span class="at">email =</span> <span class="fu">Sys.getenv</span>(<span class="st">&quot;GBIF_EMAIL&quot;</span>),</span>
+<span id="cb10-24"><a href="#cb10-24" tabindex="-1"></a></span>
+<span id="cb10-25"><a href="#cb10-25" tabindex="-1"></a>      <span class="at">overlay =</span> this_overlay,</span>
+<span id="cb10-26"><a href="#cb10-26" tabindex="-1"></a>      <span class="at">overlay_cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;marine_overlays&quot;</span>),</span>
+<span id="cb10-27"><a href="#cb10-27" tabindex="-1"></a></span>
+<span id="cb10-28"><a href="#cb10-28" tabindex="-1"></a>      <span class="at">batch_size =</span> <span class="dv">1</span>,</span>
+<span id="cb10-29"><a href="#cb10-29" tabindex="-1"></a></span>
+<span id="cb10-30"><a href="#cb10-30" tabindex="-1"></a>      <span class="at">apply_cleaning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb10-31"><a href="#cb10-31" tabindex="-1"></a>      <span class="at">apply_thinning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb10-32"><a href="#cb10-32" tabindex="-1"></a>      <span class="at">dist_km =</span> <span class="dv">5</span>,</span>
+<span id="cb10-33"><a href="#cb10-33" tabindex="-1"></a></span>
+<span id="cb10-34"><a href="#cb10-34" tabindex="-1"></a>      <span class="at">prepare_taxonomy =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb10-35"><a href="#cb10-35" tabindex="-1"></a></span>
+<span id="cb10-36"><a href="#cb10-36" tabindex="-1"></a>      <span class="at">export_summary =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb10-37"><a href="#cb10-37" tabindex="-1"></a>      <span class="at">store_in_memory =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb10-38"><a href="#cb10-38" tabindex="-1"></a>      <span class="at">return_all_results =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb10-39"><a href="#cb10-39" tabindex="-1"></a>      <span class="at">quiet =</span> <span class="cn">FALSE</span></span>
+<span id="cb10-40"><a href="#cb10-40" tabindex="-1"></a>    )</span>
+<span id="cb10-41"><a href="#cb10-41" tabindex="-1"></a>  }</span>
+<span id="cb10-42"><a href="#cb10-42" tabindex="-1"></a>)</span>
+<span id="cb10-43"><a href="#cb10-43" tabindex="-1"></a></span>
+<span id="cb10-44"><a href="#cb10-44" tabindex="-1"></a><span class="fu">names</span>(complementary_overlay_results) <span class="ot">&lt;-</span> marine_overlays_to_run</span></code></pre></div>
+<p>Complementary overlay runs should not be interpreted as duplicate
+analyses. They allow the same occurrence records to be described through
+different marine spatial systems. This is particularly useful when a
+project needs to distinguish open-ocean records, shelf-associated
+records, jurisdictional records, ecological regions, or named sea-area
+assignments.</p>
+</div>
+</div>
+<div id="loading-a-marine-overlay-directly" class="section level1">
+<h1>Loading a marine overlay directly</h1>
+<p>A marine overlay can be loaded before running the full pipeline. This
+is a useful pre-check when the workflow depends on a remote provider, a
+local cache or a large spatial layer.</p>
+<p>Direct loading confirms that the selected overlay name is valid, the
+provider resource is available, the cache directory can be written to,
+and the returned object has usable geometry. This separates
+overlay-access problems from later GBIF download, cleaning, thinning and
+export steps.</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="co"># Load an EEZ overlay from the package-managed marine-region workflow.</span></span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a><span class="co"># This tests provider access, cache writing, and local overlay loading before</span></span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a><span class="co"># any GBIF records are downloaded.</span></span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a>eez_overlay <span class="ot">&lt;-</span> <span class="fu">run_live_safely</span>(</span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a>  <span class="fu">bf_load_marine_regions_overlay</span>(</span>
+<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a>    <span class="at">region_source =</span> <span class="st">&quot;eez&quot;</span>,</span>
+<span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a>    <span class="at">cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;marine_overlays&quot;</span>),</span>
+<span id="cb11-8"><a href="#cb11-8" tabindex="-1"></a>    <span class="at">quiet =</span> <span class="cn">FALSE</span></span>
+<span id="cb11-9"><a href="#cb11-9" tabindex="-1"></a>  )</span>
+<span id="cb11-10"><a href="#cb11-10" tabindex="-1"></a>)</span>
+<span id="cb11-11"><a href="#cb11-11" tabindex="-1"></a></span>
+<span id="cb11-12"><a href="#cb11-12" tabindex="-1"></a><span class="co"># Inspect basic overlay diagnostics if loading succeeded.</span></span>
+<span id="cb11-13"><a href="#cb11-13" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.null</span>(eez_overlay)) {</span>
+<span id="cb11-14"><a href="#cb11-14" tabindex="-1"></a></span>
+<span id="cb11-15"><a href="#cb11-15" tabindex="-1"></a>  <span class="fu">data.frame</span>(</span>
+<span id="cb11-16"><a href="#cb11-16" tabindex="-1"></a>    <span class="at">overlay =</span> <span class="st">&quot;eez&quot;</span>,</span>
+<span id="cb11-17"><a href="#cb11-17" tabindex="-1"></a>    <span class="at">n_features =</span> <span class="fu">nrow</span>(eez_overlay),</span>
+<span id="cb11-18"><a href="#cb11-18" tabindex="-1"></a>    <span class="at">n_columns =</span> <span class="fu">ncol</span>(eez_overlay),</span>
+<span id="cb11-19"><a href="#cb11-19" tabindex="-1"></a>    <span class="at">geometry_type =</span> <span class="fu">paste</span>(</span>
+<span id="cb11-20"><a href="#cb11-20" tabindex="-1"></a>      <span class="fu">unique</span>(<span class="fu">as.character</span>(sf<span class="sc">::</span><span class="fu">st_geometry_type</span>(eez_overlay))),</span>
+<span id="cb11-21"><a href="#cb11-21" tabindex="-1"></a>      <span class="at">collapse =</span> <span class="st">&quot;, &quot;</span></span>
+<span id="cb11-22"><a href="#cb11-22" tabindex="-1"></a>    ),</span>
+<span id="cb11-23"><a href="#cb11-23" tabindex="-1"></a>    <span class="at">crs =</span> <span class="fu">as.character</span>(sf<span class="sc">::</span><span class="fu">st_crs</span>(eez_overlay)<span class="sc">$</span>input),</span>
+<span id="cb11-24"><a href="#cb11-24" tabindex="-1"></a>    <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb11-25"><a href="#cb11-25" tabindex="-1"></a>  )</span>
+<span id="cb11-26"><a href="#cb11-26" tabindex="-1"></a></span>
+<span id="cb11-27"><a href="#cb11-27" tabindex="-1"></a>}</span></code></pre></div>
+<p>A basic diagnostic check should confirm that the overlay contains
+features, columns, a recognised geometry type and an appropriate
+coordinate reference system.</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.null</span>(eez_overlay)) {</span>
+<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a>  <span class="fu">names</span>(eez_overlay)</span>
+<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a>}</span></code></pre></div>
+<p>The attribute names are useful because these fields determine what
+marine-region information can be carried into the processed occurrence
+outputs.</p>
+<p>If direct loading fails, check the overlay name, provider access,
+cache path and spatial dependencies before running the full marine
+pipeline. This keeps the problem isolated to the overlay-loading step
+rather than mixing it with GBIF retrieval or occurrence processing.</p>
+</div>
+<div id="a-low-memory-marine-smoke-test" class="section level1">
+<h1>A low-memory marine smoke test</h1>
+<p>Before running a large marine species list, run a small live test. A
+single species is usually enough to confirm that GBIF credentials work,
+records can be downloaded and imported, the selected marine overlay can
+be loaded, and outputs are written to the expected folder.</p>
+<p>The example below uses <code>Carcinus maenas</code> and assigns
+retained records to EEZ polygons. Outputs are written to the vignette
+output directory so the example can be inspected without changing the
+working directory.</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="co"># Run the marine smoke test only when GBIF credentials are available.</span></span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span>gbif_ready) {</span>
+<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a>  <span class="fu">skip_live_message</span>(</span>
+<span id="cb13-5"><a href="#cb13-5" tabindex="-1"></a>    <span class="st">&quot;set GBIF_USER, GBIF_PWD, and GBIF_EMAIL to run the marine smoke test&quot;</span></span>
+<span id="cb13-6"><a href="#cb13-6" tabindex="-1"></a>  )</span>
+<span id="cb13-7"><a href="#cb13-7" tabindex="-1"></a></span>
+<span id="cb13-8"><a href="#cb13-8" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb13-9"><a href="#cb13-9" tabindex="-1"></a></span>
+<span id="cb13-10"><a href="#cb13-10" tabindex="-1"></a>  <span class="co"># Keep the smoke-test input deliberately small.</span></span>
+<span id="cb13-11"><a href="#cb13-11" tabindex="-1"></a>  low_memory_marine <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb13-12"><a href="#cb13-12" tabindex="-1"></a>    <span class="at">species =</span> <span class="st">&quot;Carcinus maenas&quot;</span>,</span>
+<span id="cb13-13"><a href="#cb13-13" tabindex="-1"></a>    <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb13-14"><a href="#cb13-14" tabindex="-1"></a>  )</span>
+<span id="cb13-15"><a href="#cb13-15" tabindex="-1"></a></span>
+<span id="cb13-16"><a href="#cb13-16" tabindex="-1"></a>  low_memory_marine_result <span class="ot">&lt;-</span> <span class="fu">run_live_safely</span>(</span>
+<span id="cb13-17"><a href="#cb13-17" tabindex="-1"></a>    <span class="fu">process_gbif_marine_pipeline</span>(</span>
+<span id="cb13-18"><a href="#cb13-18" tabindex="-1"></a>      <span class="at">df =</span> low_memory_marine,</span>
+<span id="cb13-19"><a href="#cb13-19" tabindex="-1"></a></span>
+<span id="cb13-20"><a href="#cb13-20" tabindex="-1"></a>      <span class="at">output_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;marine_low_memory&quot;</span>),</span>
+<span id="cb13-21"><a href="#cb13-21" tabindex="-1"></a></span>
+<span id="cb13-22"><a href="#cb13-22" tabindex="-1"></a>      <span class="at">user =</span> gbif_user,</span>
+<span id="cb13-23"><a href="#cb13-23" tabindex="-1"></a>      <span class="at">pwd =</span> gbif_pwd,</span>
+<span id="cb13-24"><a href="#cb13-24" tabindex="-1"></a>      <span class="at">email =</span> gbif_email,</span>
+<span id="cb13-25"><a href="#cb13-25" tabindex="-1"></a></span>
+<span id="cb13-26"><a href="#cb13-26" tabindex="-1"></a>      <span class="co"># Assign retained records to EEZ polygons.</span></span>
+<span id="cb13-27"><a href="#cb13-27" tabindex="-1"></a>      <span class="at">overlay =</span> <span class="st">&quot;eez&quot;</span>,</span>
+<span id="cb13-28"><a href="#cb13-28" tabindex="-1"></a>      <span class="at">overlay_cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;marine_overlays&quot;</span>),</span>
+<span id="cb13-29"><a href="#cb13-29" tabindex="-1"></a></span>
+<span id="cb13-30"><a href="#cb13-30" tabindex="-1"></a>      <span class="co"># Allow the vignette example to fail softly if the provider is unavailable.</span></span>
+<span id="cb13-31"><a href="#cb13-31" tabindex="-1"></a>      <span class="at">strict_overlay_loading =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb13-32"><a href="#cb13-32" tabindex="-1"></a></span>
+<span id="cb13-33"><a href="#cb13-33" tabindex="-1"></a>      <span class="co"># Keep memory use low.</span></span>
+<span id="cb13-34"><a href="#cb13-34" tabindex="-1"></a>      <span class="at">batch_size =</span> <span class="dv">1</span>,</span>
+<span id="cb13-35"><a href="#cb13-35" tabindex="-1"></a>      <span class="at">store_in_memory =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb13-36"><a href="#cb13-36" tabindex="-1"></a>      <span class="at">return_all_results =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb13-37"><a href="#cb13-37" tabindex="-1"></a></span>
+<span id="cb13-38"><a href="#cb13-38" tabindex="-1"></a>      <span class="co"># Apply basic occurrence-quality controls.</span></span>
+<span id="cb13-39"><a href="#cb13-39" tabindex="-1"></a>      <span class="at">apply_cleaning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb13-40"><a href="#cb13-40" tabindex="-1"></a>      <span class="at">apply_thinning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb13-41"><a href="#cb13-41" tabindex="-1"></a>      <span class="at">dist_km =</span> <span class="dv">5</span>,</span>
+<span id="cb13-42"><a href="#cb13-42" tabindex="-1"></a></span>
+<span id="cb13-43"><a href="#cb13-43" tabindex="-1"></a>      <span class="co"># Prepare taxonomy before export.</span></span>
+<span id="cb13-44"><a href="#cb13-44" tabindex="-1"></a>      <span class="at">prepare_taxonomy =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb13-45"><a href="#cb13-45" tabindex="-1"></a></span>
+<span id="cb13-46"><a href="#cb13-46" tabindex="-1"></a>      <span class="at">export_summary =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb13-47"><a href="#cb13-47" tabindex="-1"></a>      <span class="at">quiet =</span> <span class="cn">FALSE</span></span>
+<span id="cb13-48"><a href="#cb13-48" tabindex="-1"></a>    )</span>
+<span id="cb13-49"><a href="#cb13-49" tabindex="-1"></a>  )</span>
+<span id="cb13-50"><a href="#cb13-50" tabindex="-1"></a></span>
+<span id="cb13-51"><a href="#cb13-51" tabindex="-1"></a>  low_memory_marine_result</span>
+<span id="cb13-52"><a href="#cb13-52" tabindex="-1"></a>}</span></code></pre></div>
+<p>After the run, inspect <code>gbif_summary.csv</code> first. This file
+shows whether the species was processed successfully, how many records
+were retained after cleaning and thinning, and where the exported marine
+occurrence file was written.</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a>marine_summary_path <span class="ot">&lt;-</span> <span class="fu">file.path</span>(</span>
+<span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a>  output_root,</span>
+<span id="cb14-3"><a href="#cb14-3" tabindex="-1"></a>  <span class="st">&quot;marine_low_memory&quot;</span>,</span>
+<span id="cb14-4"><a href="#cb14-4" tabindex="-1"></a>  <span class="st">&quot;gbif_summary.csv&quot;</span></span>
+<span id="cb14-5"><a href="#cb14-5" tabindex="-1"></a>)</span>
+<span id="cb14-6"><a href="#cb14-6" tabindex="-1"></a></span>
+<span id="cb14-7"><a href="#cb14-7" tabindex="-1"></a><span class="cf">if</span> (<span class="fu">file.exists</span>(marine_summary_path)) {</span>
+<span id="cb14-8"><a href="#cb14-8" tabindex="-1"></a>  marine_summary <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(marine_summary_path, <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb14-9"><a href="#cb14-9" tabindex="-1"></a>  marine_summary</span>
+<span id="cb14-10"><a href="#cb14-10" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb14-11"><a href="#cb14-11" tabindex="-1"></a>  <span class="fu">skip_live_message</span>(<span class="st">&quot;marine summary file was not created by the live smoke test&quot;</span>)</span>
+<span id="cb14-12"><a href="#cb14-12" tabindex="-1"></a>}</span></code></pre></div>
+</div>
+<div id="offline-summary-example" class="section level1">
+<h1>Offline summary example</h1>
+<p>The table below is an illustrative marine summary. It is not
+downloaded from GBIF, but it shows the kinds of fields that are useful
+to check after a marine pipeline run.</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a>marine_summary_example <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb15-2"><a href="#cb15-2" tabindex="-1"></a>  <span class="at">species =</span> <span class="fu">c</span>(</span>
+<span id="cb15-3"><a href="#cb15-3" tabindex="-1"></a>    <span class="st">&quot;Carcinus maenas&quot;</span>,</span>
+<span id="cb15-4"><a href="#cb15-4" tabindex="-1"></a>    <span class="st">&quot;Mnemiopsis leidyi&quot;</span>,</span>
+<span id="cb15-5"><a href="#cb15-5" tabindex="-1"></a>    <span class="st">&quot;Undaria pinnatifida&quot;</span></span>
+<span id="cb15-6"><a href="#cb15-6" tabindex="-1"></a>  ),</span>
+<span id="cb15-7"><a href="#cb15-7" tabindex="-1"></a>  <span class="at">overlay =</span> <span class="fu">c</span>(</span>
+<span id="cb15-8"><a href="#cb15-8" tabindex="-1"></a>    <span class="st">&quot;eez&quot;</span>,</span>
+<span id="cb15-9"><a href="#cb15-9" tabindex="-1"></a>    <span class="st">&quot;eez&quot;</span>,</span>
+<span id="cb15-10"><a href="#cb15-10" tabindex="-1"></a>    <span class="st">&quot;eez&quot;</span></span>
+<span id="cb15-11"><a href="#cb15-11" tabindex="-1"></a>  ),</span>
+<span id="cb15-12"><a href="#cb15-12" tabindex="-1"></a>  <span class="at">n_total =</span> <span class="fu">c</span>(</span>
+<span id="cb15-13"><a href="#cb15-13" tabindex="-1"></a>    <span class="dv">980</span>,</span>
+<span id="cb15-14"><a href="#cb15-14" tabindex="-1"></a>    <span class="dv">640</span>,</span>
+<span id="cb15-15"><a href="#cb15-15" tabindex="-1"></a>    <span class="dv">410</span></span>
+<span id="cb15-16"><a href="#cb15-16" tabindex="-1"></a>  ),</span>
+<span id="cb15-17"><a href="#cb15-17" tabindex="-1"></a>  <span class="at">n_cleaned =</span> <span class="fu">c</span>(</span>
+<span id="cb15-18"><a href="#cb15-18" tabindex="-1"></a>    <span class="dv">944</span>,</span>
+<span id="cb15-19"><a href="#cb15-19" tabindex="-1"></a>    <span class="dv">612</span>,</span>
+<span id="cb15-20"><a href="#cb15-20" tabindex="-1"></a>    <span class="dv">389</span></span>
+<span id="cb15-21"><a href="#cb15-21" tabindex="-1"></a>  ),</span>
+<span id="cb15-22"><a href="#cb15-22" tabindex="-1"></a>  <span class="at">n_thinned =</span> <span class="fu">c</span>(</span>
+<span id="cb15-23"><a href="#cb15-23" tabindex="-1"></a>    <span class="dv">702</span>,</span>
+<span id="cb15-24"><a href="#cb15-24" tabindex="-1"></a>    <span class="dv">455</span>,</span>
+<span id="cb15-25"><a href="#cb15-25" tabindex="-1"></a>    <span class="dv">301</span></span>
+<span id="cb15-26"><a href="#cb15-26" tabindex="-1"></a>  ),</span>
+<span id="cb15-27"><a href="#cb15-27" tabindex="-1"></a>  <span class="at">n_with_overlay =</span> <span class="fu">c</span>(</span>
+<span id="cb15-28"><a href="#cb15-28" tabindex="-1"></a>    <span class="dv">690</span>,</span>
+<span id="cb15-29"><a href="#cb15-29" tabindex="-1"></a>    <span class="dv">430</span>,</span>
+<span id="cb15-30"><a href="#cb15-30" tabindex="-1"></a>    <span class="dv">292</span></span>
+<span id="cb15-31"><a href="#cb15-31" tabindex="-1"></a>  ),</span>
+<span id="cb15-32"><a href="#cb15-32" tabindex="-1"></a>  <span class="at">n_without_overlay =</span> <span class="fu">c</span>(</span>
+<span id="cb15-33"><a href="#cb15-33" tabindex="-1"></a>    <span class="dv">12</span>,</span>
+<span id="cb15-34"><a href="#cb15-34" tabindex="-1"></a>    <span class="dv">25</span>,</span>
+<span id="cb15-35"><a href="#cb15-35" tabindex="-1"></a>    <span class="dv">9</span></span>
+<span id="cb15-36"><a href="#cb15-36" tabindex="-1"></a>  ),</span>
+<span id="cb15-37"><a href="#cb15-37" tabindex="-1"></a>  <span class="at">status =</span> <span class="fu">c</span>(</span>
+<span id="cb15-38"><a href="#cb15-38" tabindex="-1"></a>    <span class="st">&quot;success&quot;</span>,</span>
+<span id="cb15-39"><a href="#cb15-39" tabindex="-1"></a>    <span class="st">&quot;success&quot;</span>,</span>
+<span id="cb15-40"><a href="#cb15-40" tabindex="-1"></a>    <span class="st">&quot;success&quot;</span></span>
+<span id="cb15-41"><a href="#cb15-41" tabindex="-1"></a>  ),</span>
+<span id="cb15-42"><a href="#cb15-42" tabindex="-1"></a>  <span class="at">output_file =</span> <span class="fu">c</span>(</span>
+<span id="cb15-43"><a href="#cb15-43" tabindex="-1"></a>    <span class="st">&quot;Carcinus_maenas_eez.csv&quot;</span>,</span>
+<span id="cb15-44"><a href="#cb15-44" tabindex="-1"></a>    <span class="st">&quot;Mnemiopsis_leidyi_eez.csv&quot;</span>,</span>
+<span id="cb15-45"><a href="#cb15-45" tabindex="-1"></a>    <span class="st">&quot;Undaria_pinnatifida_eez.csv&quot;</span></span>
+<span id="cb15-46"><a href="#cb15-46" tabindex="-1"></a>  ),</span>
+<span id="cb15-47"><a href="#cb15-47" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb15-48"><a href="#cb15-48" tabindex="-1"></a>)</span>
+<span id="cb15-49"><a href="#cb15-49" tabindex="-1"></a></span>
+<span id="cb15-50"><a href="#cb15-50" tabindex="-1"></a>marine_summary_example</span>
+<span id="cb15-51"><a href="#cb15-51" tabindex="-1"></a><span class="co">#&gt;               species overlay n_total n_cleaned n_thinned n_with_overlay</span></span>
+<span id="cb15-52"><a href="#cb15-52" tabindex="-1"></a><span class="co">#&gt; 1     Carcinus maenas     eez     980       944       702            690</span></span>
+<span id="cb15-53"><a href="#cb15-53" tabindex="-1"></a><span class="co">#&gt; 2   Mnemiopsis leidyi     eez     640       612       455            430</span></span>
+<span id="cb15-54"><a href="#cb15-54" tabindex="-1"></a><span class="co">#&gt; 3 Undaria pinnatifida     eez     410       389       301            292</span></span>
+<span id="cb15-55"><a href="#cb15-55" tabindex="-1"></a><span class="co">#&gt;   n_without_overlay  status                 output_file</span></span>
+<span id="cb15-56"><a href="#cb15-56" tabindex="-1"></a><span class="co">#&gt; 1                12 success     Carcinus_maenas_eez.csv</span></span>
+<span id="cb15-57"><a href="#cb15-57" tabindex="-1"></a><span class="co">#&gt; 2                25 success   Mnemiopsis_leidyi_eez.csv</span></span>
+<span id="cb15-58"><a href="#cb15-58" tabindex="-1"></a><span class="co">#&gt; 3                 9 success Undaria_pinnatifida_eez.csv</span></span></code></pre></div>
+<p>The first checks are whether each species completed successfully and
+whether any retained records were not assigned to the selected
+overlay.</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" tabindex="-1"></a><span class="co"># Count successful and failed rows.</span></span>
+<span id="cb16-2"><a href="#cb16-2" tabindex="-1"></a><span class="fu">table</span>(marine_summary_example<span class="sc">$</span>status, <span class="at">useNA =</span> <span class="st">&quot;ifany&quot;</span>)</span>
+<span id="cb16-3"><a href="#cb16-3" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb16-4"><a href="#cb16-4" tabindex="-1"></a><span class="co">#&gt; success </span></span>
+<span id="cb16-5"><a href="#cb16-5" tabindex="-1"></a><span class="co">#&gt;       3</span></span>
+<span id="cb16-6"><a href="#cb16-6" tabindex="-1"></a></span>
+<span id="cb16-7"><a href="#cb16-7" tabindex="-1"></a><span class="co"># Inspect species with at least one retained record lacking overlay assignment.</span></span>
+<span id="cb16-8"><a href="#cb16-8" tabindex="-1"></a>marine_summary_example[</span>
+<span id="cb16-9"><a href="#cb16-9" tabindex="-1"></a>  marine_summary_example<span class="sc">$</span>n_without_overlay <span class="sc">&gt;</span> <span class="dv">0</span>,</span>
+<span id="cb16-10"><a href="#cb16-10" tabindex="-1"></a>  <span class="fu">c</span>(</span>
+<span id="cb16-11"><a href="#cb16-11" tabindex="-1"></a>    <span class="st">&quot;species&quot;</span>,</span>
+<span id="cb16-12"><a href="#cb16-12" tabindex="-1"></a>    <span class="st">&quot;overlay&quot;</span>,</span>
+<span id="cb16-13"><a href="#cb16-13" tabindex="-1"></a>    <span class="st">&quot;n_thinned&quot;</span>,</span>
+<span id="cb16-14"><a href="#cb16-14" tabindex="-1"></a>    <span class="st">&quot;n_with_overlay&quot;</span>,</span>
+<span id="cb16-15"><a href="#cb16-15" tabindex="-1"></a>    <span class="st">&quot;n_without_overlay&quot;</span></span>
+<span id="cb16-16"><a href="#cb16-16" tabindex="-1"></a>  )</span>
+<span id="cb16-17"><a href="#cb16-17" tabindex="-1"></a>]</span>
+<span id="cb16-18"><a href="#cb16-18" tabindex="-1"></a><span class="co">#&gt;               species overlay n_thinned n_with_overlay n_without_overlay</span></span>
+<span id="cb16-19"><a href="#cb16-19" tabindex="-1"></a><span class="co">#&gt; 1     Carcinus maenas     eez       702            690                12</span></span>
+<span id="cb16-20"><a href="#cb16-20" tabindex="-1"></a><span class="co">#&gt; 2   Mnemiopsis leidyi     eez       455            430                25</span></span>
+<span id="cb16-21"><a href="#cb16-21" tabindex="-1"></a><span class="co">#&gt; 3 Undaria pinnatifida     eez       301            292                 9</span></span></code></pre></div>
+<p>Records without an overlay assignment are not automatically errors.
+They may fall outside the selected overlay, sit near a boundary, occur
+in an area not covered by the provider layer, or require a different
+marine spatial framework for interpretation.</p>
+</div>
+<div id="running-and-comparing-multiple-marine-overlays" class="section level1">
+<h1>Running and comparing multiple marine overlays</h1>
+<p>When more than one marine overlay is needed, run each overlay into a
+separate output directory. This keeps the exported files, summaries and
+diagnostics tied to one spatial framework at a time.</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" tabindex="-1"></a><span class="co"># Choose the overlays to compare.</span></span>
+<span id="cb17-2"><a href="#cb17-2" tabindex="-1"></a>marine_overlays_to_run <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb17-3"><a href="#cb17-3" tabindex="-1"></a>  <span class="st">&quot;eez&quot;</span>,</span>
+<span id="cb17-4"><a href="#cb17-4" tabindex="-1"></a>  <span class="st">&quot;lme&quot;</span>,</span>
+<span id="cb17-5"><a href="#cb17-5" tabindex="-1"></a>  <span class="st">&quot;meow&quot;</span>,</span>
+<span id="cb17-6"><a href="#cb17-6" tabindex="-1"></a>  <span class="st">&quot;iho&quot;</span></span>
+<span id="cb17-7"><a href="#cb17-7" tabindex="-1"></a>)</span>
+<span id="cb17-8"><a href="#cb17-8" tabindex="-1"></a></span>
+<span id="cb17-9"><a href="#cb17-9" tabindex="-1"></a><span class="co"># Run each overlay separately.</span></span>
+<span id="cb17-10"><a href="#cb17-10" tabindex="-1"></a>overlay_results <span class="ot">&lt;-</span> <span class="fu">lapply</span>(</span>
+<span id="cb17-11"><a href="#cb17-11" tabindex="-1"></a>  marine_overlays_to_run,</span>
+<span id="cb17-12"><a href="#cb17-12" tabindex="-1"></a>  <span class="cf">function</span>(this_overlay) {</span>
+<span id="cb17-13"><a href="#cb17-13" tabindex="-1"></a></span>
+<span id="cb17-14"><a href="#cb17-14" tabindex="-1"></a>    <span class="fu">process_gbif_marine_pipeline</span>(</span>
+<span id="cb17-15"><a href="#cb17-15" tabindex="-1"></a>      <span class="at">df =</span> marine_species,</span>
+<span id="cb17-16"><a href="#cb17-16" tabindex="-1"></a></span>
+<span id="cb17-17"><a href="#cb17-17" tabindex="-1"></a>      <span class="at">output_dir =</span> <span class="fu">file.path</span>(</span>
+<span id="cb17-18"><a href="#cb17-18" tabindex="-1"></a>        output_root,</span>
+<span id="cb17-19"><a href="#cb17-19" tabindex="-1"></a>        <span class="fu">paste0</span>(<span class="st">&quot;marine_&quot;</span>, this_overlay, <span class="st">&quot;_batch&quot;</span>)</span>
+<span id="cb17-20"><a href="#cb17-20" tabindex="-1"></a>      ),</span>
+<span id="cb17-21"><a href="#cb17-21" tabindex="-1"></a></span>
+<span id="cb17-22"><a href="#cb17-22" tabindex="-1"></a>      <span class="at">user =</span> <span class="fu">Sys.getenv</span>(<span class="st">&quot;GBIF_USER&quot;</span>),</span>
+<span id="cb17-23"><a href="#cb17-23" tabindex="-1"></a>      <span class="at">pwd =</span> <span class="fu">Sys.getenv</span>(<span class="st">&quot;GBIF_PWD&quot;</span>),</span>
+<span id="cb17-24"><a href="#cb17-24" tabindex="-1"></a>      <span class="at">email =</span> <span class="fu">Sys.getenv</span>(<span class="st">&quot;GBIF_EMAIL&quot;</span>),</span>
+<span id="cb17-25"><a href="#cb17-25" tabindex="-1"></a></span>
+<span id="cb17-26"><a href="#cb17-26" tabindex="-1"></a>      <span class="at">overlay =</span> this_overlay,</span>
+<span id="cb17-27"><a href="#cb17-27" tabindex="-1"></a>      <span class="at">overlay_cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;marine_overlays&quot;</span>),</span>
+<span id="cb17-28"><a href="#cb17-28" tabindex="-1"></a></span>
+<span id="cb17-29"><a href="#cb17-29" tabindex="-1"></a>      <span class="at">batch_size =</span> <span class="dv">1</span>,</span>
+<span id="cb17-30"><a href="#cb17-30" tabindex="-1"></a></span>
+<span id="cb17-31"><a href="#cb17-31" tabindex="-1"></a>      <span class="at">apply_cleaning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb17-32"><a href="#cb17-32" tabindex="-1"></a>      <span class="at">apply_thinning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb17-33"><a href="#cb17-33" tabindex="-1"></a>      <span class="at">dist_km =</span> <span class="dv">5</span>,</span>
+<span id="cb17-34"><a href="#cb17-34" tabindex="-1"></a></span>
+<span id="cb17-35"><a href="#cb17-35" tabindex="-1"></a>      <span class="at">prepare_taxonomy =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb17-36"><a href="#cb17-36" tabindex="-1"></a></span>
+<span id="cb17-37"><a href="#cb17-37" tabindex="-1"></a>      <span class="at">export_summary =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb17-38"><a href="#cb17-38" tabindex="-1"></a>      <span class="at">store_in_memory =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb17-39"><a href="#cb17-39" tabindex="-1"></a>      <span class="at">return_all_results =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb17-40"><a href="#cb17-40" tabindex="-1"></a>      <span class="at">quiet =</span> <span class="cn">FALSE</span></span>
+<span id="cb17-41"><a href="#cb17-41" tabindex="-1"></a>    )</span>
+<span id="cb17-42"><a href="#cb17-42" tabindex="-1"></a>  }</span>
+<span id="cb17-43"><a href="#cb17-43" tabindex="-1"></a>)</span>
+<span id="cb17-44"><a href="#cb17-44" tabindex="-1"></a></span>
+<span id="cb17-45"><a href="#cb17-45" tabindex="-1"></a><span class="fu">names</span>(overlay_results) <span class="ot">&lt;-</span> marine_overlays_to_run</span></code></pre></div>
+<p>After the runs finish, combine the summary files into one comparison
+table. This is usually the quickest way to check record retention,
+overlay assignment and failed rows across overlays.</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" tabindex="-1"></a><span class="co"># Build paths to each overlay summary file.</span></span>
+<span id="cb18-2"><a href="#cb18-2" tabindex="-1"></a>summary_paths <span class="ot">&lt;-</span> <span class="fu">file.path</span>(</span>
+<span id="cb18-3"><a href="#cb18-3" tabindex="-1"></a>  output_root,</span>
+<span id="cb18-4"><a href="#cb18-4" tabindex="-1"></a>  <span class="fu">paste0</span>(<span class="st">&quot;marine_&quot;</span>, marine_overlays_to_run, <span class="st">&quot;_batch&quot;</span>),</span>
+<span id="cb18-5"><a href="#cb18-5" tabindex="-1"></a>  <span class="st">&quot;gbif_summary.csv&quot;</span></span>
+<span id="cb18-6"><a href="#cb18-6" tabindex="-1"></a>)</span>
+<span id="cb18-7"><a href="#cb18-7" tabindex="-1"></a></span>
+<span id="cb18-8"><a href="#cb18-8" tabindex="-1"></a><span class="co"># Read available summary files and add the requested overlay name.</span></span>
+<span id="cb18-9"><a href="#cb18-9" tabindex="-1"></a>summary_list <span class="ot">&lt;-</span> <span class="fu">Map</span>(</span>
+<span id="cb18-10"><a href="#cb18-10" tabindex="-1"></a>  <span class="cf">function</span>(path, overlay_name) {</span>
+<span id="cb18-11"><a href="#cb18-11" tabindex="-1"></a></span>
+<span id="cb18-12"><a href="#cb18-12" tabindex="-1"></a>    <span class="cf">if</span> (<span class="sc">!</span><span class="fu">file.exists</span>(path)) {</span>
+<span id="cb18-13"><a href="#cb18-13" tabindex="-1"></a>      <span class="fu">return</span>(<span class="cn">NULL</span>)</span>
+<span id="cb18-14"><a href="#cb18-14" tabindex="-1"></a>    }</span>
+<span id="cb18-15"><a href="#cb18-15" tabindex="-1"></a></span>
+<span id="cb18-16"><a href="#cb18-16" tabindex="-1"></a>    x <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(path, <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb18-17"><a href="#cb18-17" tabindex="-1"></a>    x<span class="sc">$</span>overlay_requested <span class="ot">&lt;-</span> overlay_name</span>
+<span id="cb18-18"><a href="#cb18-18" tabindex="-1"></a>    x</span>
+<span id="cb18-19"><a href="#cb18-19" tabindex="-1"></a>  },</span>
+<span id="cb18-20"><a href="#cb18-20" tabindex="-1"></a>  summary_paths,</span>
+<span id="cb18-21"><a href="#cb18-21" tabindex="-1"></a>  marine_overlays_to_run</span>
+<span id="cb18-22"><a href="#cb18-22" tabindex="-1"></a>)</span>
+<span id="cb18-23"><a href="#cb18-23" tabindex="-1"></a></span>
+<span id="cb18-24"><a href="#cb18-24" tabindex="-1"></a><span class="co"># Remove missing summaries.</span></span>
+<span id="cb18-25"><a href="#cb18-25" tabindex="-1"></a>summary_list <span class="ot">&lt;-</span> summary_list[</span>
+<span id="cb18-26"><a href="#cb18-26" tabindex="-1"></a>  <span class="sc">!</span><span class="fu">vapply</span>(summary_list, is.null, <span class="fu">logical</span>(<span class="dv">1</span>))</span>
+<span id="cb18-27"><a href="#cb18-27" tabindex="-1"></a>]</span>
+<span id="cb18-28"><a href="#cb18-28" tabindex="-1"></a></span>
+<span id="cb18-29"><a href="#cb18-29" tabindex="-1"></a><span class="co"># Combine summaries if at least one was found.</span></span>
+<span id="cb18-30"><a href="#cb18-30" tabindex="-1"></a>overlay_summary <span class="ot">&lt;-</span> <span class="fu">do.call</span>(rbind, summary_list)</span>
+<span id="cb18-31"><a href="#cb18-31" tabindex="-1"></a></span>
+<span id="cb18-32"><a href="#cb18-32" tabindex="-1"></a><span class="co"># Inspect the main audit fields.</span></span>
+<span id="cb18-33"><a href="#cb18-33" tabindex="-1"></a>overlay_summary[</span>
+<span id="cb18-34"><a href="#cb18-34" tabindex="-1"></a>  ,</span>
+<span id="cb18-35"><a href="#cb18-35" tabindex="-1"></a>  <span class="fu">intersect</span>(</span>
+<span id="cb18-36"><a href="#cb18-36" tabindex="-1"></a>    <span class="fu">c</span>(</span>
+<span id="cb18-37"><a href="#cb18-37" tabindex="-1"></a>      <span class="st">&quot;species&quot;</span>,</span>
+<span id="cb18-38"><a href="#cb18-38" tabindex="-1"></a>      <span class="st">&quot;overlay_requested&quot;</span>,</span>
+<span id="cb18-39"><a href="#cb18-39" tabindex="-1"></a>      <span class="st">&quot;n_total&quot;</span>,</span>
+<span id="cb18-40"><a href="#cb18-40" tabindex="-1"></a>      <span class="st">&quot;n_cleaned&quot;</span>,</span>
+<span id="cb18-41"><a href="#cb18-41" tabindex="-1"></a>      <span class="st">&quot;n_thinned&quot;</span>,</span>
+<span id="cb18-42"><a href="#cb18-42" tabindex="-1"></a>      <span class="st">&quot;n_with_overlay&quot;</span>,</span>
+<span id="cb18-43"><a href="#cb18-43" tabindex="-1"></a>      <span class="st">&quot;n_without_overlay&quot;</span>,</span>
+<span id="cb18-44"><a href="#cb18-44" tabindex="-1"></a>      <span class="st">&quot;status&quot;</span>,</span>
+<span id="cb18-45"><a href="#cb18-45" tabindex="-1"></a>      <span class="st">&quot;fail_stage&quot;</span>,</span>
+<span id="cb18-46"><a href="#cb18-46" tabindex="-1"></a>      <span class="st">&quot;fail_reason&quot;</span>,</span>
+<span id="cb18-47"><a href="#cb18-47" tabindex="-1"></a>      <span class="st">&quot;output_file&quot;</span></span>
+<span id="cb18-48"><a href="#cb18-48" tabindex="-1"></a>    ),</span>
+<span id="cb18-49"><a href="#cb18-49" tabindex="-1"></a>    <span class="fu">names</span>(overlay_summary)</span>
+<span id="cb18-50"><a href="#cb18-50" tabindex="-1"></a>  ),</span>
+<span id="cb18-51"><a href="#cb18-51" tabindex="-1"></a>  drop <span class="ot">=</span> <span class="cn">FALSE</span></span>
+<span id="cb18-52"><a href="#cb18-52" tabindex="-1"></a>]</span></code></pre></div>
+<p>Use this comparison to decide whether the selected overlays are
+appropriate for the records. Large differences in
+<code>n_with_overlay</code> and <code>n_without_overlay</code> are a
+signal to inspect the exported files and check whether a different
+marine spatial framework is needed.</p>
+</div>
+<div id="coordinate-cleaning-and-spatial-thinning" class="section level1">
+<h1>Coordinate cleaning and spatial thinning</h1>
+<p>The marine pipeline supports the same basic coordinate-cleaning and
+spatial thinning controls used elsewhere in <code>biofetchR</code>.
+These settings are useful for removing unusable coordinates and reducing
+dense clusters before records are assigned to a marine overlay.</p>
+<p>In marine workflows, thinning is often most relevant when records are
+clustered around ports, coastlines, monitoring sites, shipping routes or
+well-sampled regions. The thinning distance should match the scale of
+the analysis: smaller distances may suit local or coastal questions,
+while larger distances may be more appropriate for broad regional
+summaries.</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" tabindex="-1"></a><span class="fu">process_gbif_marine_pipeline</span>(</span>
+<span id="cb19-2"><a href="#cb19-2" tabindex="-1"></a>  <span class="at">df =</span> marine_species,</span>
+<span id="cb19-3"><a href="#cb19-3" tabindex="-1"></a></span>
+<span id="cb19-4"><a href="#cb19-4" tabindex="-1"></a>  <span class="at">output_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;marine_cleaned_thinned&quot;</span>),</span>
+<span id="cb19-5"><a href="#cb19-5" tabindex="-1"></a></span>
+<span id="cb19-6"><a href="#cb19-6" tabindex="-1"></a>  <span class="at">user =</span> <span class="fu">Sys.getenv</span>(<span class="st">&quot;GBIF_USER&quot;</span>),</span>
+<span id="cb19-7"><a href="#cb19-7" tabindex="-1"></a>  <span class="at">pwd =</span> <span class="fu">Sys.getenv</span>(<span class="st">&quot;GBIF_PWD&quot;</span>),</span>
+<span id="cb19-8"><a href="#cb19-8" tabindex="-1"></a>  <span class="at">email =</span> <span class="fu">Sys.getenv</span>(<span class="st">&quot;GBIF_EMAIL&quot;</span>),</span>
+<span id="cb19-9"><a href="#cb19-9" tabindex="-1"></a></span>
+<span id="cb19-10"><a href="#cb19-10" tabindex="-1"></a>  <span class="at">overlay =</span> <span class="st">&quot;eez&quot;</span>,</span>
+<span id="cb19-11"><a href="#cb19-11" tabindex="-1"></a>  <span class="at">overlay_cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;marine_overlays&quot;</span>),</span>
+<span id="cb19-12"><a href="#cb19-12" tabindex="-1"></a></span>
+<span id="cb19-13"><a href="#cb19-13" tabindex="-1"></a>  <span class="co"># Remove invalid, missing, suspicious, or highly uncertain coordinates</span></span>
+<span id="cb19-14"><a href="#cb19-14" tabindex="-1"></a>  <span class="co"># according to the pipeline cleaning settings.</span></span>
+<span id="cb19-15"><a href="#cb19-15" tabindex="-1"></a>  <span class="at">apply_cleaning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb19-16"><a href="#cb19-16" tabindex="-1"></a></span>
+<span id="cb19-17"><a href="#cb19-17" tabindex="-1"></a>  <span class="co"># Reduce dense spatial clustering after cleaning.</span></span>
+<span id="cb19-18"><a href="#cb19-18" tabindex="-1"></a>  <span class="at">apply_thinning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb19-19"><a href="#cb19-19" tabindex="-1"></a>  <span class="at">dist_km =</span> <span class="dv">5</span>,</span>
+<span id="cb19-20"><a href="#cb19-20" tabindex="-1"></a></span>
+<span id="cb19-21"><a href="#cb19-21" tabindex="-1"></a>  <span class="at">batch_size =</span> <span class="dv">1</span>,</span>
+<span id="cb19-22"><a href="#cb19-22" tabindex="-1"></a>  <span class="at">export_summary =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb19-23"><a href="#cb19-23" tabindex="-1"></a>  <span class="at">store_in_memory =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb19-24"><a href="#cb19-24" tabindex="-1"></a>  <span class="at">return_all_results =</span> <span class="cn">FALSE</span></span>
+<span id="cb19-25"><a href="#cb19-25" tabindex="-1"></a>)</span></code></pre></div>
+</div>
+<div id="origin-and-invasive-status-evidence-in-marine-workflows" class="section level1">
+<h1>Origin and invasive-status evidence in marine workflows</h1>
+<p>Marine invasion workflows often need origin or invasive-status
+evidence in addition to occurrence coordinates. This is especially
+useful when records are assigned to country-associated marine areas,
+such as EEZs, and the analysis also needs to know whether a species has
+been reported as introduced or invasive in the associated country or
+territory.</p>
+<p>In <code>biofetchR</code>, this evidence can be attached during
+marine processing. GRIIS fields provide species-country or
+species-territory introduced and invasive status evidence, while
+native-range evidence helps identify where a taxon is supported as
+native. These sources should be treated as evidence fields for review
+rather than automatic final classifications.</p>
+<p>The example below uses EEZ attribution and keeps the evidence
+settings in <code>audit_only</code> mode. Records are retained, and
+additional fields are written so the origin and invasive-status evidence
+can be inspected before any filtering decision is made.</p>
+<div class="sourceCode" id="cb20"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" tabindex="-1"></a><span class="co"># Run the marine origin-evidence example only when GBIF credentials are available.</span></span>
+<span id="cb20-2"><a href="#cb20-2" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span>gbif_ready) {</span>
+<span id="cb20-3"><a href="#cb20-3" tabindex="-1"></a></span>
+<span id="cb20-4"><a href="#cb20-4" tabindex="-1"></a>  <span class="fu">skip_live_message</span>(<span class="st">&quot;set GBIF credentials to run the marine origin-evidence example&quot;</span>)</span>
+<span id="cb20-5"><a href="#cb20-5" tabindex="-1"></a></span>
+<span id="cb20-6"><a href="#cb20-6" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb20-7"><a href="#cb20-7" tabindex="-1"></a></span>
+<span id="cb20-8"><a href="#cb20-8" tabindex="-1"></a>  marine_origin_result <span class="ot">&lt;-</span> <span class="fu">run_live_safely</span>(</span>
+<span id="cb20-9"><a href="#cb20-9" tabindex="-1"></a>    <span class="fu">process_gbif_marine_pipeline</span>(</span>
+<span id="cb20-10"><a href="#cb20-10" tabindex="-1"></a>      <span class="at">df =</span> <span class="fu">data.frame</span>(</span>
+<span id="cb20-11"><a href="#cb20-11" tabindex="-1"></a>        <span class="at">species =</span> <span class="fu">c</span>(</span>
+<span id="cb20-12"><a href="#cb20-12" tabindex="-1"></a>          <span class="st">&quot;Carcinus maenas&quot;</span>,</span>
+<span id="cb20-13"><a href="#cb20-13" tabindex="-1"></a>          <span class="st">&quot;Undaria pinnatifida&quot;</span></span>
+<span id="cb20-14"><a href="#cb20-14" tabindex="-1"></a>        ),</span>
+<span id="cb20-15"><a href="#cb20-15" tabindex="-1"></a>        <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb20-16"><a href="#cb20-16" tabindex="-1"></a>      ),</span>
+<span id="cb20-17"><a href="#cb20-17" tabindex="-1"></a></span>
+<span id="cb20-18"><a href="#cb20-18" tabindex="-1"></a>      <span class="at">output_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;marine_origin&quot;</span>),</span>
+<span id="cb20-19"><a href="#cb20-19" tabindex="-1"></a></span>
+<span id="cb20-20"><a href="#cb20-20" tabindex="-1"></a>      <span class="at">user =</span> gbif_user,</span>
+<span id="cb20-21"><a href="#cb20-21" tabindex="-1"></a>      <span class="at">pwd =</span> gbif_pwd,</span>
+<span id="cb20-22"><a href="#cb20-22" tabindex="-1"></a>      <span class="at">email =</span> gbif_email,</span>
+<span id="cb20-23"><a href="#cb20-23" tabindex="-1"></a></span>
+<span id="cb20-24"><a href="#cb20-24" tabindex="-1"></a>      <span class="co"># Assign retained records to a country-associated marine overlay.</span></span>
+<span id="cb20-25"><a href="#cb20-25" tabindex="-1"></a>      <span class="co"># EEZ attribution is useful here because GRIIS-style evidence is</span></span>
+<span id="cb20-26"><a href="#cb20-26" tabindex="-1"></a>      <span class="co"># interpreted at species-by-country or species-by-territory level.</span></span>
+<span id="cb20-27"><a href="#cb20-27" tabindex="-1"></a>      <span class="at">overlay =</span> <span class="st">&quot;eez&quot;</span>,</span>
+<span id="cb20-28"><a href="#cb20-28" tabindex="-1"></a>      <span class="at">overlay_cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;marine_overlays&quot;</span>),</span>
+<span id="cb20-29"><a href="#cb20-29" tabindex="-1"></a>      <span class="at">strict_overlay_loading =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb20-30"><a href="#cb20-30" tabindex="-1"></a></span>
+<span id="cb20-31"><a href="#cb20-31" tabindex="-1"></a>      <span class="co"># Standardise taxonomy before attaching evidence.</span></span>
+<span id="cb20-32"><a href="#cb20-32" tabindex="-1"></a>      <span class="at">prepare_taxonomy =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb20-33"><a href="#cb20-33" tabindex="-1"></a></span>
+<span id="cb20-34"><a href="#cb20-34" tabindex="-1"></a>      <span class="co"># Attach species-country invasive or alien-status evidence without</span></span>
+<span id="cb20-35"><a href="#cb20-35" tabindex="-1"></a>      <span class="co"># removing records.</span></span>
+<span id="cb20-36"><a href="#cb20-36" tabindex="-1"></a>      <span class="at">use_griis_status =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb20-37"><a href="#cb20-37" tabindex="-1"></a>      <span class="at">griis_filter_mode =</span> <span class="st">&quot;audit_only&quot;</span>,</span>
+<span id="cb20-38"><a href="#cb20-38" tabindex="-1"></a>      <span class="at">griis_cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;griis&quot;</span>),</span>
+<span id="cb20-39"><a href="#cb20-39" tabindex="-1"></a></span>
+<span id="cb20-40"><a href="#cb20-40" tabindex="-1"></a>      <span class="co"># Attach native-range evidence without removing records.</span></span>
+<span id="cb20-41"><a href="#cb20-41" tabindex="-1"></a>      <span class="at">use_native_status =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb20-42"><a href="#cb20-42" tabindex="-1"></a>      <span class="at">use_native_web =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb20-43"><a href="#cb20-43" tabindex="-1"></a>      <span class="at">native_web_sources =</span> <span class="fu">c</span>(</span>
+<span id="cb20-44"><a href="#cb20-44" tabindex="-1"></a>        <span class="st">&quot;sinas&quot;</span>,</span>
+<span id="cb20-45"><a href="#cb20-45" tabindex="-1"></a>        <span class="st">&quot;gbif&quot;</span>,</span>
+<span id="cb20-46"><a href="#cb20-46" tabindex="-1"></a>        <span class="st">&quot;worms&quot;</span></span>
+<span id="cb20-47"><a href="#cb20-47" tabindex="-1"></a>      ),</span>
+<span id="cb20-48"><a href="#cb20-48" tabindex="-1"></a>      <span class="at">native_web_cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;native_web&quot;</span>),</span>
+<span id="cb20-49"><a href="#cb20-49" tabindex="-1"></a>      <span class="at">native_filter_mode =</span> <span class="st">&quot;audit_only&quot;</span>,</span>
+<span id="cb20-50"><a href="#cb20-50" tabindex="-1"></a></span>
+<span id="cb20-51"><a href="#cb20-51" tabindex="-1"></a>      <span class="co"># Add reconciled audit fields that help compare GRIIS-style</span></span>
+<span id="cb20-52"><a href="#cb20-52" tabindex="-1"></a>      <span class="co"># species-country evidence with native-range evidence.</span></span>
+<span id="cb20-53"><a href="#cb20-53" tabindex="-1"></a>      <span class="at">reconcile_griis_native =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb20-54"><a href="#cb20-54" tabindex="-1"></a></span>
+<span id="cb20-55"><a href="#cb20-55" tabindex="-1"></a>      <span class="at">batch_size =</span> <span class="dv">1</span>,</span>
+<span id="cb20-56"><a href="#cb20-56" tabindex="-1"></a></span>
+<span id="cb20-57"><a href="#cb20-57" tabindex="-1"></a>      <span class="at">apply_cleaning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb20-58"><a href="#cb20-58" tabindex="-1"></a>      <span class="at">apply_thinning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb20-59"><a href="#cb20-59" tabindex="-1"></a>      <span class="at">dist_km =</span> <span class="dv">5</span>,</span>
+<span id="cb20-60"><a href="#cb20-60" tabindex="-1"></a></span>
+<span id="cb20-61"><a href="#cb20-61" tabindex="-1"></a>      <span class="at">export_summary =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb20-62"><a href="#cb20-62" tabindex="-1"></a>      <span class="at">store_in_memory =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb20-63"><a href="#cb20-63" tabindex="-1"></a>      <span class="at">return_all_results =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb20-64"><a href="#cb20-64" tabindex="-1"></a>      <span class="at">quiet =</span> <span class="cn">FALSE</span></span>
+<span id="cb20-65"><a href="#cb20-65" tabindex="-1"></a>    )</span>
+<span id="cb20-66"><a href="#cb20-66" tabindex="-1"></a>  )</span>
+<span id="cb20-67"><a href="#cb20-67" tabindex="-1"></a></span>
+<span id="cb20-68"><a href="#cb20-68" tabindex="-1"></a>  marine_origin_result</span>
+<span id="cb20-69"><a href="#cb20-69" tabindex="-1"></a>}</span></code></pre></div>
+<p>After the run, inspect the evidence fields before filtering. This is
+important in marine workflows because spatial attribution and status
+evidence may operate at different resolutions. A record may be assigned
+to a broad marine region, while the available status evidence may be
+country-based, territory-based, source-limited or unresolved.</p>
+<p>For analyses that use these fields, keep the evidence settings and
+audit outputs with the exported occurrence files. This makes it possible
+to check how taxonomic preparation, marine-region assignment,
+native-range evidence and GRIIS-style evidence contributed to the final
+interpretation.</p>
+</div>
+<div id="inspecting-exported-marine-occurrence-files" class="section level1">
+<h1>Inspecting exported marine occurrence files</h1>
+<p>After a live run, use <code>gbif_summary.csv</code> to find the
+exported occurrence files. The example below opens the first listed
+output file from the low-memory marine run and displays the first few
+rows.</p>
+<div class="sourceCode" id="cb21"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" tabindex="-1"></a>summary_dir <span class="ot">&lt;-</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;marine_low_memory&quot;</span>)</span>
+<span id="cb21-2"><a href="#cb21-2" tabindex="-1"></a></span>
+<span id="cb21-3"><a href="#cb21-3" tabindex="-1"></a>summary_path <span class="ot">&lt;-</span> <span class="fu">file.path</span>(</span>
+<span id="cb21-4"><a href="#cb21-4" tabindex="-1"></a>  summary_dir,</span>
+<span id="cb21-5"><a href="#cb21-5" tabindex="-1"></a>  <span class="st">&quot;gbif_summary.csv&quot;</span></span>
+<span id="cb21-6"><a href="#cb21-6" tabindex="-1"></a>)</span>
+<span id="cb21-7"><a href="#cb21-7" tabindex="-1"></a></span>
+<span id="cb21-8"><a href="#cb21-8" tabindex="-1"></a><span class="cf">if</span> (<span class="fu">file.exists</span>(summary_path)) {</span>
+<span id="cb21-9"><a href="#cb21-9" tabindex="-1"></a></span>
+<span id="cb21-10"><a href="#cb21-10" tabindex="-1"></a>  marine_summary <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(summary_path, <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb21-11"><a href="#cb21-11" tabindex="-1"></a></span>
+<span id="cb21-12"><a href="#cb21-12" tabindex="-1"></a>  <span class="cf">if</span> (<span class="st">&quot;output_file&quot;</span> <span class="sc">%in%</span> <span class="fu">names</span>(marine_summary)) {</span>
+<span id="cb21-13"><a href="#cb21-13" tabindex="-1"></a></span>
+<span id="cb21-14"><a href="#cb21-14" tabindex="-1"></a>    candidate_files <span class="ot">&lt;-</span> marine_summary<span class="sc">$</span>output_file[</span>
+<span id="cb21-15"><a href="#cb21-15" tabindex="-1"></a>      <span class="sc">!</span><span class="fu">is.na</span>(marine_summary<span class="sc">$</span>output_file) <span class="sc">&amp;</span> <span class="fu">nzchar</span>(marine_summary<span class="sc">$</span>output_file)</span>
+<span id="cb21-16"><a href="#cb21-16" tabindex="-1"></a>    ]</span>
+<span id="cb21-17"><a href="#cb21-17" tabindex="-1"></a></span>
+<span id="cb21-18"><a href="#cb21-18" tabindex="-1"></a>    <span class="cf">if</span> (<span class="fu">length</span>(candidate_files) <span class="sc">&gt;</span> <span class="dv">0</span>) {</span>
+<span id="cb21-19"><a href="#cb21-19" tabindex="-1"></a></span>
+<span id="cb21-20"><a href="#cb21-20" tabindex="-1"></a>      candidate_file <span class="ot">&lt;-</span> <span class="fu">resolve_output_file</span>(</span>
+<span id="cb21-21"><a href="#cb21-21" tabindex="-1"></a>        <span class="at">path =</span> candidate_files[<span class="dv">1</span>],</span>
+<span id="cb21-22"><a href="#cb21-22" tabindex="-1"></a>        <span class="at">output_dir =</span> summary_dir</span>
+<span id="cb21-23"><a href="#cb21-23" tabindex="-1"></a>      )</span>
+<span id="cb21-24"><a href="#cb21-24" tabindex="-1"></a></span>
+<span id="cb21-25"><a href="#cb21-25" tabindex="-1"></a>      <span class="cf">if</span> (<span class="fu">file.exists</span>(candidate_file)) {</span>
+<span id="cb21-26"><a href="#cb21-26" tabindex="-1"></a>        marine_occ <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(candidate_file, <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb21-27"><a href="#cb21-27" tabindex="-1"></a>        utils<span class="sc">::</span><span class="fu">head</span>(marine_occ)</span>
+<span id="cb21-28"><a href="#cb21-28" tabindex="-1"></a>      } <span class="cf">else</span> {</span>
+<span id="cb21-29"><a href="#cb21-29" tabindex="-1"></a>        <span class="fu">skip_live_message</span>(<span class="st">&quot;no readable exported occurrence file was listed&quot;</span>)</span>
+<span id="cb21-30"><a href="#cb21-30" tabindex="-1"></a>      }</span>
+<span id="cb21-31"><a href="#cb21-31" tabindex="-1"></a></span>
+<span id="cb21-32"><a href="#cb21-32" tabindex="-1"></a>    } <span class="cf">else</span> {</span>
+<span id="cb21-33"><a href="#cb21-33" tabindex="-1"></a>      <span class="fu">skip_live_message</span>(<span class="st">&quot;summary file did not list any exported occurrence files&quot;</span>)</span>
+<span id="cb21-34"><a href="#cb21-34" tabindex="-1"></a>    }</span>
+<span id="cb21-35"><a href="#cb21-35" tabindex="-1"></a></span>
+<span id="cb21-36"><a href="#cb21-36" tabindex="-1"></a>  } <span class="cf">else</span> {</span>
+<span id="cb21-37"><a href="#cb21-37" tabindex="-1"></a>    <span class="fu">skip_live_message</span>(<span class="st">&quot;summary file did not contain an output_file column&quot;</span>)</span>
+<span id="cb21-38"><a href="#cb21-38" tabindex="-1"></a>  }</span>
+<span id="cb21-39"><a href="#cb21-39" tabindex="-1"></a></span>
+<span id="cb21-40"><a href="#cb21-40" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb21-41"><a href="#cb21-41" tabindex="-1"></a>  <span class="fu">skip_live_message</span>(<span class="st">&quot;summary file was not available from the live marine run&quot;</span>)</span>
+<span id="cb21-42"><a href="#cb21-42" tabindex="-1"></a>}</span></code></pre></div>
+<p>The first checks are whether the file contains usable coordinates,
+whether the selected marine overlay fields were added, and whether the
+number of retained records is consistent with the summary file. When
+origin or invasive-status settings were enabled, the exported table
+should also be checked for the corresponding evidence fields.</p>
+<p>For larger marine batches, these checks can be moved into a separate
+audit script. That makes it easier to flag missing output files,
+unexpected record counts, missing overlay assignments or evidence fields
+that need review.</p>
+</div>
+<div id="scaling-marine-workflows" class="section level1">
+<h1>Scaling marine workflows</h1>
+<p>For larger marine species lists, the most important settings are
+<code>batch_size</code>, <code>store_in_memory</code>, output-folder
+structure and overlay caching. Together, these control how live GBIF
+requests are paced, how much data is retained in the R session, and
+where exported files are written.</p>
+<p>Use a conservative <code>batch_size</code> when submitting many
+marine taxa. This helps avoid sending too many live requests at once and
+makes any failed species easier to identify from
+<code>gbif_summary.csv</code>. For larger outputs, keep
+<code>store_in_memory = FALSE</code> so processed occurrence tables are
+written to disk rather than retained as one large object in memory.</p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" tabindex="-1"></a>marine_batch_result <span class="ot">&lt;-</span> <span class="fu">process_gbif_marine_pipeline</span>(</span>
+<span id="cb22-2"><a href="#cb22-2" tabindex="-1"></a>  <span class="at">df =</span> marine_species,</span>
+<span id="cb22-3"><a href="#cb22-3" tabindex="-1"></a></span>
+<span id="cb22-4"><a href="#cb22-4" tabindex="-1"></a>  <span class="at">output_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;marine_eez_batch&quot;</span>),</span>
+<span id="cb22-5"><a href="#cb22-5" tabindex="-1"></a></span>
+<span id="cb22-6"><a href="#cb22-6" tabindex="-1"></a>  <span class="at">user =</span> <span class="fu">Sys.getenv</span>(<span class="st">&quot;GBIF_USER&quot;</span>),</span>
+<span id="cb22-7"><a href="#cb22-7" tabindex="-1"></a>  <span class="at">pwd =</span> <span class="fu">Sys.getenv</span>(<span class="st">&quot;GBIF_PWD&quot;</span>),</span>
+<span id="cb22-8"><a href="#cb22-8" tabindex="-1"></a>  <span class="at">email =</span> <span class="fu">Sys.getenv</span>(<span class="st">&quot;GBIF_EMAIL&quot;</span>),</span>
+<span id="cb22-9"><a href="#cb22-9" tabindex="-1"></a></span>
+<span id="cb22-10"><a href="#cb22-10" tabindex="-1"></a>  <span class="at">overlay =</span> <span class="st">&quot;eez&quot;</span>,</span>
+<span id="cb22-11"><a href="#cb22-11" tabindex="-1"></a>  <span class="at">overlay_cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;marine_overlays&quot;</span>),</span>
+<span id="cb22-12"><a href="#cb22-12" tabindex="-1"></a></span>
+<span id="cb22-13"><a href="#cb22-13" tabindex="-1"></a>  <span class="at">batch_size =</span> <span class="dv">1</span>,</span>
+<span id="cb22-14"><a href="#cb22-14" tabindex="-1"></a></span>
+<span id="cb22-15"><a href="#cb22-15" tabindex="-1"></a>  <span class="at">apply_cleaning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb22-16"><a href="#cb22-16" tabindex="-1"></a>  <span class="at">apply_thinning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb22-17"><a href="#cb22-17" tabindex="-1"></a>  <span class="at">dist_km =</span> <span class="dv">5</span>,</span>
+<span id="cb22-18"><a href="#cb22-18" tabindex="-1"></a></span>
+<span id="cb22-19"><a href="#cb22-19" tabindex="-1"></a>  <span class="at">prepare_taxonomy =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb22-20"><a href="#cb22-20" tabindex="-1"></a></span>
+<span id="cb22-21"><a href="#cb22-21" tabindex="-1"></a>  <span class="at">use_griis_status =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb22-22"><a href="#cb22-22" tabindex="-1"></a>  <span class="at">griis_filter_mode =</span> <span class="st">&quot;audit_only&quot;</span>,</span>
+<span id="cb22-23"><a href="#cb22-23" tabindex="-1"></a>  <span class="at">griis_cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;griis&quot;</span>),</span>
+<span id="cb22-24"><a href="#cb22-24" tabindex="-1"></a></span>
+<span id="cb22-25"><a href="#cb22-25" tabindex="-1"></a>  <span class="at">use_native_status =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb22-26"><a href="#cb22-26" tabindex="-1"></a>  <span class="at">use_native_web =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb22-27"><a href="#cb22-27" tabindex="-1"></a>  <span class="at">native_web_sources =</span> <span class="fu">c</span>(<span class="st">&quot;sinas&quot;</span>, <span class="st">&quot;gbif&quot;</span>, <span class="st">&quot;worms&quot;</span>),</span>
+<span id="cb22-28"><a href="#cb22-28" tabindex="-1"></a>  <span class="at">native_web_cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;native_web&quot;</span>),</span>
+<span id="cb22-29"><a href="#cb22-29" tabindex="-1"></a>  <span class="at">native_filter_mode =</span> <span class="st">&quot;audit_only&quot;</span>,</span>
+<span id="cb22-30"><a href="#cb22-30" tabindex="-1"></a>  <span class="at">reconcile_griis_native =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb22-31"><a href="#cb22-31" tabindex="-1"></a></span>
+<span id="cb22-32"><a href="#cb22-32" tabindex="-1"></a>  <span class="at">export_summary =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb22-33"><a href="#cb22-33" tabindex="-1"></a>  <span class="at">store_in_memory =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb22-34"><a href="#cb22-34" tabindex="-1"></a>  <span class="at">return_all_results =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb22-35"><a href="#cb22-35" tabindex="-1"></a>  <span class="at">quiet =</span> <span class="cn">FALSE</span></span>
+<span id="cb22-36"><a href="#cb22-36" tabindex="-1"></a>)</span></code></pre></div>
+<p>For large marine runs, write each major workflow to a stable output
+directory and reuse a dedicated marine-overlay cache. This is especially
+helpful for widespread marine taxa, dense coastal records or workflows
+that combine occurrence processing with origin and invasive-status
+evidence. After the run, use <code>gbif_summary.csv</code> to check
+completed species, failed rows, retained record counts and exported file
+paths.</p>
+</div>
+<div id="recommended-output-organisation" class="section level1">
+<h1>Recommended output organisation</h1>
+<p>A clear marine output folder should keep each overlay run separate
+from provider caches and supporting audit files. For example:</p>
+<pre class="text"><code>outputs/
+  marine_eez_batch/
+    gbif_summary.csv
+    occurrence_files/
+    origin_audit/
+    taxonomy/
+  marine_lme_batch/
+    gbif_summary.csv
+    occurrence_files/
+  marine_meow_batch/
+    gbif_summary.csv
+    occurrence_files/
+
+cache/
+  marine_overlays/
+  native_web/
+  griis/</code></pre>
+</div>
+<div id="common-problems" class="section level1">
+<h1>Common problems</h1>
+<p>Marine workflows can fail or produce unexpected results because they
+depend on several linked steps: GBIF access, taxon names, coordinate
+quality, marine-overlay loading, evidence retrieval and output writing.
+The table below lists common symptoms and the first checks to make.</p>
+<pre><code>#&gt;                                            symptom
+#&gt; 1                          GBIF query does not run
+#&gt; 2                        No records after cleaning
+#&gt; 3             Many records lack overlay assignment
+#&gt; 4                            Overlay fails to load
+#&gt; 5              Output files are not where expected
+#&gt; 6                          Taxon names need review
+#&gt; 7 Origin or invasive-status evidence is unresolved
+#&gt; 8                         Run uses too much memory
+#&gt;                                                                                                               possible_cause
+#&gt; 1                                               GBIF credentials may be missing, incorrect, or unavailable in the R session.
+#&gt; 2                                          Coordinates may be missing, impossible, exact zero-zero points, or too uncertain.
+#&gt; 3 Records may fall outside the selected overlay, near boundaries, in provider gaps, or in a different marine spatial domain.
+#&gt; 4                                       Provider service, URL, cache, optional dependency, or local file may be unavailable.
+#&gt; 5                             The run may have failed before export, or output_file may be relative to the output directory.
+#&gt; 6                                            GBIF names may require synonym resolution, spelling review, or manual checking.
+#&gt; 7                            Native-range or GRIIS evidence may not resolve cleanly for the selected taxon and spatial unit.
+#&gt; 8                     Large GBIF downloads, dense coastal records, multiple overlays, or in-memory storage may be too heavy.
+#&gt;                                                                                       first_check
+#&gt; 1                               Check GBIF_USER, GBIF_PWD, GBIF_EMAIL, and the live-run messages.
+#&gt; 2         Inspect n_total, n_cleaned, n_thinned, fail_stage, and fail_reason in gbif_summary.csv.
+#&gt; 3 Inspect unmatched coordinates and consider whether EEZ, LME, MEOW, or IHO is the right overlay.
+#&gt; 4                                Load the overlay directly with bf_load_marine_regions_overlay().
+#&gt; 5       Inspect output_dir, status, fail_stage, fail_reason, and output_file in gbif_summary.csv.
+#&gt; 6                                Run taxonomy preparation and inspect the taxonomy audit outputs.
+#&gt; 7                         Use audit_only mode first and inspect evidence fields before filtering.
+#&gt; 8     Use batch_size = 1, store_in_memory = FALSE, and add overlays or evidence layers in stages.</code></pre>
+<p>Most problems can be diagnosed from <code>gbif_summary.csv</code> and
+the relevant audit files. Start by checking <code>status</code>,
+<code>fail_stage</code>, <code>fail_reason</code>, record counts and
+<code>output_file</code>. If the issue relates to spatial assignment,
+inspect records with missing overlay fields and check whether the
+selected marine layer is appropriate for those coordinates.</p>
+<p>When a large run is difficult to diagnose, reduce the workflow to the
+smallest case that reproduces the problem: one species, one overlay and
+the same output folder structure. Once that works, re-enable taxonomy
+preparation, evidence settings or additional overlays as needed.</p>
+</div>
+<div id="provider-caches-and-citations" class="section level1">
+<h1>Provider caches and citations</h1>
+<p>Marine workflows may use several external data sources, including
+GBIF occurrence downloads, Marine Regions overlays, WoRMS taxonomic or
+distribution evidence, SInAS native/alien distribution evidence, and
+GRIIS introduced or invasive-status evidence. These resources are
+queried, downloaded or cached for the analysis; they are not bundled as
+package data.</p>
+<p>For reported analyses, keep enough information to show which data
+sources were used and how they were applied. At minimum, record:</p>
+<ul>
+<li>the GBIF download DOI or download key, where available;</li>
+<li>the selected marine overlay;</li>
+<li>the overlay product name, version and access date, where
+available;</li>
+<li>the overlay cache directory;</li>
+<li>the coordinate-cleaning settings;</li>
+<li>the thinning distance, if thinning was used;</li>
+<li>the native-range and invasive-status evidence settings;</li>
+<li>the <code>biofetchR</code> package version and R session
+information.</li>
+</ul>
+<p>Provider caches should be kept separate from final occurrence
+outputs. Caches make it easier to reuse large or provider-dependent
+resources, while the output folders should contain the files needed to
+inspect a specific run.</p>
+<div id="suggested-provider-citations" class="section level2">
+<h2>Suggested provider citations</h2>
+<p>The exact citations depend on which data sources were used. The
+examples below give common starting points, but users should always
+check the provider page, download record, or metadata file for the exact
+citation associated with their analysis.</p>
+<pre><code>#&gt;                 source
+#&gt; 1 GBIF occurrence data
+#&gt; 2       Marine Regions
+#&gt; 3                GRIIS
+#&gt; 4                WoRMS
+#&gt; 5                SInAS
+#&gt; 6            mregions2
+#&gt;                                                                     cite_when_used_for
+#&gt; 1                                                      Occurrence downloads from GBIF.
+#&gt; 2 EEZ, LME, MEOW, IHO, high-seas, continental-shelf, or other Marine Regions products.
+#&gt; 3           Species-by-country or species-by-territory alien/invasive status evidence.
+#&gt; 4                Marine taxonomic names or WoRMS-derived native/distribution evidence.
+#&gt; 5                                   Native and alien distribution evidence from SInAS.
+#&gt; 6                               R access to Marine Regions gazetteer or data products.
+#&gt;                                                                                         citation_note
+#&gt; 1                             Cite the GBIF download DOI generated for the exact occurrence download.
+#&gt; 2               Cite MarineRegions.org and, where relevant, the specific Marine Regions product used.
+#&gt; 3 Cite Pagad et al. (2018), Scientific Data, 5, 170202, and any checklist-specific source where used.
+#&gt; 4                 Cite the WoRMS dataset DOI and/or the recommended WoRMS citation from the provider.
+#&gt; 5                       Cite the SInAS dataset version used and the associated Scientific Data paper.
+#&gt; 6                                  Cite mregions2 if the R package was used directly in the workflow.</code></pre>
+<p>Common citation strings include:</p>
+<ul>
+<li>GBIF.org. GBIF Occurrence Download. Cite the DOI generated for the
+exact download used in the analysis.</li>
+<li>Flanders Marine Institute. MarineRegions.org. Available online at
+www.marineregions.org. Include the access date and, where possible, the
+specific Marine Regions product citation.</li>
+<li>Pagad, S., Genovesi, P., Carnevali, L., Schigel, D. &amp; McGeoch,
+M.A. (2018). Introducing the Global Register of Introduced and Invasive
+Species. <em>Scientific Data</em>, 5, 170202.</li>
+<li>WoRMS Editorial Board. World Register of Marine Species. Dataset
+DOI: 10.14284/170.</li>
+<li>Gómez-Suárez, M., Laeseke, P. &amp; Seebens, H. (2025). A global
+dataset of native and alien distributions of alien species.
+<em>Scientific Data</em>, 12, 1914.</li>
+<li>Seebens, H. &amp; Gómez-Suárez, M. SInAS: A global dataset of native
+and alien distributions of alien species. Zenodo. Cite the exact dataset
+version used.</li>
+</ul>
+<p>Store citation details with the summary and audit files. This keeps
+occurrence retrieval, marine overlay attribution and evidence
+interpretation linked to the provider sources used in the run.</p>
+</div>
+</div>
+<div id="practical-recommendations" class="section level1">
+<h1>Practical recommendations</h1>
+<p>For robust marine workflows:</p>
+<ul>
+<li>begin with a one-species smoke test;</li>
+<li>load the selected marine overlay directly before a larger run;</li>
+<li>choose the overlay according to the spatial question;</li>
+<li>use a marine workflow when offshore records need to be retained and
+interpreted;</li>
+<li>use <code>store_in_memory = FALSE</code> for larger runs;</li>
+<li>keep provider caches separate from final outputs;</li>
+<li>inspect records without overlay assignments;</li>
+<li>compare overlays only when they represent distinct spatial
+questions;</li>
+<li>keep origin and invasive-status evidence in audit mode until
+reviewed;</li>
+<li>preserve <code>gbif_summary.csv</code> with the exported occurrence
+files;</li>
+<li>report the overlay source, cleaning settings, thinning distance and
+evidence settings.</li>
+</ul>
+<p>Marine occurrence processing is easiest to defend when the spatial
+interpretation is explicit. The marine pipeline keeps occurrence
+retrieval, coordinate processing, marine-region attribution, evidence
+attachment and output summaries in one workflow, while still allowing
+each part to be checked separately.</p>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

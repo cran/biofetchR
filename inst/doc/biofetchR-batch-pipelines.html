@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+
+
+<title>Batch occurrence pipelines in biofetchR</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Batch occurrence pipelines in
+biofetchR</h1>
+
+
+
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">library</span>(biofetchR)</span></code></pre></div>
+<div id="purpose" class="section level1">
+<h1>Purpose</h1>
+<p>This vignette introduces the main batch-processing workflows in
+<code>biofetchR</code>. It focuses on moving from a simple input table
+to processed occurrence outputs, using examples that can be adapted for
+small tests or larger data-production runs.</p>
+<p>The terrestrial and freshwater pipeline starts from a species-country
+table. In most cases, this means one row per target taxon and recipient
+country, with columns such as <code>species</code> and
+<code>iso2c</code>. For each row, <code>biofetchR</code> can request the
+matching GBIF occurrence records, import the completed download, apply
+the selected cleaning and thinning steps, assign records to the chosen
+spatial context, and return or export the processed data.</p>
+<p>For larger batches, outputs can be written directly to a designated
+folder, including separate files for individual species-country
+combinations. For smaller runs, users can also keep the processed
+records in the R session for immediate inspection.</p>
+<p>The marine pipeline follows a similar batch structure, but uses
+species-level marine input rather than species-country rows. Marine
+records can be assigned to a selected marine overlay, such as an
+EEZ-style layer, Marine Ecoregions of the World, IHO sea areas, or Large
+Marine Ecosystem (LME) polygons, which represent broad coastal and ocean
+regions used for ecosystem-scale marine summaries.</p>
+<p>This vignette covers two high-level functions:</p>
+<ul>
+<li><p><code>process_gbif_terrestrial_freshwater_pipeline()</code> for
+terrestrial and freshwater species-country workflows;</p></li>
+<li><p><code>process_gbif_marine_pipeline()</code> for marine occurrence
+workflows.</p></li>
+</ul>
+<p>The examples show how to prepare input tables, provide GBIF
+credentials, choose the main spatial-attribution setting, control
+cleaning and thinning, and inspect the summary outputs produced by the
+pipeline.</p>
+<p>Other vignettes cover specialist topics in more detail. Use the
+origin-evidence guide when the main focus is native-range,
+introduced-status or invasive-status classification; use the
+spatial-overlays guide for a wider comparison of overlay options; and
+use the auditing-and-scaling guide when planning larger runs.</p>
+</div>
+<div id="using-the-examples" class="section level1">
+<h1>Using the examples</h1>
+<p>The examples in this vignette are written as project templates. They
+can be copied into an analysis script and adapted to different input
+tables, output folders, spatial settings, cleaning options and batch
+sizes.</p>
+<p>Some examples can submit live GBIF downloads or retrieve external
+spatial resources. These steps require internet access, GBIF credentials
+and access to the relevant provider sources. To keep the examples safe
+to read and render, live code is controlled by the <code>run_live</code>
+parameter.</p>
+<p>When <code>run_live = FALSE</code>, the vignette shows the workflow
+structure without submitting downloads or retrieving remote resources.
+When <code>run_live = TRUE</code>, the same examples are run against
+GBIF and the selected spatial-data providers.</p>
+<p>To run the live examples while rendering this vignette locally,
+use:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>rmarkdown<span class="sc">::</span><span class="fu">render</span>(</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>  <span class="st">&quot;vignettes/biofetchR-batch-pipelines.Rmd&quot;</span>,</span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>  <span class="at">params =</span> <span class="fu">list</span>(<span class="at">run_live =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>)</span></code></pre></div>
+<p>This lets users choose how to use the vignette: as a static guide to
+the pipeline structure, or as a live workflow template for testing the
+package with real downloads and provider data.</p>
+</div>
+<div id="batch-input-tables" class="section level1">
+<h1>Batch input tables</h1>
+<p>The terrestrial and freshwater pipeline uses a species-country input
+table. Each row defines one taxon-country combination to process.</p>
+<p>The minimal input has two columns:</p>
+<ul>
+<li><code>species</code>: scientific name to resolve and submit to
+GBIF;</li>
+<li><code>iso2c</code>: two-letter ISO country code for the country to
+search.</li>
+</ul>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a>terrestrial_batch <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>  <span class="at">species =</span> <span class="fu">c</span>(</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>    <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>    <span class="st">&quot;Trachemys scripta&quot;</span>,</span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>    <span class="st">&quot;Rattus rattus&quot;</span>,</span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>    <span class="st">&quot;Sturnus vulgaris&quot;</span></span>
+<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a>  ),</span>
+<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a>  <span class="at">iso2c =</span> <span class="fu">c</span>(</span>
+<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a>    <span class="st">&quot;FR&quot;</span>,</span>
+<span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a>    <span class="st">&quot;GB&quot;</span>,</span>
+<span id="cb3-11"><a href="#cb3-11" tabindex="-1"></a>    <span class="st">&quot;GB&quot;</span>,</span>
+<span id="cb3-12"><a href="#cb3-12" tabindex="-1"></a>    <span class="st">&quot;DE&quot;</span></span>
+<span id="cb3-13"><a href="#cb3-13" tabindex="-1"></a>  ),</span>
+<span id="cb3-14"><a href="#cb3-14" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb3-15"><a href="#cb3-15" tabindex="-1"></a>)</span>
+<span id="cb3-16"><a href="#cb3-16" tabindex="-1"></a></span>
+<span id="cb3-17"><a href="#cb3-17" tabindex="-1"></a>terrestrial_batch</span>
+<span id="cb3-18"><a href="#cb3-18" tabindex="-1"></a><span class="co">#&gt;             species iso2c</span></span>
+<span id="cb3-19"><a href="#cb3-19" tabindex="-1"></a><span class="co">#&gt; 1    Xenopus laevis    FR</span></span>
+<span id="cb3-20"><a href="#cb3-20" tabindex="-1"></a><span class="co">#&gt; 2 Trachemys scripta    GB</span></span>
+<span id="cb3-21"><a href="#cb3-21" tabindex="-1"></a><span class="co">#&gt; 3     Rattus rattus    GB</span></span>
+<span id="cb3-22"><a href="#cb3-22" tabindex="-1"></a><span class="co">#&gt; 4  Sturnus vulgaris    DE</span></span></code></pre></div>
+<p>Project-specific columns can also be included in the input table. For
+example, users may want to keep taxonomic group, habitat, pathway,
+evidence source or review notes alongside the required
+<code>species</code> and <code>iso2c</code> columns. These fields can
+help organise larger batch files and may be carried into summaries or
+audit outputs where supported by the workflow.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a>terrestrial_batch_metadata <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a>  <span class="at">species =</span> <span class="fu">c</span>(</span>
+<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a>    <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a>    <span class="st">&quot;Trachemys scripta&quot;</span></span>
+<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a>  ),</span>
+<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a>  <span class="at">iso2c =</span> <span class="fu">c</span>(</span>
+<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a>    <span class="st">&quot;FR&quot;</span>,</span>
+<span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a>    <span class="st">&quot;GB&quot;</span></span>
+<span id="cb4-9"><a href="#cb4-9" tabindex="-1"></a>  ),</span>
+<span id="cb4-10"><a href="#cb4-10" tabindex="-1"></a>  <span class="at">taxon_group =</span> <span class="fu">c</span>(</span>
+<span id="cb4-11"><a href="#cb4-11" tabindex="-1"></a>    <span class="st">&quot;Amphibian&quot;</span>,</span>
+<span id="cb4-12"><a href="#cb4-12" tabindex="-1"></a>    <span class="st">&quot;Reptile&quot;</span></span>
+<span id="cb4-13"><a href="#cb4-13" tabindex="-1"></a>  ),</span>
+<span id="cb4-14"><a href="#cb4-14" tabindex="-1"></a>  <span class="at">notes =</span> <span class="fu">c</span>(</span>
+<span id="cb4-15"><a href="#cb4-15" tabindex="-1"></a>    <span class="st">&quot;low-memory smoke test&quot;</span>,</span>
+<span id="cb4-16"><a href="#cb4-16" tabindex="-1"></a>    <span class="st">&quot;small batch example&quot;</span></span>
+<span id="cb4-17"><a href="#cb4-17" tabindex="-1"></a>  ),</span>
+<span id="cb4-18"><a href="#cb4-18" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb4-19"><a href="#cb4-19" tabindex="-1"></a>)</span>
+<span id="cb4-20"><a href="#cb4-20" tabindex="-1"></a></span>
+<span id="cb4-21"><a href="#cb4-21" tabindex="-1"></a>terrestrial_batch_metadata</span>
+<span id="cb4-22"><a href="#cb4-22" tabindex="-1"></a><span class="co">#&gt;             species iso2c taxon_group                 notes</span></span>
+<span id="cb4-23"><a href="#cb4-23" tabindex="-1"></a><span class="co">#&gt; 1    Xenopus laevis    FR   Amphibian low-memory smoke test</span></span>
+<span id="cb4-24"><a href="#cb4-24" tabindex="-1"></a><span class="co">#&gt; 2 Trachemys scripta    GB     Reptile   small batch example</span></span></code></pre></div>
+<p>Marine workflows use a simpler species-level input table. The marine
+pipeline downloads records by species first, then assigns the returned
+coordinates to the selected marine overlay.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a>marine_batch <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a>  <span class="at">species =</span> <span class="fu">c</span>(</span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a>    <span class="st">&quot;Carcinus maenas&quot;</span>,</span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>    <span class="st">&quot;Mnemiopsis leidyi&quot;</span>,</span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a>    <span class="st">&quot;Undaria pinnatifida&quot;</span></span>
+<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a>  ),</span>
+<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a>)</span>
+<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a>marine_batch</span>
+<span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a><span class="co">#&gt;               species</span></span>
+<span id="cb5-12"><a href="#cb5-12" tabindex="-1"></a><span class="co">#&gt; 1     Carcinus maenas</span></span>
+<span id="cb5-13"><a href="#cb5-13" tabindex="-1"></a><span class="co">#&gt; 2   Mnemiopsis leidyi</span></span>
+<span id="cb5-14"><a href="#cb5-14" tabindex="-1"></a><span class="co">#&gt; 3 Undaria pinnatifida</span></span></code></pre></div>
+<p>This distinction matters when preparing batch files. Terrestrial and
+freshwater runs are usually organised around species-country
+combinations, whereas marine runs are usually organised around species
+and the marine overlay selected later in the workflow.</p>
+</div>
+<div id="credential-and-output-setup" class="section level1">
+<h1>Credential and output setup</h1>
+<p>GBIF downloads require user credentials. In project scripts, it is
+best to read these from environment variables rather than writing
+usernames, passwords or email addresses directly into the code.</p>
+<p>The examples in this vignette use three environment variables:</p>
+<ul>
+<li><code>GBIF_USER</code></li>
+<li><code>GBIF_PWD</code></li>
+<li><code>GBIF_EMAIL</code></li>
+</ul>
+<p>The code below also creates an output folder for the vignette run.
+Here, <code>tempdir()</code> is used so the example can run without
+writing files into the working directory. For a real analysis, use a
+stable project folder instead, such as
+<code>outputs/gbif_batches</code>.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="co"># Create a temporary output folder for this vignette run.</span></span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a><span class="co"># In a real project, replace tempdir() with a stable project directory,</span></span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a><span class="co"># such as &quot;outputs/gbif_batches&quot;.</span></span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a>output_root <span class="ot">&lt;-</span> <span class="fu">file.path</span>(<span class="fu">tempdir</span>(), <span class="st">&quot;biofetchR_batch_vignette&quot;</span>)</span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a></span>
+<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a><span class="co"># Create the output folder if it does not already exist.</span></span>
+<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a><span class="co"># recursive = TRUE also creates any missing parent folders.</span></span>
+<span id="cb6-8"><a href="#cb6-8" tabindex="-1"></a><span class="co"># showWarnings = FALSE avoids unnecessary messages if the folder already exists.</span></span>
+<span id="cb6-9"><a href="#cb6-9" tabindex="-1"></a><span class="fu">dir.create</span>(output_root, <span class="at">recursive =</span> <span class="cn">TRUE</span>, <span class="at">showWarnings =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb6-10"><a href="#cb6-10" tabindex="-1"></a></span>
+<span id="cb6-11"><a href="#cb6-11" tabindex="-1"></a><span class="co"># Create a small credential-check table.</span></span>
+<span id="cb6-12"><a href="#cb6-12" tabindex="-1"></a><span class="co"># This does not print the credential values themselves; it only reports whether</span></span>
+<span id="cb6-13"><a href="#cb6-13" tabindex="-1"></a><span class="co"># each required environment variable is available.</span></span>
+<span id="cb6-14"><a href="#cb6-14" tabindex="-1"></a>credential_status <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb6-15"><a href="#cb6-15" tabindex="-1"></a>  <span class="at">variable =</span> <span class="fu">c</span>(<span class="st">&quot;GBIF_USER&quot;</span>, <span class="st">&quot;GBIF_PWD&quot;</span>, <span class="st">&quot;GBIF_EMAIL&quot;</span>),</span>
+<span id="cb6-16"><a href="#cb6-16" tabindex="-1"></a>  <span class="at">available =</span> <span class="fu">nzchar</span>(<span class="fu">c</span>(gbif_user, gbif_pwd, gbif_email)),</span>
+<span id="cb6-17"><a href="#cb6-17" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb6-18"><a href="#cb6-18" tabindex="-1"></a>)</span>
+<span id="cb6-19"><a href="#cb6-19" tabindex="-1"></a></span>
+<span id="cb6-20"><a href="#cb6-20" tabindex="-1"></a><span class="co"># Display the credential check and the output folder being used for this run.</span></span>
+<span id="cb6-21"><a href="#cb6-21" tabindex="-1"></a>credential_status</span>
+<span id="cb6-22"><a href="#cb6-22" tabindex="-1"></a><span class="co">#&gt;     variable available</span></span>
+<span id="cb6-23"><a href="#cb6-23" tabindex="-1"></a><span class="co">#&gt; 1  GBIF_USER      TRUE</span></span>
+<span id="cb6-24"><a href="#cb6-24" tabindex="-1"></a><span class="co">#&gt; 2   GBIF_PWD      TRUE</span></span>
+<span id="cb6-25"><a href="#cb6-25" tabindex="-1"></a><span class="co">#&gt; 3 GBIF_EMAIL      TRUE</span></span>
+<span id="cb6-26"><a href="#cb6-26" tabindex="-1"></a>output_root</span>
+<span id="cb6-27"><a href="#cb6-27" tabindex="-1"></a><span class="co">#&gt; [1] &quot;D:/R_temp\\Rtmpo7rcUO/biofetchR_batch_vignette&quot;</span></span></code></pre></div>
+<p>Before running a live batch, check that all three credential fields
+return <code>TRUE</code>. The output folder should also be changed from
+the temporary vignette location to a project directory that can be
+inspected later.</p>
+<p>For larger runs, keep the main files produced by the workflow
+together: the input table, exported occurrence files,
+<code>gbif_summary.csv</code>, any evidence or diagnostic outputs, and
+the package version used for the run.</p>
+</div>
+<div id="coordinate-cleaning-and-spatial-thinning" class="section level1">
+<h1>Coordinate cleaning and spatial thinning</h1>
+<p>Most batch workflows should apply coordinate cleaning before outputs
+are used for spatial interpretation. GBIF occurrence tables can include
+missing coordinates, zero-zero coordinates, impossible coordinates,
+duplicated points, high coordinate uncertainty, country-centroid
+records, institution coordinates or other records that are not suitable
+for spatial attribution.</p>
+<p>In <code>biofetchR</code>, coordinate cleaning is controlled with
+<code>apply_cleaning</code>. When enabled, the pipeline removes records
+that fail the selected coordinate-quality checks before records are
+exported.</p>
+<p>Spatial thinning is optional and is controlled with
+<code>apply_thinning</code> and <code>dist_km</code>. Thinning reduces
+dense clusters of nearby records by retaining records separated by a
+minimum distance. This can be useful when occurrence data are strongly
+concentrated around well-sampled areas, such as cities, roads, field
+stations, protected areas, ports, coastlines or frequently sampled
+localities.</p>
+<p>The thinning distance should match the scale of the analysis. A small
+distance may be suitable for local or subnational studies, while a
+larger distance may be more appropriate for regional or macroecological
+summaries. Thinning should be treated as a sampling-bias reduction step,
+not as a replacement for checking the spatial structure of the final
+dataset.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="fu">process_gbif_terrestrial_freshwater_pipeline</span>(</span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>  <span class="at">df =</span> terrestrial_batch,</span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a>  <span class="at">output_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cleaned_thinned_batch&quot;</span>),</span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a></span>
+<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a>  <span class="at">user =</span> <span class="fu">Sys.getenv</span>(<span class="st">&quot;GBIF_USER&quot;</span>),</span>
+<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a>  <span class="at">pwd =</span> <span class="fu">Sys.getenv</span>(<span class="st">&quot;GBIF_PWD&quot;</span>),</span>
+<span id="cb7-8"><a href="#cb7-8" tabindex="-1"></a>  <span class="at">email =</span> <span class="fu">Sys.getenv</span>(<span class="st">&quot;GBIF_EMAIL&quot;</span>),</span>
+<span id="cb7-9"><a href="#cb7-9" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" tabindex="-1"></a>  <span class="at">region_source =</span> <span class="st">&quot;gadm&quot;</span>,</span>
+<span id="cb7-11"><a href="#cb7-11" tabindex="-1"></a>  <span class="at">gadm_unit =</span> <span class="dv">1</span>,</span>
+<span id="cb7-12"><a href="#cb7-12" tabindex="-1"></a></span>
+<span id="cb7-13"><a href="#cb7-13" tabindex="-1"></a>  <span class="at">apply_cleaning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb7-14"><a href="#cb7-14" tabindex="-1"></a>  <span class="at">apply_thinning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb7-15"><a href="#cb7-15" tabindex="-1"></a>  <span class="at">dist_km =</span> <span class="dv">5</span>,</span>
+<span id="cb7-16"><a href="#cb7-16" tabindex="-1"></a></span>
+<span id="cb7-17"><a href="#cb7-17" tabindex="-1"></a>  <span class="at">export_summary =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb7-18"><a href="#cb7-18" tabindex="-1"></a>  <span class="at">store_in_memory =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb7-19"><a href="#cb7-19" tabindex="-1"></a>  <span class="at">return_all_results =</span> <span class="cn">FALSE</span></span>
+<span id="cb7-20"><a href="#cb7-20" tabindex="-1"></a>)</span></code></pre></div>
+<p>After a run, use <code>gbif_summary.csv</code> to compare the number
+of records returned from GBIF, retained after cleaning, and retained
+after thinning. For analyses that will be reported or reused, record
+whether cleaning was enabled, whether thinning was applied, and the
+thinning distance used.</p>
+</div>
+<div id="a-low-memory-terrestrial-smoke-test" class="section level1">
+<h1>A low-memory terrestrial smoke test</h1>
+<p>Before running a larger batch, start with a small smoke test. This is
+a short run that checks whether the main workflow components are working
+together before processing many species-country combinations.</p>
+<p>The example below uses <code>Xenopus laevis</code> in France and
+assigns records to GADM level-1 units. It also enables coordinate
+cleaning, 5 km spatial thinning, taxonomy preparation, GRIIS evidence
+and native-range evidence in audit mode. This makes the test small
+enough to run quickly, while still checking the main setup requirements:
+GBIF credentials, provider access, cache folders, spatial attribution
+and output writing.</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span>gbif_ready) {</span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a>  <span class="fu">skip_live_message</span>(</span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a>    <span class="st">&quot;set GBIF_USER, GBIF_PWD, and GBIF_EMAIL to run the GBIF smoke test&quot;</span></span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a>  )</span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a></span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a>  <span class="co"># Use one species-country pair for the first test run.</span></span>
+<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a>  <span class="co"># This is enough to check credentials, GBIF access, spatial attribution,</span></span>
+<span id="cb8-9"><a href="#cb8-9" tabindex="-1"></a>  <span class="co"># cleaning, thinning, evidence attachment, and output writing.</span></span>
+<span id="cb8-10"><a href="#cb8-10" tabindex="-1"></a>  low_memory_input <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb8-11"><a href="#cb8-11" tabindex="-1"></a>    <span class="at">species =</span> <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb8-12"><a href="#cb8-12" tabindex="-1"></a>    <span class="at">iso2c =</span> <span class="st">&quot;FR&quot;</span>,</span>
+<span id="cb8-13"><a href="#cb8-13" tabindex="-1"></a>    <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb8-14"><a href="#cb8-14" tabindex="-1"></a>  )</span>
+<span id="cb8-15"><a href="#cb8-15" tabindex="-1"></a></span>
+<span id="cb8-16"><a href="#cb8-16" tabindex="-1"></a>  low_memory_result <span class="ot">&lt;-</span> <span class="fu">run_live_safely</span>(</span>
+<span id="cb8-17"><a href="#cb8-17" tabindex="-1"></a>    <span class="fu">process_gbif_terrestrial_freshwater_pipeline</span>(</span>
+<span id="cb8-18"><a href="#cb8-18" tabindex="-1"></a>      <span class="at">df =</span> low_memory_input,</span>
+<span id="cb8-19"><a href="#cb8-19" tabindex="-1"></a></span>
+<span id="cb8-20"><a href="#cb8-20" tabindex="-1"></a>      <span class="co"># Write all example outputs into the vignette output folder.</span></span>
+<span id="cb8-21"><a href="#cb8-21" tabindex="-1"></a>      <span class="at">output_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;terrestrial_low_memory&quot;</span>),</span>
+<span id="cb8-22"><a href="#cb8-22" tabindex="-1"></a></span>
+<span id="cb8-23"><a href="#cb8-23" tabindex="-1"></a>      <span class="co"># GBIF credentials are read from environment variables above.</span></span>
+<span id="cb8-24"><a href="#cb8-24" tabindex="-1"></a>      <span class="at">user =</span> gbif_user,</span>
+<span id="cb8-25"><a href="#cb8-25" tabindex="-1"></a>      <span class="at">pwd =</span> gbif_pwd,</span>
+<span id="cb8-26"><a href="#cb8-26" tabindex="-1"></a>      <span class="at">email =</span> gbif_email,</span>
+<span id="cb8-27"><a href="#cb8-27" tabindex="-1"></a></span>
+<span id="cb8-28"><a href="#cb8-28" tabindex="-1"></a>      <span class="co"># Assign records to GADM level-1 administrative units.</span></span>
+<span id="cb8-29"><a href="#cb8-29" tabindex="-1"></a>      <span class="at">region_source =</span> <span class="st">&quot;gadm&quot;</span>,</span>
+<span id="cb8-30"><a href="#cb8-30" tabindex="-1"></a>      <span class="at">gadm_unit =</span> <span class="dv">1</span>,</span>
+<span id="cb8-31"><a href="#cb8-31" tabindex="-1"></a>      <span class="at">cache_dir_gadm =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;gadm&quot;</span>),</span>
+<span id="cb8-32"><a href="#cb8-32" tabindex="-1"></a></span>
+<span id="cb8-33"><a href="#cb8-33" tabindex="-1"></a>      <span class="co"># Keep the first run deliberately small and conservative.</span></span>
+<span id="cb8-34"><a href="#cb8-34" tabindex="-1"></a>      <span class="at">batch_size =</span> <span class="dv">1</span>,</span>
+<span id="cb8-35"><a href="#cb8-35" tabindex="-1"></a></span>
+<span id="cb8-36"><a href="#cb8-36" tabindex="-1"></a>      <span class="co"># Apply coordinate quality control and then thin clustered records.</span></span>
+<span id="cb8-37"><a href="#cb8-37" tabindex="-1"></a>      <span class="at">apply_cleaning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb8-38"><a href="#cb8-38" tabindex="-1"></a>      <span class="at">apply_thinning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb8-39"><a href="#cb8-39" tabindex="-1"></a>      <span class="at">dist_km =</span> <span class="dv">5</span>,</span>
+<span id="cb8-40"><a href="#cb8-40" tabindex="-1"></a></span>
+<span id="cb8-41"><a href="#cb8-41" tabindex="-1"></a>      <span class="co"># Prepare taxon names before submitting the GBIF download.</span></span>
+<span id="cb8-42"><a href="#cb8-42" tabindex="-1"></a>      <span class="at">prepare_taxonomy =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb8-43"><a href="#cb8-43" tabindex="-1"></a></span>
+<span id="cb8-44"><a href="#cb8-44" tabindex="-1"></a>      <span class="co"># Attach GRIIS evidence in audit mode.</span></span>
+<span id="cb8-45"><a href="#cb8-45" tabindex="-1"></a>      <span class="co"># Audit mode keeps the records and adds evidence fields for inspection.</span></span>
+<span id="cb8-46"><a href="#cb8-46" tabindex="-1"></a>      <span class="at">use_griis_status =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb8-47"><a href="#cb8-47" tabindex="-1"></a>      <span class="at">griis_filter_mode =</span> <span class="st">&quot;audit_only&quot;</span>,</span>
+<span id="cb8-48"><a href="#cb8-48" tabindex="-1"></a>      <span class="at">griis_cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;griis&quot;</span>),</span>
+<span id="cb8-49"><a href="#cb8-49" tabindex="-1"></a></span>
+<span id="cb8-50"><a href="#cb8-50" tabindex="-1"></a>      <span class="co"># Attach native-range evidence from selected web sources.</span></span>
+<span id="cb8-51"><a href="#cb8-51" tabindex="-1"></a>      <span class="co"># For marine workflows, WoRMS can be useful alongside SInAS and GBIF.</span></span>
+<span id="cb8-52"><a href="#cb8-52" tabindex="-1"></a>      <span class="at">use_native_status =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb8-53"><a href="#cb8-53" tabindex="-1"></a>      <span class="at">use_native_web =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb8-54"><a href="#cb8-54" tabindex="-1"></a>      <span class="at">native_web_sources =</span> <span class="fu">c</span>(<span class="st">&quot;sinas&quot;</span>, <span class="st">&quot;gbif&quot;</span>, <span class="st">&quot;worms&quot;</span>),</span>
+<span id="cb8-55"><a href="#cb8-55" tabindex="-1"></a>      <span class="at">native_web_cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;native_web&quot;</span>),</span>
+<span id="cb8-56"><a href="#cb8-56" tabindex="-1"></a>      <span class="at">native_filter_mode =</span> <span class="st">&quot;audit_only&quot;</span>,</span>
+<span id="cb8-57"><a href="#cb8-57" tabindex="-1"></a></span>
+<span id="cb8-58"><a href="#cb8-58" tabindex="-1"></a>      <span class="co"># Write origin-evidence and processing summaries.</span></span>
+<span id="cb8-59"><a href="#cb8-59" tabindex="-1"></a>      <span class="at">reconcile_origin_evidence =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb8-60"><a href="#cb8-60" tabindex="-1"></a>      <span class="at">export_origin_audit =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb8-61"><a href="#cb8-61" tabindex="-1"></a>      <span class="at">export_summary =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb8-62"><a href="#cb8-62" tabindex="-1"></a></span>
+<span id="cb8-63"><a href="#cb8-63" tabindex="-1"></a>      <span class="co"># Write occurrence outputs to disk, but also return a result object</span></span>
+<span id="cb8-64"><a href="#cb8-64" tabindex="-1"></a>      <span class="co"># so the smoke test can be inspected immediately in the R session.</span></span>
+<span id="cb8-65"><a href="#cb8-65" tabindex="-1"></a>      <span class="at">return_all_results =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb8-66"><a href="#cb8-66" tabindex="-1"></a>      <span class="at">store_in_memory =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb8-67"><a href="#cb8-67" tabindex="-1"></a></span>
+<span id="cb8-68"><a href="#cb8-68" tabindex="-1"></a>      <span class="co"># Show progress messages during the live run.</span></span>
+<span id="cb8-69"><a href="#cb8-69" tabindex="-1"></a>      <span class="at">quiet =</span> <span class="cn">FALSE</span></span>
+<span id="cb8-70"><a href="#cb8-70" tabindex="-1"></a>    )</span>
+<span id="cb8-71"><a href="#cb8-71" tabindex="-1"></a>  )</span>
+<span id="cb8-72"><a href="#cb8-72" tabindex="-1"></a></span>
+<span id="cb8-73"><a href="#cb8-73" tabindex="-1"></a>  low_memory_result</span>
+<span id="cb8-74"><a href="#cb8-74" tabindex="-1"></a>}</span></code></pre></div>
+<p>After a live run, inspect <code>gbif_summary.csv</code> first. This
+file provides a compact row-level summary of the run, including record
+counts, processing status, failure messages where relevant and the path
+to any exported occurrence file.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="co"># Build the path to the summary file written by the smoke-test run.</span></span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a><span class="co"># The summary is stored inside the output directory used for this example.</span></span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a>summary_path <span class="ot">&lt;-</span> <span class="fu">file.path</span>(</span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a>  output_root,</span>
+<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a>  <span class="st">&quot;terrestrial_low_memory&quot;</span>,</span>
+<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a>  <span class="st">&quot;gbif_summary.csv&quot;</span></span>
+<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a>)</span>
+<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a></span>
+<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a><span class="co"># Read and inspect the summary only if the file was created.</span></span>
+<span id="cb9-10"><a href="#cb9-10" tabindex="-1"></a><span class="co"># This avoids an error if the previous live example was skipped or did not finish.</span></span>
+<span id="cb9-11"><a href="#cb9-11" tabindex="-1"></a><span class="cf">if</span> (<span class="fu">file.exists</span>(summary_path)) {</span>
+<span id="cb9-12"><a href="#cb9-12" tabindex="-1"></a></span>
+<span id="cb9-13"><a href="#cb9-13" tabindex="-1"></a>  <span class="co"># Import the summary table as a plain data frame.</span></span>
+<span id="cb9-14"><a href="#cb9-14" tabindex="-1"></a>  low_memory_summary <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(summary_path, <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb9-15"><a href="#cb9-15" tabindex="-1"></a></span>
+<span id="cb9-16"><a href="#cb9-16" tabindex="-1"></a>  <span class="co"># Display the most useful audit columns.</span></span>
+<span id="cb9-17"><a href="#cb9-17" tabindex="-1"></a>  <span class="co"># intersect() is used so the code still works if some optional columns are not</span></span>
+<span id="cb9-18"><a href="#cb9-18" tabindex="-1"></a>  <span class="co"># present in a particular pipeline run or package version.</span></span>
+<span id="cb9-19"><a href="#cb9-19" tabindex="-1"></a>  low_memory_summary[</span>
+<span id="cb9-20"><a href="#cb9-20" tabindex="-1"></a>    ,</span>
+<span id="cb9-21"><a href="#cb9-21" tabindex="-1"></a>    <span class="fu">intersect</span>(</span>
+<span id="cb9-22"><a href="#cb9-22" tabindex="-1"></a>      <span class="fu">c</span>(</span>
+<span id="cb9-23"><a href="#cb9-23" tabindex="-1"></a>        <span class="st">&quot;species&quot;</span>,     <span class="co"># taxon processed</span></span>
+<span id="cb9-24"><a href="#cb9-24" tabindex="-1"></a>        <span class="st">&quot;region_id&quot;</span>,   <span class="co"># spatial unit or recipient-region identifier</span></span>
+<span id="cb9-25"><a href="#cb9-25" tabindex="-1"></a>        <span class="st">&quot;region_type&quot;</span>, <span class="co"># spatial framework used, such as GADM</span></span>
+<span id="cb9-26"><a href="#cb9-26" tabindex="-1"></a>        <span class="st">&quot;n_total&quot;</span>,     <span class="co"># records before cleaning</span></span>
+<span id="cb9-27"><a href="#cb9-27" tabindex="-1"></a>        <span class="st">&quot;n_cleaned&quot;</span>,   <span class="co"># records retained after coordinate cleaning</span></span>
+<span id="cb9-28"><a href="#cb9-28" tabindex="-1"></a>        <span class="st">&quot;n_thinned&quot;</span>,   <span class="co"># records retained after spatial thinning</span></span>
+<span id="cb9-29"><a href="#cb9-29" tabindex="-1"></a>        <span class="st">&quot;status&quot;</span>,      <span class="co"># success, failure, or no-record status</span></span>
+<span id="cb9-30"><a href="#cb9-30" tabindex="-1"></a>        <span class="st">&quot;fail_stage&quot;</span>,  <span class="co"># pipeline stage where a failure occurred, if any</span></span>
+<span id="cb9-31"><a href="#cb9-31" tabindex="-1"></a>        <span class="st">&quot;fail_reason&quot;</span>, <span class="co"># short explanation of the failure, if any</span></span>
+<span id="cb9-32"><a href="#cb9-32" tabindex="-1"></a>        <span class="st">&quot;output_file&quot;</span>  <span class="co"># exported occurrence file written for the row</span></span>
+<span id="cb9-33"><a href="#cb9-33" tabindex="-1"></a>      ),</span>
+<span id="cb9-34"><a href="#cb9-34" tabindex="-1"></a>      <span class="fu">names</span>(low_memory_summary)</span>
+<span id="cb9-35"><a href="#cb9-35" tabindex="-1"></a>    )</span>
+<span id="cb9-36"><a href="#cb9-36" tabindex="-1"></a>  ]</span>
+<span id="cb9-37"><a href="#cb9-37" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb9-38"><a href="#cb9-38" tabindex="-1"></a></span>
+<span id="cb9-39"><a href="#cb9-39" tabindex="-1"></a>  <span class="co"># This message is shown when the live example was skipped or no summary was</span></span>
+<span id="cb9-40"><a href="#cb9-40" tabindex="-1"></a>  <span class="co"># written. It keeps the vignette readable without stopping execution.</span></span>
+<span id="cb9-41"><a href="#cb9-41" tabindex="-1"></a>  <span class="fu">skip_live_message</span>(<span class="st">&quot;summary file was not created by the previous live chunk&quot;</span>)</span>
+<span id="cb9-42"><a href="#cb9-42" tabindex="-1"></a>}</span></code></pre></div>
+</div>
+<div id="example-summary-output" class="section level1">
+<h1>Example summary output</h1>
+<p>The table below is a small mock version of
+<code>gbif_summary.csv</code>. It shows the kinds of fields users should
+inspect after a batch run: the taxon processed, the region identifier,
+record counts before and after processing, the row status, any failure
+information and the exported file path.</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="co"># In a real workflow, this information is read from gbif_summary.csv.</span></span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a>summary_example <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a></span>
+<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a>  <span class="co"># Taxon processed by the pipeline.</span></span>
+<span id="cb10-5"><a href="#cb10-5" tabindex="-1"></a>  <span class="at">species =</span> <span class="fu">c</span>(<span class="st">&quot;Xenopus laevis&quot;</span>, <span class="st">&quot;Trachemys scripta&quot;</span>, <span class="st">&quot;Rattus rattus&quot;</span>),</span>
+<span id="cb10-6"><a href="#cb10-6" tabindex="-1"></a></span>
+<span id="cb10-7"><a href="#cb10-7" tabindex="-1"></a>  <span class="co"># Recipient region or spatial unit associated with each row.</span></span>
+<span id="cb10-8"><a href="#cb10-8" tabindex="-1"></a>  <span class="co"># For this terrestrial example, these are ISO2 country codes.</span></span>
+<span id="cb10-9"><a href="#cb10-9" tabindex="-1"></a>  <span class="at">region_id =</span> <span class="fu">c</span>(<span class="st">&quot;FR&quot;</span>, <span class="st">&quot;GB&quot;</span>, <span class="st">&quot;GB&quot;</span>),</span>
+<span id="cb10-10"><a href="#cb10-10" tabindex="-1"></a></span>
+<span id="cb10-11"><a href="#cb10-11" tabindex="-1"></a>  <span class="co"># Spatial framework used for the exported records.</span></span>
+<span id="cb10-12"><a href="#cb10-12" tabindex="-1"></a>  <span class="co"># Here, records are assumed to have been assigned to GADM level-1 units.</span></span>
+<span id="cb10-13"><a href="#cb10-13" tabindex="-1"></a>  <span class="at">region_type =</span> <span class="fu">c</span>(<span class="st">&quot;GADM_1&quot;</span>, <span class="st">&quot;GADM_1&quot;</span>, <span class="st">&quot;GADM_1&quot;</span>),</span>
+<span id="cb10-14"><a href="#cb10-14" tabindex="-1"></a></span>
+<span id="cb10-15"><a href="#cb10-15" tabindex="-1"></a>  <span class="co"># Number of records returned before coordinate cleaning.</span></span>
+<span id="cb10-16"><a href="#cb10-16" tabindex="-1"></a>  <span class="at">n_total =</span> <span class="fu">c</span>(<span class="dv">1340</span>, <span class="dv">220</span>, <span class="dv">0</span>),</span>
+<span id="cb10-17"><a href="#cb10-17" tabindex="-1"></a></span>
+<span id="cb10-18"><a href="#cb10-18" tabindex="-1"></a>  <span class="co"># Number of records retained after coordinate quality control.</span></span>
+<span id="cb10-19"><a href="#cb10-19" tabindex="-1"></a>  <span class="at">n_cleaned =</span> <span class="fu">c</span>(<span class="dv">1309</span>, <span class="dv">198</span>, <span class="dv">0</span>),</span>
+<span id="cb10-20"><a href="#cb10-20" tabindex="-1"></a></span>
+<span id="cb10-21"><a href="#cb10-21" tabindex="-1"></a>  <span class="co"># Number of records retained after spatial thinning.</span></span>
+<span id="cb10-22"><a href="#cb10-22" tabindex="-1"></a>  <span class="at">n_thinned =</span> <span class="fu">c</span>(<span class="dv">861</span>, <span class="dv">174</span>, <span class="dv">0</span>),</span>
+<span id="cb10-23"><a href="#cb10-23" tabindex="-1"></a></span>
+<span id="cb10-24"><a href="#cb10-24" tabindex="-1"></a>  <span class="co"># Processing outcome for each species-region row.</span></span>
+<span id="cb10-25"><a href="#cb10-25" tabindex="-1"></a>  <span class="at">status =</span> <span class="fu">c</span>(<span class="st">&quot;success&quot;</span>, <span class="st">&quot;success&quot;</span>, <span class="st">&quot;no_records&quot;</span>),</span>
+<span id="cb10-26"><a href="#cb10-26" tabindex="-1"></a></span>
+<span id="cb10-27"><a href="#cb10-27" tabindex="-1"></a>  <span class="co"># Pipeline stage where a row failed or stopped, if applicable.</span></span>
+<span id="cb10-28"><a href="#cb10-28" tabindex="-1"></a>  <span class="at">fail_stage =</span> <span class="fu">c</span>(<span class="cn">NA</span>, <span class="cn">NA</span>, <span class="st">&quot;import&quot;</span>),</span>
+<span id="cb10-29"><a href="#cb10-29" tabindex="-1"></a></span>
+<span id="cb10-30"><a href="#cb10-30" tabindex="-1"></a>  <span class="co"># Short explanation of the failure or stopping reason, if applicable.</span></span>
+<span id="cb10-31"><a href="#cb10-31" tabindex="-1"></a>  <span class="at">fail_reason =</span> <span class="fu">c</span>(<span class="cn">NA</span>, <span class="cn">NA</span>, <span class="st">&quot;No records returned&quot;</span>),</span>
+<span id="cb10-32"><a href="#cb10-32" tabindex="-1"></a></span>
+<span id="cb10-33"><a href="#cb10-33" tabindex="-1"></a>  <span class="co"># Path to the exported occurrence file.</span></span>
+<span id="cb10-34"><a href="#cb10-34" tabindex="-1"></a>  <span class="co"># Rows with no usable records may not produce an output file.</span></span>
+<span id="cb10-35"><a href="#cb10-35" tabindex="-1"></a>  <span class="at">output_file =</span> <span class="fu">c</span>(</span>
+<span id="cb10-36"><a href="#cb10-36" tabindex="-1"></a>    <span class="st">&quot;Xenopus_laevis_FR_gadm1.csv&quot;</span>,</span>
+<span id="cb10-37"><a href="#cb10-37" tabindex="-1"></a>    <span class="st">&quot;Trachemys_scripta_GB_gadm1.csv&quot;</span>,</span>
+<span id="cb10-38"><a href="#cb10-38" tabindex="-1"></a>    <span class="cn">NA</span></span>
+<span id="cb10-39"><a href="#cb10-39" tabindex="-1"></a>  ),</span>
+<span id="cb10-40"><a href="#cb10-40" tabindex="-1"></a></span>
+<span id="cb10-41"><a href="#cb10-41" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb10-42"><a href="#cb10-42" tabindex="-1"></a>)</span>
+<span id="cb10-43"><a href="#cb10-43" tabindex="-1"></a></span>
+<span id="cb10-44"><a href="#cb10-44" tabindex="-1"></a><span class="co"># Display the example summary table.</span></span>
+<span id="cb10-45"><a href="#cb10-45" tabindex="-1"></a>summary_example</span>
+<span id="cb10-46"><a href="#cb10-46" tabindex="-1"></a><span class="co">#&gt;             species region_id region_type n_total n_cleaned n_thinned</span></span>
+<span id="cb10-47"><a href="#cb10-47" tabindex="-1"></a><span class="co">#&gt; 1    Xenopus laevis        FR      GADM_1    1340      1309       861</span></span>
+<span id="cb10-48"><a href="#cb10-48" tabindex="-1"></a><span class="co">#&gt; 2 Trachemys scripta        GB      GADM_1     220       198       174</span></span>
+<span id="cb10-49"><a href="#cb10-49" tabindex="-1"></a><span class="co">#&gt; 3     Rattus rattus        GB      GADM_1       0         0         0</span></span>
+<span id="cb10-50"><a href="#cb10-50" tabindex="-1"></a><span class="co">#&gt;       status fail_stage         fail_reason                    output_file</span></span>
+<span id="cb10-51"><a href="#cb10-51" tabindex="-1"></a><span class="co">#&gt; 1    success       &lt;NA&gt;                &lt;NA&gt;    Xenopus_laevis_FR_gadm1.csv</span></span>
+<span id="cb10-52"><a href="#cb10-52" tabindex="-1"></a><span class="co">#&gt; 2    success       &lt;NA&gt;                &lt;NA&gt; Trachemys_scripta_GB_gadm1.csv</span></span>
+<span id="cb10-53"><a href="#cb10-53" tabindex="-1"></a><span class="co">#&gt; 3 no_records     import No records returned                           &lt;NA&gt;</span></span></code></pre></div>
+<p>A useful first check is the <code>status</code> column. Successful
+rows can usually be followed through to their exported occurrence files,
+while rows marked as failed, skipped or <code>no_records</code> should
+be reviewed before the batch output is used in an analysis.</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="fu">table</span>(summary_example<span class="sc">$</span>status, <span class="at">useNA =</span> <span class="st">&quot;ifany&quot;</span>)</span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a><span class="co">#&gt; no_records    success </span></span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a><span class="co">#&gt;          1          2</span></span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a></span>
+<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a>summary_example[summary_example<span class="sc">$</span>status <span class="sc">!=</span> <span class="st">&quot;success&quot;</span>, ]</span>
+<span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a><span class="co">#&gt;         species region_id region_type n_total n_cleaned n_thinned     status</span></span>
+<span id="cb11-8"><a href="#cb11-8" tabindex="-1"></a><span class="co">#&gt; 3 Rattus rattus        GB      GADM_1       0         0         0 no_records</span></span>
+<span id="cb11-9"><a href="#cb11-9" tabindex="-1"></a><span class="co">#&gt;   fail_stage         fail_reason output_file</span></span>
+<span id="cb11-10"><a href="#cb11-10" tabindex="-1"></a><span class="co">#&gt; 3     import No records returned        &lt;NA&gt;</span></span></code></pre></div>
+</div>
+<div id="scaling-to-a-terrestrial-or-freshwater-batch" class="section level1">
+<h1>Scaling to a terrestrial or freshwater batch</h1>
+<p>After the one-row smoke test works, increase the number of
+species-country rows gradually. The <code>batch_size</code> argument
+controls how many species are submitted in each batch, which helps pace
+live GBIF requests and reduces the chance of running into provider
+limits during larger runs. Smaller batches also make it easier to
+identify which species or countries caused a problem if a download,
+import or spatial-attribution step fails.</p>
+<p>For larger workflows, <code>store_in_memory = FALSE</code> is
+recommended. This writes processed occurrence tables to the output
+folder instead of keeping every table in the active R session. Small
+batches can still be returned to the session for interactive inspection,
+but disk-based outputs are safer when processing many taxa or recipient
+countries.</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span>gbif_ready) {</span>
+<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a>  <span class="fu">skip_live_message</span>(<span class="st">&quot;set GBIF credentials to run the terrestrial batch example&quot;</span>)</span>
+<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb12-4"><a href="#cb12-4" tabindex="-1"></a></span>
+<span id="cb12-5"><a href="#cb12-5" tabindex="-1"></a>  <span class="co"># Run the same terrestrial/freshwater workflow on a slightly larger</span></span>
+<span id="cb12-6"><a href="#cb12-6" tabindex="-1"></a>  <span class="co"># species-country table. This is the next step after the one-row smoke test.</span></span>
+<span id="cb12-7"><a href="#cb12-7" tabindex="-1"></a>  terrestrial_batch_result <span class="ot">&lt;-</span> <span class="fu">run_live_safely</span>(</span>
+<span id="cb12-8"><a href="#cb12-8" tabindex="-1"></a>    <span class="fu">process_gbif_terrestrial_freshwater_pipeline</span>(</span>
+<span id="cb12-9"><a href="#cb12-9" tabindex="-1"></a>      <span class="at">df =</span> terrestrial_batch,</span>
+<span id="cb12-10"><a href="#cb12-10" tabindex="-1"></a></span>
+<span id="cb12-11"><a href="#cb12-11" tabindex="-1"></a>      <span class="co"># Write this batch into its own output folder so it is easy to inspect</span></span>
+<span id="cb12-12"><a href="#cb12-12" tabindex="-1"></a>      <span class="co"># separately from the smoke-test output.</span></span>
+<span id="cb12-13"><a href="#cb12-13" tabindex="-1"></a>      <span class="at">output_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;terrestrial_batch&quot;</span>),</span>
+<span id="cb12-14"><a href="#cb12-14" tabindex="-1"></a></span>
+<span id="cb12-15"><a href="#cb12-15" tabindex="-1"></a>      <span class="co"># GBIF credentials are read from environment variables defined earlier.</span></span>
+<span id="cb12-16"><a href="#cb12-16" tabindex="-1"></a>      <span class="at">user =</span> gbif_user,</span>
+<span id="cb12-17"><a href="#cb12-17" tabindex="-1"></a>      <span class="at">pwd =</span> gbif_pwd,</span>
+<span id="cb12-18"><a href="#cb12-18" tabindex="-1"></a>      <span class="at">email =</span> gbif_email,</span>
+<span id="cb12-19"><a href="#cb12-19" tabindex="-1"></a></span>
+<span id="cb12-20"><a href="#cb12-20" tabindex="-1"></a>      <span class="co"># Assign records to GADM level-1 administrative units.</span></span>
+<span id="cb12-21"><a href="#cb12-21" tabindex="-1"></a>      <span class="at">region_source =</span> <span class="st">&quot;gadm&quot;</span>,</span>
+<span id="cb12-22"><a href="#cb12-22" tabindex="-1"></a>      <span class="at">gadm_unit =</span> <span class="dv">1</span>,</span>
+<span id="cb12-23"><a href="#cb12-23" tabindex="-1"></a>      <span class="at">cache_dir_gadm =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;gadm&quot;</span>),</span>
+<span id="cb12-24"><a href="#cb12-24" tabindex="-1"></a></span>
+<span id="cb12-25"><a href="#cb12-25" tabindex="-1"></a>      <span class="co"># Keep batches small in this example.</span></span>
+<span id="cb12-26"><a href="#cb12-26" tabindex="-1"></a>      <span class="co"># For larger projects, increase batch_size gradually after checking</span></span>
+<span id="cb12-27"><a href="#cb12-27" tabindex="-1"></a>      <span class="co"># that the first few rows complete successfully.</span></span>
+<span id="cb12-28"><a href="#cb12-28" tabindex="-1"></a>      <span class="at">batch_size =</span> <span class="dv">1</span>,</span>
+<span id="cb12-29"><a href="#cb12-29" tabindex="-1"></a></span>
+<span id="cb12-30"><a href="#cb12-30" tabindex="-1"></a>      <span class="co"># Apply coordinate cleaning and 5 km spatial thinning.</span></span>
+<span id="cb12-31"><a href="#cb12-31" tabindex="-1"></a>      <span class="at">apply_cleaning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb12-32"><a href="#cb12-32" tabindex="-1"></a>      <span class="at">apply_thinning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb12-33"><a href="#cb12-33" tabindex="-1"></a>      <span class="at">dist_km =</span> <span class="dv">5</span>,</span>
+<span id="cb12-34"><a href="#cb12-34" tabindex="-1"></a></span>
+<span id="cb12-35"><a href="#cb12-35" tabindex="-1"></a>      <span class="co"># Standardise and resolve taxon names before GBIF download submission.</span></span>
+<span id="cb12-36"><a href="#cb12-36" tabindex="-1"></a>      <span class="at">prepare_taxonomy =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb12-37"><a href="#cb12-37" tabindex="-1"></a></span>
+<span id="cb12-38"><a href="#cb12-38" tabindex="-1"></a>      <span class="co"># Attach GRIIS evidence without filtering rows out of this example.</span></span>
+<span id="cb12-39"><a href="#cb12-39" tabindex="-1"></a>      <span class="co"># This keeps the evidence available for inspection in the audit outputs.</span></span>
+<span id="cb12-40"><a href="#cb12-40" tabindex="-1"></a>      <span class="at">use_griis =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb12-41"><a href="#cb12-41" tabindex="-1"></a>      <span class="at">filter_griis_invasive =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb12-42"><a href="#cb12-42" tabindex="-1"></a>      <span class="at">griis_cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;griis&quot;</span>),</span>
+<span id="cb12-43"><a href="#cb12-43" tabindex="-1"></a></span>
+<span id="cb12-44"><a href="#cb12-44" tabindex="-1"></a>      <span class="co"># Attach native-range evidence from selected web sources.</span></span>
+<span id="cb12-45"><a href="#cb12-45" tabindex="-1"></a>      <span class="co"># audit_only keeps all records and writes evidence for later checking.</span></span>
+<span id="cb12-46"><a href="#cb12-46" tabindex="-1"></a>      <span class="at">use_native_range =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb12-47"><a href="#cb12-47" tabindex="-1"></a>      <span class="at">use_native_web =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb12-48"><a href="#cb12-48" tabindex="-1"></a>      <span class="at">native_web_sources =</span> <span class="fu">c</span>(<span class="st">&quot;sinas&quot;</span>, <span class="st">&quot;gbif&quot;</span>),</span>
+<span id="cb12-49"><a href="#cb12-49" tabindex="-1"></a>      <span class="at">native_web_cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;native_web&quot;</span>),</span>
+<span id="cb12-50"><a href="#cb12-50" tabindex="-1"></a>      <span class="at">native_filter_mode =</span> <span class="st">&quot;audit_only&quot;</span>,</span>
+<span id="cb12-51"><a href="#cb12-51" tabindex="-1"></a></span>
+<span id="cb12-52"><a href="#cb12-52" tabindex="-1"></a>      <span class="co"># Reconcile GRIIS and native-origin evidence and write audit outputs.</span></span>
+<span id="cb12-53"><a href="#cb12-53" tabindex="-1"></a>      <span class="at">reconcile_origin_evidence =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb12-54"><a href="#cb12-54" tabindex="-1"></a>      <span class="at">export_origin_audit =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb12-55"><a href="#cb12-55" tabindex="-1"></a></span>
+<span id="cb12-56"><a href="#cb12-56" tabindex="-1"></a>      <span class="co"># Write gbif_summary.csv for the batch.</span></span>
+<span id="cb12-57"><a href="#cb12-57" tabindex="-1"></a>      <span class="at">export_summary =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb12-58"><a href="#cb12-58" tabindex="-1"></a></span>
+<span id="cb12-59"><a href="#cb12-59" tabindex="-1"></a>      <span class="co"># For batch workflows, write occurrence tables to disk rather than</span></span>
+<span id="cb12-60"><a href="#cb12-60" tabindex="-1"></a>      <span class="co"># keeping all processed records in memory.</span></span>
+<span id="cb12-61"><a href="#cb12-61" tabindex="-1"></a>      <span class="at">store_in_memory =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb12-62"><a href="#cb12-62" tabindex="-1"></a></span>
+<span id="cb12-63"><a href="#cb12-63" tabindex="-1"></a>      <span class="co"># Return only the main run object because outputs are written to disk.</span></span>
+<span id="cb12-64"><a href="#cb12-64" tabindex="-1"></a>      <span class="at">return_all_results =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb12-65"><a href="#cb12-65" tabindex="-1"></a></span>
+<span id="cb12-66"><a href="#cb12-66" tabindex="-1"></a>      <span class="co"># Print progress messages during the live run.</span></span>
+<span id="cb12-67"><a href="#cb12-67" tabindex="-1"></a>      <span class="at">quiet =</span> <span class="cn">FALSE</span></span>
+<span id="cb12-68"><a href="#cb12-68" tabindex="-1"></a>    )</span>
+<span id="cb12-69"><a href="#cb12-69" tabindex="-1"></a>  )</span>
+<span id="cb12-70"><a href="#cb12-70" tabindex="-1"></a></span>
+<span id="cb12-71"><a href="#cb12-71" tabindex="-1"></a>  <span class="co"># Display the returned run object.</span></span>
+<span id="cb12-72"><a href="#cb12-72" tabindex="-1"></a>  terrestrial_batch_result</span>
+<span id="cb12-73"><a href="#cb12-73" tabindex="-1"></a>}</span></code></pre></div>
+<p>For most projects, the key setting is <code>batch_size</code>. This
+controls how many species are submitted together in each GBIF batch,
+helping the workflow avoid submitting too many live requests at once. A
+smaller <code>batch_size</code> is usually safer for large or
+provider-dependent runs, while a larger value may be suitable once the
+input table and selected settings are straightforward.</p>
+<p>After the run, inspect <code>gbif_summary.csv</code> to check which
+rows completed, which rows returned no records, whether any provider or
+import steps failed, and where the exported occurrence files were
+written. This is usually enough to identify problem rows without needing
+to build the workflow through multiple staged runs.</p>
+</div>
+<div id="adding-terrestrial-and-freshwater-overlays" class="section level1">
+<h1>Adding terrestrial and freshwater overlays</h1>
+<p>The terrestrial and freshwater pipeline can assign records to more
+than one spatial framework in the same run. This is useful when one
+layer is needed for administrative reporting and another layer is needed
+for ecological or hydrological interpretation.</p>
+<p>In the example below, GADM level 1 is kept as the administrative
+reference, while FEOW is added as a freshwater ecoregion layer. The
+important change is <code>region_source = c(&quot;gadm&quot;, &quot;feow&quot;)</code>.
+Setting <code>overlay_mode = &quot;dual_separate&quot;</code> keeps the two joins
+separate, so users can inspect the GADM and FEOW attributions
+independently rather than forcing them into a single combined spatial
+unit.</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span>gbif_ready) {</span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a>  <span class="fu">skip_live_message</span>(<span class="st">&quot;set GBIF credentials to run the overlay example&quot;</span>)</span>
+<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a></span>
+<span id="cb13-5"><a href="#cb13-5" tabindex="-1"></a>  <span class="co"># Run a small overlay example using one species-country pair.</span></span>
+<span id="cb13-6"><a href="#cb13-6" tabindex="-1"></a>  <span class="co"># This keeps the example manageable while showing how to combine</span></span>
+<span id="cb13-7"><a href="#cb13-7" tabindex="-1"></a>  <span class="co"># administrative and ecological spatial attribution.</span></span>
+<span id="cb13-8"><a href="#cb13-8" tabindex="-1"></a>  feow_result <span class="ot">&lt;-</span> <span class="fu">run_live_safely</span>(</span>
+<span id="cb13-9"><a href="#cb13-9" tabindex="-1"></a>    <span class="fu">process_gbif_terrestrial_freshwater_pipeline</span>(</span>
+<span id="cb13-10"><a href="#cb13-10" tabindex="-1"></a></span>
+<span id="cb13-11"><a href="#cb13-11" tabindex="-1"></a>      <span class="co"># Input table for the example.</span></span>
+<span id="cb13-12"><a href="#cb13-12" tabindex="-1"></a>      <span class="co"># The species is processed in France as the recipient country.</span></span>
+<span id="cb13-13"><a href="#cb13-13" tabindex="-1"></a>      <span class="at">df =</span> <span class="fu">data.frame</span>(</span>
+<span id="cb13-14"><a href="#cb13-14" tabindex="-1"></a>        <span class="at">species =</span> <span class="st">&quot;Xenopus laevis&quot;</span>,</span>
+<span id="cb13-15"><a href="#cb13-15" tabindex="-1"></a>        <span class="at">iso2c =</span> <span class="st">&quot;FR&quot;</span>,</span>
+<span id="cb13-16"><a href="#cb13-16" tabindex="-1"></a>        <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb13-17"><a href="#cb13-17" tabindex="-1"></a>      ),</span>
+<span id="cb13-18"><a href="#cb13-18" tabindex="-1"></a></span>
+<span id="cb13-19"><a href="#cb13-19" tabindex="-1"></a>      <span class="co"># Write the overlay example into its own output folder.</span></span>
+<span id="cb13-20"><a href="#cb13-20" tabindex="-1"></a>      <span class="at">output_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;terrestrial_feow&quot;</span>),</span>
+<span id="cb13-21"><a href="#cb13-21" tabindex="-1"></a></span>
+<span id="cb13-22"><a href="#cb13-22" tabindex="-1"></a>      <span class="co"># GBIF credentials are read from environment variables defined earlier.</span></span>
+<span id="cb13-23"><a href="#cb13-23" tabindex="-1"></a>      <span class="at">user =</span> gbif_user,</span>
+<span id="cb13-24"><a href="#cb13-24" tabindex="-1"></a>      <span class="at">pwd =</span> gbif_pwd,</span>
+<span id="cb13-25"><a href="#cb13-25" tabindex="-1"></a>      <span class="at">email =</span> gbif_email,</span>
+<span id="cb13-26"><a href="#cb13-26" tabindex="-1"></a></span>
+<span id="cb13-27"><a href="#cb13-27" tabindex="-1"></a>      <span class="co"># Use both GADM and FEOW as spatial frameworks.</span></span>
+<span id="cb13-28"><a href="#cb13-28" tabindex="-1"></a>      <span class="co"># GADM provides administrative attribution.</span></span>
+<span id="cb13-29"><a href="#cb13-29" tabindex="-1"></a>      <span class="co"># FEOW provides freshwater ecoregion attribution.</span></span>
+<span id="cb13-30"><a href="#cb13-30" tabindex="-1"></a>      <span class="at">region_source =</span> <span class="fu">c</span>(<span class="st">&quot;gadm&quot;</span>, <span class="st">&quot;feow&quot;</span>),</span>
+<span id="cb13-31"><a href="#cb13-31" tabindex="-1"></a></span>
+<span id="cb13-32"><a href="#cb13-32" tabindex="-1"></a>      <span class="co"># Keep the GADM and FEOW joins as separate outputs.</span></span>
+<span id="cb13-33"><a href="#cb13-33" tabindex="-1"></a>      <span class="co"># This is useful when the two spatial frameworks should be inspected</span></span>
+<span id="cb13-34"><a href="#cb13-34" tabindex="-1"></a>      <span class="co"># independently rather than merged into one combined unit.</span></span>
+<span id="cb13-35"><a href="#cb13-35" tabindex="-1"></a>      <span class="at">overlay_mode =</span> <span class="st">&quot;dual_separate&quot;</span>,</span>
+<span id="cb13-36"><a href="#cb13-36" tabindex="-1"></a></span>
+<span id="cb13-37"><a href="#cb13-37" tabindex="-1"></a>      <span class="co"># Use GADM level 1 for subnational administrative attribution.</span></span>
+<span id="cb13-38"><a href="#cb13-38" tabindex="-1"></a>      <span class="at">gadm_unit =</span> <span class="dv">1</span>,</span>
+<span id="cb13-39"><a href="#cb13-39" tabindex="-1"></a></span>
+<span id="cb13-40"><a href="#cb13-40" tabindex="-1"></a>      <span class="co"># Cache downloaded or loaded spatial layers so they can be reused.</span></span>
+<span id="cb13-41"><a href="#cb13-41" tabindex="-1"></a>      <span class="at">cache_dir_gadm =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;gadm&quot;</span>),</span>
+<span id="cb13-42"><a href="#cb13-42" tabindex="-1"></a>      <span class="at">feow_cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;feow&quot;</span>),</span>
+<span id="cb13-43"><a href="#cb13-43" tabindex="-1"></a></span>
+<span id="cb13-44"><a href="#cb13-44" tabindex="-1"></a>      <span class="co"># Keep the example to one GBIF request.</span></span>
+<span id="cb13-45"><a href="#cb13-45" tabindex="-1"></a>      <span class="at">batch_size =</span> <span class="dv">1</span>,</span>
+<span id="cb13-46"><a href="#cb13-46" tabindex="-1"></a></span>
+<span id="cb13-47"><a href="#cb13-47" tabindex="-1"></a>      <span class="co"># Apply coordinate cleaning and 5 km spatial thinning before export.</span></span>
+<span id="cb13-48"><a href="#cb13-48" tabindex="-1"></a>      <span class="at">apply_cleaning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb13-49"><a href="#cb13-49" tabindex="-1"></a>      <span class="at">apply_thinning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb13-50"><a href="#cb13-50" tabindex="-1"></a>      <span class="at">dist_km =</span> <span class="dv">5</span>,</span>
+<span id="cb13-51"><a href="#cb13-51" tabindex="-1"></a></span>
+<span id="cb13-52"><a href="#cb13-52" tabindex="-1"></a>      <span class="co"># Write gbif_summary.csv for the overlay run.</span></span>
+<span id="cb13-53"><a href="#cb13-53" tabindex="-1"></a>      <span class="at">export_summary =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb13-54"><a href="#cb13-54" tabindex="-1"></a></span>
+<span id="cb13-55"><a href="#cb13-55" tabindex="-1"></a>      <span class="co"># Write processed occurrence tables to disk rather than storing</span></span>
+<span id="cb13-56"><a href="#cb13-56" tabindex="-1"></a>      <span class="co"># all records in the active R session.</span></span>
+<span id="cb13-57"><a href="#cb13-57" tabindex="-1"></a>      <span class="at">store_in_memory =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb13-58"><a href="#cb13-58" tabindex="-1"></a></span>
+<span id="cb13-59"><a href="#cb13-59" tabindex="-1"></a>      <span class="co"># Return only the main run object because detailed outputs are written</span></span>
+<span id="cb13-60"><a href="#cb13-60" tabindex="-1"></a>      <span class="co"># to the output directory.</span></span>
+<span id="cb13-61"><a href="#cb13-61" tabindex="-1"></a>      <span class="at">return_all_results =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb13-62"><a href="#cb13-62" tabindex="-1"></a></span>
+<span id="cb13-63"><a href="#cb13-63" tabindex="-1"></a>      <span class="co"># Show progress messages during the live run.</span></span>
+<span id="cb13-64"><a href="#cb13-64" tabindex="-1"></a>      <span class="at">quiet =</span> <span class="cn">FALSE</span></span>
+<span id="cb13-65"><a href="#cb13-65" tabindex="-1"></a>    )</span>
+<span id="cb13-66"><a href="#cb13-66" tabindex="-1"></a>  )</span>
+<span id="cb13-67"><a href="#cb13-67" tabindex="-1"></a></span>
+<span id="cb13-68"><a href="#cb13-68" tabindex="-1"></a>  <span class="co"># Display the returned run object.</span></span>
+<span id="cb13-69"><a href="#cb13-69" tabindex="-1"></a>  feow_result</span>
+<span id="cb13-70"><a href="#cb13-70" tabindex="-1"></a>}</span></code></pre></div>
+<p>This pattern can be adapted to other supported overlays by changing
+<code>region_source</code> and the relevant cache settings. Use separate
+overlays when the spatial frameworks answer different questions, such as
+administrative reporting versus freshwater ecoregion context.</p>
+</div>
+<div id="marine-batch-pipeline" class="section level1">
+<h1>Marine batch pipeline</h1>
+<p>Marine workflows use a separate pipeline because the input table is
+organised by species rather than by species-country combinations.
+Records are downloaded for each species, then assigned to the selected
+marine overlay after the coordinates have been imported.</p>
+<p>This is the basic marine batch pattern. Here, records are assigned to
+EEZ polygons, while more detailed marine-overlay options are covered in
+the dedicated marine workflow vignette.</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span>gbif_ready) {</span>
+<span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a>  <span class="fu">skip_live_message</span>(<span class="st">&quot;set GBIF credentials to run the marine batch example&quot;</span>)</span>
+<span id="cb14-3"><a href="#cb14-3" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb14-4"><a href="#cb14-4" tabindex="-1"></a></span>
+<span id="cb14-5"><a href="#cb14-5" tabindex="-1"></a>  <span class="co"># Run a small marine batch example.</span></span>
+<span id="cb14-6"><a href="#cb14-6" tabindex="-1"></a>  <span class="co"># Unlike the terrestrial workflow, the marine pipeline starts from a species</span></span>
+<span id="cb14-7"><a href="#cb14-7" tabindex="-1"></a>  <span class="co"># list and assigns records to marine regions after the GBIF records are imported.</span></span>
+<span id="cb14-8"><a href="#cb14-8" tabindex="-1"></a>  marine_batch_result <span class="ot">&lt;-</span> <span class="fu">run_live_safely</span>(</span>
+<span id="cb14-9"><a href="#cb14-9" tabindex="-1"></a>    <span class="fu">process_gbif_marine_pipeline</span>(</span>
+<span id="cb14-10"><a href="#cb14-10" tabindex="-1"></a>      <span class="at">df =</span> marine_batch,</span>
+<span id="cb14-11"><a href="#cb14-11" tabindex="-1"></a></span>
+<span id="cb14-12"><a href="#cb14-12" tabindex="-1"></a>      <span class="co"># Write the marine batch outputs into their own folder.</span></span>
+<span id="cb14-13"><a href="#cb14-13" tabindex="-1"></a>      <span class="at">output_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;marine_batch&quot;</span>),</span>
+<span id="cb14-14"><a href="#cb14-14" tabindex="-1"></a></span>
+<span id="cb14-15"><a href="#cb14-15" tabindex="-1"></a>      <span class="co"># GBIF credentials are read from environment variables defined earlier.</span></span>
+<span id="cb14-16"><a href="#cb14-16" tabindex="-1"></a>      <span class="at">user =</span> gbif_user,</span>
+<span id="cb14-17"><a href="#cb14-17" tabindex="-1"></a>      <span class="at">pwd =</span> gbif_pwd,</span>
+<span id="cb14-18"><a href="#cb14-18" tabindex="-1"></a>      <span class="at">email =</span> gbif_email,</span>
+<span id="cb14-19"><a href="#cb14-19" tabindex="-1"></a></span>
+<span id="cb14-20"><a href="#cb14-20" tabindex="-1"></a>      <span class="co"># Assign imported occurrence records to Exclusive Economic Zones.</span></span>
+<span id="cb14-21"><a href="#cb14-21" tabindex="-1"></a>      <span class="co"># Other marine overlays can be used in the dedicated marine workflow.</span></span>
+<span id="cb14-22"><a href="#cb14-22" tabindex="-1"></a>      <span class="at">overlay =</span> <span class="st">&quot;eez&quot;</span>,</span>
+<span id="cb14-23"><a href="#cb14-23" tabindex="-1"></a></span>
+<span id="cb14-24"><a href="#cb14-24" tabindex="-1"></a>      <span class="co"># Cache the marine overlay so it can be reused in later runs.</span></span>
+<span id="cb14-25"><a href="#cb14-25" tabindex="-1"></a>      <span class="at">overlay_cache_dir =</span> <span class="fu">file.path</span>(output_root, <span class="st">&quot;cache&quot;</span>, <span class="st">&quot;marine_eez&quot;</span>),</span>
+<span id="cb14-26"><a href="#cb14-26" tabindex="-1"></a></span>
+<span id="cb14-27"><a href="#cb14-27" tabindex="-1"></a>      <span class="co"># Allow the example to continue more flexibly if a remote overlay source</span></span>
+<span id="cb14-28"><a href="#cb14-28" tabindex="-1"></a>      <span class="co"># is temporarily unavailable or needs to be resolved from cache.</span></span>
+<span id="cb14-29"><a href="#cb14-29" tabindex="-1"></a>      <span class="at">strict_overlay_loading =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb14-30"><a href="#cb14-30" tabindex="-1"></a></span>
+<span id="cb14-31"><a href="#cb14-31" tabindex="-1"></a>      <span class="co"># Keep the example small by processing one species at a time.</span></span>
+<span id="cb14-32"><a href="#cb14-32" tabindex="-1"></a>      <span class="at">batch_size =</span> <span class="dv">1</span>,</span>
+<span id="cb14-33"><a href="#cb14-33" tabindex="-1"></a></span>
+<span id="cb14-34"><a href="#cb14-34" tabindex="-1"></a>      <span class="co"># Apply coordinate cleaning and 5 km spatial thinning before export.</span></span>
+<span id="cb14-35"><a href="#cb14-35" tabindex="-1"></a>      <span class="at">apply_cleaning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb14-36"><a href="#cb14-36" tabindex="-1"></a>      <span class="at">apply_thinning =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb14-37"><a href="#cb14-37" tabindex="-1"></a>      <span class="at">dist_km =</span> <span class="dv">5</span>,</span>
+<span id="cb14-38"><a href="#cb14-38" tabindex="-1"></a></span>
+<span id="cb14-39"><a href="#cb14-39" tabindex="-1"></a>      <span class="co"># Standardise and resolve taxon names before submitting GBIF downloads.</span></span>
+<span id="cb14-40"><a href="#cb14-40" tabindex="-1"></a>      <span class="at">prepare_taxonomy =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb14-41"><a href="#cb14-41" tabindex="-1"></a></span>
+<span id="cb14-42"><a href="#cb14-42" tabindex="-1"></a>      <span class="co"># Attach GRIIS evidence in audit mode.</span></span>
+<span id="cb14-43"><a href="#cb14-43" tabindex="-1"></a>      <span class="co"># Audit mode keeps the records and adds evidence fields for inspection.</span></span>
+<span id="cb14-44"><a href="#cb14-44" tabindex="-1"></a>      <span class="at">use_griis_status =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb14-45"><a href="#cb14-45" tabindex="-1"></a>      <span class="at">griis_filter_mode =</span> <span class="st">&quot;audit_only&quot;</span>,</span>
+<span id="cb14-46"><a href="#cb14-46" tabindex="-1"></a></span>
+<span id="cb14-47"><a href="#cb14-47" tabindex="-1"></a>      <span class="co"># Attach native-range evidence from selected web sources.</span></span>
+<span id="cb14-48"><a href="#cb14-48" tabindex="-1"></a>      <span class="co"># For marine workflows, WoRMS can be useful alongside SInAS and GBIF.</span></span>
+<span id="cb14-49"><a href="#cb14-49" tabindex="-1"></a>      <span class="at">use_native_status =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb14-50"><a href="#cb14-50" tabindex="-1"></a>      <span class="at">use_native_web =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb14-51"><a href="#cb14-51" tabindex="-1"></a>      <span class="at">native_web_sources =</span> <span class="fu">c</span>(<span class="st">&quot;sinas&quot;</span>, <span class="st">&quot;gbif&quot;</span>, <span class="st">&quot;worms&quot;</span>),</span>
+<span id="cb14-52"><a href="#cb14-52" tabindex="-1"></a>      <span class="at">native_filter_mode =</span> <span class="st">&quot;audit_only&quot;</span>,</span>
+<span id="cb14-53"><a href="#cb14-53" tabindex="-1"></a></span>
+<span id="cb14-54"><a href="#cb14-54" tabindex="-1"></a>      <span class="co"># Compare and reconcile GRIIS and native-origin evidence where available.</span></span>
+<span id="cb14-55"><a href="#cb14-55" tabindex="-1"></a>      <span class="at">reconcile_griis_native =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb14-56"><a href="#cb14-56" tabindex="-1"></a></span>
+<span id="cb14-57"><a href="#cb14-57" tabindex="-1"></a>      <span class="co"># Write gbif_summary.csv for the marine batch.</span></span>
+<span id="cb14-58"><a href="#cb14-58" tabindex="-1"></a>      <span class="at">export_summary =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb14-59"><a href="#cb14-59" tabindex="-1"></a></span>
+<span id="cb14-60"><a href="#cb14-60" tabindex="-1"></a>      <span class="co"># Write processed occurrence tables to disk rather than storing all</span></span>
+<span id="cb14-61"><a href="#cb14-61" tabindex="-1"></a>      <span class="co"># records in the active R session.</span></span>
+<span id="cb14-62"><a href="#cb14-62" tabindex="-1"></a>      <span class="at">store_in_memory =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb14-63"><a href="#cb14-63" tabindex="-1"></a></span>
+<span id="cb14-64"><a href="#cb14-64" tabindex="-1"></a>      <span class="co"># Return only the main run object because detailed outputs are written</span></span>
+<span id="cb14-65"><a href="#cb14-65" tabindex="-1"></a>      <span class="co"># to the output directory.</span></span>
+<span id="cb14-66"><a href="#cb14-66" tabindex="-1"></a>      <span class="at">return_all_results =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb14-67"><a href="#cb14-67" tabindex="-1"></a></span>
+<span id="cb14-68"><a href="#cb14-68" tabindex="-1"></a>      <span class="co"># Show progress messages during the live run.</span></span>
+<span id="cb14-69"><a href="#cb14-69" tabindex="-1"></a>      <span class="at">quiet =</span> <span class="cn">FALSE</span></span>
+<span id="cb14-70"><a href="#cb14-70" tabindex="-1"></a>    )</span>
+<span id="cb14-71"><a href="#cb14-71" tabindex="-1"></a>  )</span>
+<span id="cb14-72"><a href="#cb14-72" tabindex="-1"></a></span>
+<span id="cb14-73"><a href="#cb14-73" tabindex="-1"></a>  <span class="co"># Display the returned run object.</span></span>
+<span id="cb14-74"><a href="#cb14-74" tabindex="-1"></a>  marine_batch_result</span>
+<span id="cb14-75"><a href="#cb14-75" tabindex="-1"></a>}</span></code></pre></div>
+<p>The main difference from the terrestrial and freshwater examples is
+where the spatial filter is applied. In the terrestrial workflow, the
+country code is part of the GBIF request. In the marine workflow, the
+overlay assignment happens after the species-level records have been
+imported.</p>
+</div>
+<div id="output-files-and-audit-trail" class="section level1">
+<h1>Output files and audit trail</h1>
+<p>A batch run produces more than the processed occurrence tables. The
+supporting files are useful because they show what was submitted, what
+was returned, which steps were applied, and where each output was
+written.</p>
+<p>For project work, keep the main run materials together:</p>
+<ul>
+<li>the original input table;</li>
+<li>the pipeline call and settings used;</li>
+<li><code>gbif_summary.csv</code>;</li>
+<li>exported occurrence files;</li>
+<li>taxonomy outputs, if taxonomy preparation was enabled;</li>
+<li>GRIIS or native-range evidence tables, if these options were
+used;</li>
+<li>cache notes or source details for external spatial layers;</li>
+<li>the <code>biofetchR</code> package version and R session
+information.</li>
+</ul>
+<p>Start with <code>gbif_summary.csv</code> after each run. This file
+gives a row-level view of the batch, including record counts, processing
+status, failure messages where relevant, and exported file paths. Rows
+marked as <code>success</code> should have sensible record counts and an
+output file path. Rows marked as failed, skipped or
+<code>no_records</code> should be checked before the exported data are
+used.</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a><span class="co"># Create a compact audit view from the summary table.</span></span>
+<span id="cb15-2"><a href="#cb15-2" tabindex="-1"></a><span class="co"># This keeps the columns most useful for checking whether each row completed</span></span>
+<span id="cb15-3"><a href="#cb15-3" tabindex="-1"></a><span class="co"># successfully and where the exported occurrence file was written.</span></span>
+<span id="cb15-4"><a href="#cb15-4" tabindex="-1"></a>audit_view <span class="ot">&lt;-</span> summary_example[</span>
+<span id="cb15-5"><a href="#cb15-5" tabindex="-1"></a>  ,</span>
+<span id="cb15-6"><a href="#cb15-6" tabindex="-1"></a>  <span class="fu">intersect</span>(</span>
+<span id="cb15-7"><a href="#cb15-7" tabindex="-1"></a>    <span class="fu">c</span>(</span>
+<span id="cb15-8"><a href="#cb15-8" tabindex="-1"></a>      <span class="st">&quot;species&quot;</span>,     <span class="co"># taxon processed</span></span>
+<span id="cb15-9"><a href="#cb15-9" tabindex="-1"></a>      <span class="st">&quot;region_id&quot;</span>,   <span class="co"># recipient region or spatial unit</span></span>
+<span id="cb15-10"><a href="#cb15-10" tabindex="-1"></a>      <span class="st">&quot;region_type&quot;</span>, <span class="co"># spatial framework used</span></span>
+<span id="cb15-11"><a href="#cb15-11" tabindex="-1"></a>      <span class="st">&quot;status&quot;</span>,      <span class="co"># processing outcome for the row</span></span>
+<span id="cb15-12"><a href="#cb15-12" tabindex="-1"></a>      <span class="st">&quot;fail_stage&quot;</span>,  <span class="co"># stage where the row failed or stopped, if applicable</span></span>
+<span id="cb15-13"><a href="#cb15-13" tabindex="-1"></a>      <span class="st">&quot;fail_reason&quot;</span>, <span class="co"># explanation of the failure or stopping reason</span></span>
+<span id="cb15-14"><a href="#cb15-14" tabindex="-1"></a>      <span class="st">&quot;output_file&quot;</span>  <span class="co"># exported occurrence file path, if one was written</span></span>
+<span id="cb15-15"><a href="#cb15-15" tabindex="-1"></a>    ),</span>
+<span id="cb15-16"><a href="#cb15-16" tabindex="-1"></a>    <span class="fu">names</span>(summary_example)</span>
+<span id="cb15-17"><a href="#cb15-17" tabindex="-1"></a>  )</span>
+<span id="cb15-18"><a href="#cb15-18" tabindex="-1"></a>]</span>
+<span id="cb15-19"><a href="#cb15-19" tabindex="-1"></a></span>
+<span id="cb15-20"><a href="#cb15-20" tabindex="-1"></a><span class="co"># Display the audit view.</span></span>
+<span id="cb15-21"><a href="#cb15-21" tabindex="-1"></a>audit_view</span>
+<span id="cb15-22"><a href="#cb15-22" tabindex="-1"></a><span class="co">#&gt;             species region_id region_type     status fail_stage</span></span>
+<span id="cb15-23"><a href="#cb15-23" tabindex="-1"></a><span class="co">#&gt; 1    Xenopus laevis        FR      GADM_1    success       &lt;NA&gt;</span></span>
+<span id="cb15-24"><a href="#cb15-24" tabindex="-1"></a><span class="co">#&gt; 2 Trachemys scripta        GB      GADM_1    success       &lt;NA&gt;</span></span>
+<span id="cb15-25"><a href="#cb15-25" tabindex="-1"></a><span class="co">#&gt; 3     Rattus rattus        GB      GADM_1 no_records     import</span></span>
+<span id="cb15-26"><a href="#cb15-26" tabindex="-1"></a><span class="co">#&gt;           fail_reason                    output_file</span></span>
+<span id="cb15-27"><a href="#cb15-27" tabindex="-1"></a><span class="co">#&gt; 1                &lt;NA&gt;    Xenopus_laevis_FR_gadm1.csv</span></span>
+<span id="cb15-28"><a href="#cb15-28" tabindex="-1"></a><span class="co">#&gt; 2                &lt;NA&gt; Trachemys_scripta_GB_gadm1.csv</span></span>
+<span id="cb15-29"><a href="#cb15-29" tabindex="-1"></a><span class="co">#&gt; 3 No records returned                           &lt;NA&gt;</span></span></code></pre></div>
+<p>This compact view is useful when scanning larger runs because it
+separates rows that produced usable files from rows that need follow-up.
+The full summary table can then be used to inspect record counts,
+download information and any additional fields written by the selected
+workflow settings.</p>
+</div>
+<div id="practical-recommendations" class="section level1">
+<h1>Practical recommendations</h1>
+<p>For small exploratory analyses, it is usually enough to run the
+pipeline, inspect <code>gbif_summary.csv</code>, and open the exported
+occurrence files. For larger batches, the main priorities are to pace
+GBIF requests sensibly, keep outputs organised, and preserve the files
+needed to check how each row was processed.</p>
+<p>Recommended practice is to:</p>
+<ul>
+<li>run a one-row smoke test before a larger live run;</li>
+<li>choose a conservative <code>batch_size</code> when submitting many
+species to GBIF;</li>
+<li>use <code>store_in_memory = FALSE</code> when processing larger
+batches;</li>
+<li>write outputs to a stable project directory rather than a temporary
+folder;</li>
+<li>keep provider caches separate from final analysis outputs;</li>
+<li>keep origin and invasive-status evidence in <code>audit_only</code>
+mode until the evidence fields have been reviewed;</li>
+<li>save the original input table with the exported dataset;</li>
+<li>use <code>gbif_summary.csv</code> as the main record of row status,
+record counts, failures and output paths;</li>
+<li>rerun failed or incomplete rows separately after checking
+<code>fail_stage</code> and <code>fail_reason</code>.</li>
+</ul>
+<p>These habits keep the workflow manageable without requiring users to
+build the analysis through multiple staged runs. The key is to keep the
+batch inputs, summary file, exported occurrence tables and evidence
+outputs together so the processed dataset can be inspected and reused
+later.</p>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

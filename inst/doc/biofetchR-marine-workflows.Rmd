@@ -1,0 +1,1209 @@
+---
+title: "Marine occurrence workflows in biofetchR"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Marine occurrence workflows in biofetchR}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+params:
+  run_live: false
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  message = TRUE,
+  warning = TRUE
+)
+
+# Live examples are skipped by default.
+# Set params$run_live to TRUE when rendering locally if you want to contact
+# GBIF or download external marine-region resources.
+run_live <- isTRUE(params$run_live)
+
+# Read GBIF credentials from environment variables.
+# This avoids writing usernames, passwords, or email addresses directly into
+# vignettes, scripts, or shared project files.
+gbif_user <- Sys.getenv("GBIF_USER")
+gbif_pwd <- Sys.getenv("GBIF_PWD")
+gbif_email <- Sys.getenv("GBIF_EMAIL")
+
+# GBIF live examples are attempted only when all credentials are available.
+gbif_ready <- all(nzchar(c(gbif_user, gbif_pwd, gbif_email)))
+
+# Write vignette example outputs to a temporary folder.
+# In a real project, replace tempdir() with a stable project directory.
+output_root <- file.path(tempdir(), "biofetchR_marine_workflows_vignette")
+dir.create(output_root, recursive = TRUE, showWarnings = FALSE)
+
+# Run live examples without stopping the whole vignette if a provider request,
+# spatial download, or GBIF request fails.
+run_live_safely <- function(expr) {
+  tryCatch(
+    force(expr),
+    error = function(e) {
+      message("Live example did not complete: ", conditionMessage(e))
+      NULL
+    }
+  )
+}
+
+# Print a clear message when a live example is skipped.
+skip_live_message <- function(reason) {
+  message("Live example skipped: ", reason)
+  invisible(NULL)
+}
+
+# Resolve output paths listed in summary files.
+# Some workflows may write absolute paths, while others may write paths relative
+# to the output directory.
+resolve_output_file <- function(path, output_dir) {
+  if (is.na(path) || !nzchar(path)) {
+    return(NA_character_)
+  }
+
+  if (file.exists(path)) {
+    return(path)
+  }
+
+  candidate <- file.path(output_dir, path)
+
+  if (file.exists(candidate)) {
+    return(candidate)
+  }
+
+  path
+}
+```
+
+```{r load-package}
+library(biofetchR)
+```
+
+# Purpose
+
+Marine occurrence records often need to be processed differently from
+terrestrial and freshwater records. Many valid records fall in offshore waters,
+coastal zones, ports, Exclusive Economic Zones, Large Marine Ecosystems, marine
+ecoregions or named sea areas. These records may be difficult to interpret with
+a workflow that relies first on land-based country filters or administrative
+polygons, because the relevant spatial unit may be marine rather than
+terrestrial.
+
+`biofetchR` provides a dedicated marine pipeline through
+`process_gbif_marine_pipeline()`. The marine workflow usually starts from a
+species list rather than a species-country table. Records are downloaded by
+species, cleaned, optionally thinned, and then assigned to the selected marine
+overlay.
+
+This vignette focuses on the marine-specific parts of the workflow: preparing
+marine input tables, choosing an overlay, running a small test, inspecting
+marine-region assignments, comparing overlay outputs, using evidence fields in
+audit mode, and organising outputs for larger marine batches.
+
+The key distinction is that occurrence retrieval and marine spatial attribution
+are separated. Records are imported first; the marine interpretation is then
+added using the overlay that best matches the analysis question.
+
+# Using the examples
+
+The examples in this vignette are either local examples or live examples. Local
+examples create small tables or show workflow templates without contacting
+external services. Live examples can submit GBIF requests or retrieve marine
+overlay resources, and are controlled by the `run_live` parameter.
+
+By default, `run_live = FALSE`, so the vignette can be read and rendered without
+running live provider steps.
+
+To render a live version locally, use:
+
+```{r render-live-version, eval = FALSE}
+rmarkdown::render(
+  "vignettes/biofetchR-marine-workflows.Rmd",
+  params = list(run_live = TRUE)
+)
+```
+
+Use the live version when you want to test the workflow with GBIF credentials and
+the selected marine overlay sources. Keep `run_live = FALSE` when you only want
+to inspect the workflow structure or adapt the examples for a project script.
+
+# Marine workflow sequence
+
+A marine workflow is easiest to interpret when the main steps are kept in a
+clear order. The sequence below describes the processing logic rather than a
+requirement to run each step separately.
+
+1. Start from a species list.
+2. Download GBIF records by species.
+3. Apply coordinate cleaning.
+4. Optionally thin dense occurrence clusters.
+5. Assign retained records to the selected marine overlay.
+6. Attach origin or invasive-status evidence if needed.
+7. Inspect `gbif_summary.csv` and the exported occurrence files.
+
+This order keeps the main decisions visible. Users can check which records were
+retrieved, which records were removed during coordinate processing, which marine
+regions were assigned, and where the exported files were written.
+
+# Marine input tables
+
+A simple marine input table only needs a `species` column. The marine pipeline
+uses this column to request GBIF records for each taxon. Unlike the terrestrial
+and freshwater pipeline, the primary input is not organised around
+species-country rows; marine-region assignment happens after the occurrence
+records have been imported.
+
+```{r marine-input-table}
+marine_species <- data.frame(
+  species = c(
+    "Carcinus maenas",
+    "Mnemiopsis leidyi",
+    "Undaria pinnatifida",
+    "Didemnum vexillum"
+  ),
+  stringsAsFactors = FALSE
+)
+
+marine_species
+```
+
+Project metadata can be included when it helps organise the batch. For example,
+users may want to keep a broad taxonomic group, expected habitat or internal
+project identifier alongside the species name.
+
+```{r marine-input-with-metadata}
+marine_species_with_metadata <- data.frame(
+  species = c(
+    "Carcinus maenas",
+    "Mnemiopsis leidyi",
+    "Undaria pinnatifida"
+  ),
+  broad_group = c(
+    "crustacean",
+    "ctenophore",
+    "macroalga"
+  ),
+  expected_habitat = c(
+    "coastal_benthic",
+    "pelagic_coastal",
+    "coastal_benthic"
+  ),
+  project_id = c(
+    "marine_001",
+    "marine_002",
+    "marine_003"
+  ),
+  stringsAsFactors = FALSE
+)
+
+marine_species_with_metadata
+```
+
+These extra columns should be treated as project metadata. They can help users
+track and interpret a marine batch, even though the key column needed for GBIF
+querying is the species name.
+
+# Choosing a marine overlay
+
+Marine overlays divide ocean space in different ways. The best choice depends on
+whether the analysis needs jurisdictional, ecosystem, biogeographic or named
+sea-area context.
+
+Use EEZs when records need to be linked to country-associated marine
+jurisdictions. Use LMEs when broad ecosystem-scale reporting is needed. Use MEOW
+for coastal marine ecoregions and nearshore biogeographic patterns. Use IHO sea
+areas when named seas, basins or hydrographic regions are the most useful labels.
+
+```{r marine-overlay-decision-table, echo = FALSE}
+marine_overlay_decision <- data.frame(
+  overlay = c(
+    "EEZ",
+    "LME",
+    "MEOW",
+    "IHO"
+  ),
+  represents = c(
+    "Exclusive Economic Zones",
+    "Large Marine Ecosystems",
+    "Marine Ecoregions of the World",
+    "International Hydrographic Organization sea areas"
+  ),
+  use_when = c(
+    "The analysis needs country-associated marine jurisdiction or offshore management areas.",
+    "The analysis needs broad marine ecosystem regions for large-scale ecological summaries.",
+    "The analysis focuses on coastal marine biogeography or nearshore ecoregional patterns.",
+    "The analysis needs named seas, basins, or hydrographic sea-area labels."
+  ),
+  typical_question = c(
+    "Which country-associated marine area contains these records?",
+    "Which broad marine ecosystem contains these records?",
+    "Which coastal marine ecoregion contains these records?",
+    "Which named sea area contains these records?"
+  ),
+  stringsAsFactors = FALSE
+)
+
+marine_overlay_decision
+```
+
+Before running a marine pipeline, check which overlay names are available in the
+installed package version.
+
+```{r available-marine-overlays}
+# Core marine overlays.
+bf_available_marine_overlays()
+```
+
+Some overlays can also be requested using aliases. This is useful when a project
+or data provider uses a different name for the same marine product.
+
+```{r available-marine-overlays-aliases}
+# Core overlays plus aliases.
+bf_available_marine_overlays(include_aliases = TRUE)
+```
+
+Different overlays should not be expected to assign records in the same way.
+They use different boundaries, spatial definitions and reporting units, so the
+selected overlay should be recorded with the outputs and reported with the
+analysis.
+
+## Extended marine overlays
+
+Some marine analyses need spatial units beyond the core EEZ, LME, MEOW and IHO
+options. Extended overlays can be useful when records need to be interpreted in
+relation to areas beyond national jurisdiction, coastal-state maritime zones,
+continental shelf areas, combined jurisdictional and sea-area layers, or broad
+oceanographic provinces.
+
+These layers answer different questions. For example, a record assigned to the
+high seas is being interpreted in relation to areas beyond national jurisdiction,
+whereas a record assigned to an extended continental shelf layer is being
+interpreted in relation to seabed and shelf context. The appropriate overlay
+depends on the spatial meaning needed for the analysis.
+
+Inspect the extended overlay registry when these additional marine spatial units
+are relevant.
+
+```{r available-extended-marine-overlays}
+bf_available_marine_overlays(include_extended = TRUE)
+```
+
+Common extended overlays include:
+
+```{r extended-marine-overlay-table, echo = FALSE}
+extended_marine_overlays <- data.frame(
+  overlay = c(
+    "high_seas",
+    "territorial_seas",
+    "contiguous_zone",
+    "internal_waters",
+    "archipelagic_waters",
+    "ecs",
+    "goas",
+    "eez_iho",
+    "longhurst"
+  ),
+  spatial_meaning = c(
+    "Marine areas beyond national jurisdiction",
+    "Coastal waters close to national coastlines",
+    "Zones beyond territorial seas but still linked to coastal-state jurisdiction",
+    "Waters landward of coastal baselines",
+    "Waters enclosed by archipelagic baselines",
+    "Extended continental shelves",
+    "Global Oceans and Seas regions",
+    "Intersection of EEZ and IHO sea-area layers",
+    "Biogeochemical ocean provinces"
+  ),
+  useful_when = c(
+    "The analysis needs to identify records outside EEZ-style national marine areas.",
+    "The analysis focuses on nearshore or coastal-state waters.",
+    "The analysis needs a broader coastal jurisdictional zone than territorial seas.",
+    "The analysis includes records in enclosed coastal or port-associated waters.",
+    "The analysis includes island or archipelagic marine regions.",
+    "The analysis needs continental shelf context for offshore records.",
+    "The analysis needs broad named ocean or sea regions.",
+    "The analysis needs both jurisdictional and named sea-area context together.",
+    "The analysis needs broad oceanographic or productivity-region context."
+  ),
+  stringsAsFactors = FALSE
+)
+
+extended_marine_overlays
+```
+
+Extended overlays should be selected for a specific reason rather than added by
+default. They can provide useful context for offshore, coastal, shelf or
+open-ocean records, but they are not substitutes for each other. The selected
+overlay should be recorded with the outputs so that the spatial interpretation
+remains clear.
+
+## Running complementary marine overlays
+
+Some projects benefit from running the same species records against more than
+one marine overlay because no single marine layer represents all relevant marine
+space. For example, `high_seas` can help identify records in open-ocean areas
+beyond national jurisdiction, while `ecs` can provide extended continental shelf
+context for offshore records associated with shelf areas.
+
+This is useful when the aim is broader marine coverage rather than repeated
+versions of the same analysis. Open-ocean areas, shelf-associated areas,
+jurisdictional zones, named sea areas, and marine ecoregions represent different
+spatial concepts. Running complementary overlays allows users to check how the
+same retained records are distributed across these different marine settings.
+
+The clearest workflow is to run each overlay separately and compare the resulting
+`gbif_summary.csv` files and exported occurrence tables. This keeps the outputs
+easy to audit because each directory represents one marine spatial
+interpretation.
+
+```{r complementary-marine-overlay-template, eval = FALSE}
+# Example overlays for a project interested in complementary offshore coverage.
+# high_seas is useful for open-ocean areas beyond national jurisdiction.
+# ecs is useful for extended continental shelf context.
+marine_overlays_to_run <- c(
+  "high_seas",
+  "ecs"
+)
+
+complementary_overlay_results <- lapply(
+  marine_overlays_to_run,
+  function(this_overlay) {
+
+    process_gbif_marine_pipeline(
+      df = marine_species,
+
+      output_dir = file.path(
+        output_root,
+        paste0("marine_", this_overlay)
+      ),
+
+      user = Sys.getenv("GBIF_USER"),
+      pwd = Sys.getenv("GBIF_PWD"),
+      email = Sys.getenv("GBIF_EMAIL"),
+
+      overlay = this_overlay,
+      overlay_cache_dir = file.path(output_root, "cache", "marine_overlays"),
+
+      batch_size = 1,
+
+      apply_cleaning = TRUE,
+      apply_thinning = TRUE,
+      dist_km = 5,
+
+      prepare_taxonomy = TRUE,
+
+      export_summary = TRUE,
+      store_in_memory = FALSE,
+      return_all_results = FALSE,
+      quiet = FALSE
+    )
+  }
+)
+
+names(complementary_overlay_results) <- marine_overlays_to_run
+```
+
+Complementary overlay runs should not be interpreted as duplicate analyses. They
+allow the same occurrence records to be described through different marine
+spatial systems. This is particularly useful when a project needs to distinguish
+open-ocean records, shelf-associated records, jurisdictional records, ecological
+regions, or named sea-area assignments.
+
+# Loading a marine overlay directly
+
+A marine overlay can be loaded before running the full pipeline. This is a useful
+pre-check when the workflow depends on a remote provider, a local cache or a
+large spatial layer.
+
+Direct loading confirms that the selected overlay name is valid, the provider
+resource is available, the cache directory can be written to, and the returned
+object has usable geometry. This separates overlay-access problems from later
+GBIF download, cleaning, thinning and export steps.
+
+```{r load-eez-overlay-live, eval = run_live}
+# Load an EEZ overlay from the package-managed marine-region workflow.
+# This tests provider access, cache writing, and local overlay loading before
+# any GBIF records are downloaded.
+eez_overlay <- run_live_safely(
+  bf_load_marine_regions_overlay(
+    region_source = "eez",
+    cache_dir = file.path(output_root, "cache", "marine_overlays"),
+    quiet = FALSE
+  )
+)
+
+# Inspect basic overlay diagnostics if loading succeeded.
+if (!is.null(eez_overlay)) {
+
+  data.frame(
+    overlay = "eez",
+    n_features = nrow(eez_overlay),
+    n_columns = ncol(eez_overlay),
+    geometry_type = paste(
+      unique(as.character(sf::st_geometry_type(eez_overlay))),
+      collapse = ", "
+    ),
+    crs = as.character(sf::st_crs(eez_overlay)$input),
+    stringsAsFactors = FALSE
+  )
+
+}
+```
+
+A basic diagnostic check should confirm that the overlay contains features,
+columns, a recognised geometry type and an appropriate coordinate reference
+system.
+
+```{r inspect-eez-overlay-fields-live, eval = run_live}
+if (!is.null(eez_overlay)) {
+  names(eez_overlay)
+}
+```
+
+The attribute names are useful because these fields determine what marine-region
+information can be carried into the processed occurrence outputs.
+
+If direct loading fails, check the overlay name, provider access, cache path and
+spatial dependencies before running the full marine pipeline. This keeps the
+problem isolated to the overlay-loading step rather than mixing it with GBIF
+retrieval or occurrence processing.
+
+# A low-memory marine smoke test
+
+Before running a large marine species list, run a small live test. A single
+species is usually enough to confirm that GBIF credentials work, records can be
+downloaded and imported, the selected marine overlay can be loaded, and outputs
+are written to the expected folder.
+
+The example below uses `Carcinus maenas` and assigns retained records to EEZ
+polygons. Outputs are written to the vignette output directory so the example can
+be inspected without changing the working directory.
+
+```{r low-memory-marine-live, eval = run_live}
+# Run the marine smoke test only when GBIF credentials are available.
+if (!gbif_ready) {
+
+  skip_live_message(
+    "set GBIF_USER, GBIF_PWD, and GBIF_EMAIL to run the marine smoke test"
+  )
+
+} else {
+
+  # Keep the smoke-test input deliberately small.
+  low_memory_marine <- data.frame(
+    species = "Carcinus maenas",
+    stringsAsFactors = FALSE
+  )
+
+  low_memory_marine_result <- run_live_safely(
+    process_gbif_marine_pipeline(
+      df = low_memory_marine,
+
+      output_dir = file.path(output_root, "marine_low_memory"),
+
+      user = gbif_user,
+      pwd = gbif_pwd,
+      email = gbif_email,
+
+      # Assign retained records to EEZ polygons.
+      overlay = "eez",
+      overlay_cache_dir = file.path(output_root, "cache", "marine_overlays"),
+
+      # Allow the vignette example to fail softly if the provider is unavailable.
+      strict_overlay_loading = FALSE,
+
+      # Keep memory use low.
+      batch_size = 1,
+      store_in_memory = FALSE,
+      return_all_results = FALSE,
+
+      # Apply basic occurrence-quality controls.
+      apply_cleaning = TRUE,
+      apply_thinning = TRUE,
+      dist_km = 5,
+
+      # Prepare taxonomy before export.
+      prepare_taxonomy = TRUE,
+
+      export_summary = TRUE,
+      quiet = FALSE
+    )
+  )
+
+  low_memory_marine_result
+}
+```
+
+After the run, inspect `gbif_summary.csv` first. This file shows whether the
+species was processed successfully, how many records were retained after
+cleaning and thinning, and where the exported marine occurrence file was written.
+
+```{r inspect-low-memory-marine-summary-live, eval = run_live}
+marine_summary_path <- file.path(
+  output_root,
+  "marine_low_memory",
+  "gbif_summary.csv"
+)
+
+if (file.exists(marine_summary_path)) {
+  marine_summary <- read.csv(marine_summary_path, stringsAsFactors = FALSE)
+  marine_summary
+} else {
+  skip_live_message("marine summary file was not created by the live smoke test")
+}
+```
+
+# Offline summary example
+
+The table below is an illustrative marine summary. It is not downloaded from
+GBIF, but it shows the kinds of fields that are useful to check after a marine
+pipeline run.
+
+```{r marine-summary-example}
+marine_summary_example <- data.frame(
+  species = c(
+    "Carcinus maenas",
+    "Mnemiopsis leidyi",
+    "Undaria pinnatifida"
+  ),
+  overlay = c(
+    "eez",
+    "eez",
+    "eez"
+  ),
+  n_total = c(
+    980,
+    640,
+    410
+  ),
+  n_cleaned = c(
+    944,
+    612,
+    389
+  ),
+  n_thinned = c(
+    702,
+    455,
+    301
+  ),
+  n_with_overlay = c(
+    690,
+    430,
+    292
+  ),
+  n_without_overlay = c(
+    12,
+    25,
+    9
+  ),
+  status = c(
+    "success",
+    "success",
+    "success"
+  ),
+  output_file = c(
+    "Carcinus_maenas_eez.csv",
+    "Mnemiopsis_leidyi_eez.csv",
+    "Undaria_pinnatifida_eez.csv"
+  ),
+  stringsAsFactors = FALSE
+)
+
+marine_summary_example
+```
+
+The first checks are whether each species completed successfully and whether any
+retained records were not assigned to the selected overlay.
+
+```{r inspect-marine-summary-example}
+# Count successful and failed rows.
+table(marine_summary_example$status, useNA = "ifany")
+
+# Inspect species with at least one retained record lacking overlay assignment.
+marine_summary_example[
+  marine_summary_example$n_without_overlay > 0,
+  c(
+    "species",
+    "overlay",
+    "n_thinned",
+    "n_with_overlay",
+    "n_without_overlay"
+  )
+]
+```
+
+Records without an overlay assignment are not automatically errors. They may
+fall outside the selected overlay, sit near a boundary, occur in an area not
+covered by the provider layer, or require a different marine spatial framework
+for interpretation.
+
+# Running and comparing multiple marine overlays
+
+When more than one marine overlay is needed, run each overlay into a separate
+output directory. This keeps the exported files, summaries and diagnostics tied
+to one spatial framework at a time.
+
+```{r marine-multiple-overlay-template, eval = FALSE}
+# Choose the overlays to compare.
+marine_overlays_to_run <- c(
+  "eez",
+  "lme",
+  "meow",
+  "iho"
+)
+
+# Run each overlay separately.
+overlay_results <- lapply(
+  marine_overlays_to_run,
+  function(this_overlay) {
+
+    process_gbif_marine_pipeline(
+      df = marine_species,
+
+      output_dir = file.path(
+        output_root,
+        paste0("marine_", this_overlay, "_batch")
+      ),
+
+      user = Sys.getenv("GBIF_USER"),
+      pwd = Sys.getenv("GBIF_PWD"),
+      email = Sys.getenv("GBIF_EMAIL"),
+
+      overlay = this_overlay,
+      overlay_cache_dir = file.path(output_root, "cache", "marine_overlays"),
+
+      batch_size = 1,
+
+      apply_cleaning = TRUE,
+      apply_thinning = TRUE,
+      dist_km = 5,
+
+      prepare_taxonomy = TRUE,
+
+      export_summary = TRUE,
+      store_in_memory = FALSE,
+      return_all_results = FALSE,
+      quiet = FALSE
+    )
+  }
+)
+
+names(overlay_results) <- marine_overlays_to_run
+```
+
+After the runs finish, combine the summary files into one comparison table. This
+is usually the quickest way to check record retention, overlay assignment and
+failed rows across overlays.
+
+```{r compare-marine-overlay-summaries-template, eval = FALSE}
+# Build paths to each overlay summary file.
+summary_paths <- file.path(
+  output_root,
+  paste0("marine_", marine_overlays_to_run, "_batch"),
+  "gbif_summary.csv"
+)
+
+# Read available summary files and add the requested overlay name.
+summary_list <- Map(
+  function(path, overlay_name) {
+
+    if (!file.exists(path)) {
+      return(NULL)
+    }
+
+    x <- read.csv(path, stringsAsFactors = FALSE)
+    x$overlay_requested <- overlay_name
+    x
+  },
+  summary_paths,
+  marine_overlays_to_run
+)
+
+# Remove missing summaries.
+summary_list <- summary_list[
+  !vapply(summary_list, is.null, logical(1))
+]
+
+# Combine summaries if at least one was found.
+overlay_summary <- do.call(rbind, summary_list)
+
+# Inspect the main audit fields.
+overlay_summary[
+  ,
+  intersect(
+    c(
+      "species",
+      "overlay_requested",
+      "n_total",
+      "n_cleaned",
+      "n_thinned",
+      "n_with_overlay",
+      "n_without_overlay",
+      "status",
+      "fail_stage",
+      "fail_reason",
+      "output_file"
+    ),
+    names(overlay_summary)
+  ),
+  drop = FALSE
+]
+```
+
+Use this comparison to decide whether the selected overlays are appropriate for
+the records. Large differences in `n_with_overlay` and `n_without_overlay` are a
+signal to inspect the exported files and check whether a different marine
+spatial framework is needed.
+
+# Coordinate cleaning and spatial thinning
+
+The marine pipeline supports the same basic coordinate-cleaning and spatial
+thinning controls used elsewhere in `biofetchR`. These settings are useful for
+removing unusable coordinates and reducing dense clusters before records are
+assigned to a marine overlay.
+
+In marine workflows, thinning is often most relevant when records are clustered
+around ports, coastlines, monitoring sites, shipping routes or well-sampled
+regions. The thinning distance should match the scale of the analysis: smaller
+distances may suit local or coastal questions, while larger distances may be more
+appropriate for broad regional summaries.
+
+```{r marine-cleaning-thinning-template, eval = FALSE}
+process_gbif_marine_pipeline(
+  df = marine_species,
+
+  output_dir = file.path(output_root, "marine_cleaned_thinned"),
+
+  user = Sys.getenv("GBIF_USER"),
+  pwd = Sys.getenv("GBIF_PWD"),
+  email = Sys.getenv("GBIF_EMAIL"),
+
+  overlay = "eez",
+  overlay_cache_dir = file.path(output_root, "cache", "marine_overlays"),
+
+  # Remove invalid, missing, suspicious, or highly uncertain coordinates
+  # according to the pipeline cleaning settings.
+  apply_cleaning = TRUE,
+
+  # Reduce dense spatial clustering after cleaning.
+  apply_thinning = TRUE,
+  dist_km = 5,
+
+  batch_size = 1,
+  export_summary = TRUE,
+  store_in_memory = FALSE,
+  return_all_results = FALSE
+)
+```
+
+# Origin and invasive-status evidence in marine workflows
+
+Marine invasion workflows often need origin or invasive-status evidence in
+addition to occurrence coordinates. This is especially useful when records are
+assigned to country-associated marine areas, such as EEZs, and the analysis also
+needs to know whether a species has been reported as introduced or invasive in
+the associated country or territory.
+
+In `biofetchR`, this evidence can be attached during marine processing. GRIIS
+fields provide species-country or species-territory introduced and invasive
+status evidence, while native-range evidence helps identify where a taxon is
+supported as native. These sources should be treated as evidence fields for
+review rather than automatic final classifications.
+
+The example below uses EEZ attribution and keeps the evidence settings in
+`audit_only` mode. Records are retained, and additional fields are written so the
+origin and invasive-status evidence can be inspected before any filtering
+decision is made.
+
+```{r marine-origin-evidence-live, eval = run_live}
+# Run the marine origin-evidence example only when GBIF credentials are available.
+if (!gbif_ready) {
+
+  skip_live_message("set GBIF credentials to run the marine origin-evidence example")
+
+} else {
+
+  marine_origin_result <- run_live_safely(
+    process_gbif_marine_pipeline(
+      df = data.frame(
+        species = c(
+          "Carcinus maenas",
+          "Undaria pinnatifida"
+        ),
+        stringsAsFactors = FALSE
+      ),
+
+      output_dir = file.path(output_root, "marine_origin"),
+
+      user = gbif_user,
+      pwd = gbif_pwd,
+      email = gbif_email,
+
+      # Assign retained records to a country-associated marine overlay.
+      # EEZ attribution is useful here because GRIIS-style evidence is
+      # interpreted at species-by-country or species-by-territory level.
+      overlay = "eez",
+      overlay_cache_dir = file.path(output_root, "cache", "marine_overlays"),
+      strict_overlay_loading = FALSE,
+
+      # Standardise taxonomy before attaching evidence.
+      prepare_taxonomy = TRUE,
+
+      # Attach species-country invasive or alien-status evidence without
+      # removing records.
+      use_griis_status = TRUE,
+      griis_filter_mode = "audit_only",
+      griis_cache_dir = file.path(output_root, "cache", "griis"),
+
+      # Attach native-range evidence without removing records.
+      use_native_status = TRUE,
+      use_native_web = TRUE,
+      native_web_sources = c(
+        "sinas",
+        "gbif",
+        "worms"
+      ),
+      native_web_cache_dir = file.path(output_root, "cache", "native_web"),
+      native_filter_mode = "audit_only",
+
+      # Add reconciled audit fields that help compare GRIIS-style
+      # species-country evidence with native-range evidence.
+      reconcile_griis_native = TRUE,
+
+      batch_size = 1,
+
+      apply_cleaning = TRUE,
+      apply_thinning = TRUE,
+      dist_km = 5,
+
+      export_summary = TRUE,
+      store_in_memory = FALSE,
+      return_all_results = FALSE,
+      quiet = FALSE
+    )
+  )
+
+  marine_origin_result
+}
+```
+
+After the run, inspect the evidence fields before filtering. This is important in
+marine workflows because spatial attribution and status evidence may operate at
+different resolutions. A record may be assigned to a broad marine region, while
+the available status evidence may be country-based, territory-based,
+source-limited or unresolved.
+
+For analyses that use these fields, keep the evidence settings and audit outputs
+with the exported occurrence files. This makes it possible to check how
+taxonomic preparation, marine-region assignment, native-range evidence and
+GRIIS-style evidence contributed to the final interpretation.
+
+# Inspecting exported marine occurrence files
+
+After a live run, use `gbif_summary.csv` to find the exported occurrence files.
+The example below opens the first listed output file from the low-memory marine
+run and displays the first few rows.
+
+```{r inspect-exported-marine-file-live, eval = run_live}
+summary_dir <- file.path(output_root, "marine_low_memory")
+
+summary_path <- file.path(
+  summary_dir,
+  "gbif_summary.csv"
+)
+
+if (file.exists(summary_path)) {
+
+  marine_summary <- read.csv(summary_path, stringsAsFactors = FALSE)
+
+  if ("output_file" %in% names(marine_summary)) {
+
+    candidate_files <- marine_summary$output_file[
+      !is.na(marine_summary$output_file) & nzchar(marine_summary$output_file)
+    ]
+
+    if (length(candidate_files) > 0) {
+
+      candidate_file <- resolve_output_file(
+        path = candidate_files[1],
+        output_dir = summary_dir
+      )
+
+      if (file.exists(candidate_file)) {
+        marine_occ <- read.csv(candidate_file, stringsAsFactors = FALSE)
+        utils::head(marine_occ)
+      } else {
+        skip_live_message("no readable exported occurrence file was listed")
+      }
+
+    } else {
+      skip_live_message("summary file did not list any exported occurrence files")
+    }
+
+  } else {
+    skip_live_message("summary file did not contain an output_file column")
+  }
+
+} else {
+  skip_live_message("summary file was not available from the live marine run")
+}
+```
+
+The first checks are whether the file contains usable coordinates, whether the
+selected marine overlay fields were added, and whether the number of retained
+records is consistent with the summary file. When origin or invasive-status
+settings were enabled, the exported table should also be checked for the
+corresponding evidence fields.
+
+For larger marine batches, these checks can be moved into a separate audit
+script. That makes it easier to flag missing output files, unexpected record
+counts, missing overlay assignments or evidence fields that need review.
+
+# Scaling marine workflows
+
+For larger marine species lists, the most important settings are `batch_size`,
+`store_in_memory`, output-folder structure and overlay caching. Together, these
+control how live GBIF requests are paced, how much data is retained in the R
+session, and where exported files are written.
+
+Use a conservative `batch_size` when submitting many marine taxa. This helps
+avoid sending too many live requests at once and makes any failed species easier
+to identify from `gbif_summary.csv`. For larger outputs, keep
+`store_in_memory = FALSE` so processed occurrence tables are written to disk
+rather than retained as one large object in memory.
+
+```{r marine-scaling-template, eval = FALSE}
+marine_batch_result <- process_gbif_marine_pipeline(
+  df = marine_species,
+
+  output_dir = file.path(output_root, "marine_eez_batch"),
+
+  user = Sys.getenv("GBIF_USER"),
+  pwd = Sys.getenv("GBIF_PWD"),
+  email = Sys.getenv("GBIF_EMAIL"),
+
+  overlay = "eez",
+  overlay_cache_dir = file.path(output_root, "cache", "marine_overlays"),
+
+  batch_size = 1,
+
+  apply_cleaning = TRUE,
+  apply_thinning = TRUE,
+  dist_km = 5,
+
+  prepare_taxonomy = TRUE,
+
+  use_griis_status = TRUE,
+  griis_filter_mode = "audit_only",
+  griis_cache_dir = file.path(output_root, "cache", "griis"),
+
+  use_native_status = TRUE,
+  use_native_web = TRUE,
+  native_web_sources = c("sinas", "gbif", "worms"),
+  native_web_cache_dir = file.path(output_root, "cache", "native_web"),
+  native_filter_mode = "audit_only",
+  reconcile_griis_native = TRUE,
+
+  export_summary = TRUE,
+  store_in_memory = FALSE,
+  return_all_results = FALSE,
+  quiet = FALSE
+)
+```
+
+For large marine runs, write each major workflow to a stable output directory and
+reuse a dedicated marine-overlay cache. This is especially helpful for widespread
+marine taxa, dense coastal records or workflows that combine occurrence
+processing with origin and invasive-status evidence. After the run, use
+`gbif_summary.csv` to check completed species, failed rows, retained record
+counts and exported file paths.
+
+# Recommended output organisation
+
+A clear marine output folder should keep each overlay run separate from provider
+caches and supporting audit files. For example:
+
+```text
+outputs/
+  marine_eez_batch/
+    gbif_summary.csv
+    occurrence_files/
+    origin_audit/
+    taxonomy/
+  marine_lme_batch/
+    gbif_summary.csv
+    occurrence_files/
+  marine_meow_batch/
+    gbif_summary.csv
+    occurrence_files/
+
+cache/
+  marine_overlays/
+  native_web/
+  griis/
+```
+
+# Common problems
+
+Marine workflows can fail or produce unexpected results because they depend on
+several linked steps: GBIF access, taxon names, coordinate quality, marine-overlay
+loading, evidence retrieval and output writing. The table below lists common
+symptoms and the first checks to make.
+
+```{r marine-troubleshooting-table, echo = FALSE}
+marine_troubleshooting <- data.frame(
+  symptom = c(
+    "GBIF query does not run",
+    "No records after cleaning",
+    "Many records lack overlay assignment",
+    "Overlay fails to load",
+    "Output files are not where expected",
+    "Taxon names need review",
+    "Origin or invasive-status evidence is unresolved",
+    "Run uses too much memory"
+  ),
+  possible_cause = c(
+    "GBIF credentials may be missing, incorrect, or unavailable in the R session.",
+    "Coordinates may be missing, impossible, exact zero-zero points, or too uncertain.",
+    "Records may fall outside the selected overlay, near boundaries, in provider gaps, or in a different marine spatial domain.",
+    "Provider service, URL, cache, optional dependency, or local file may be unavailable.",
+    "The run may have failed before export, or output_file may be relative to the output directory.",
+    "GBIF names may require synonym resolution, spelling review, or manual checking.",
+    "Native-range or GRIIS evidence may not resolve cleanly for the selected taxon and spatial unit.",
+    "Large GBIF downloads, dense coastal records, multiple overlays, or in-memory storage may be too heavy."
+  ),
+  first_check = c(
+    "Check GBIF_USER, GBIF_PWD, GBIF_EMAIL, and the live-run messages.",
+    "Inspect n_total, n_cleaned, n_thinned, fail_stage, and fail_reason in gbif_summary.csv.",
+    "Inspect unmatched coordinates and consider whether EEZ, LME, MEOW, or IHO is the right overlay.",
+    "Load the overlay directly with bf_load_marine_regions_overlay().",
+    "Inspect output_dir, status, fail_stage, fail_reason, and output_file in gbif_summary.csv.",
+    "Run taxonomy preparation and inspect the taxonomy audit outputs.",
+    "Use audit_only mode first and inspect evidence fields before filtering.",
+    "Use batch_size = 1, store_in_memory = FALSE, and add overlays or evidence layers in stages."
+  ),
+  stringsAsFactors = FALSE
+)
+
+marine_troubleshooting
+```
+
+Most problems can be diagnosed from `gbif_summary.csv` and the relevant audit
+files. Start by checking `status`, `fail_stage`, `fail_reason`, record counts and
+`output_file`. If the issue relates to spatial assignment, inspect records with
+missing overlay fields and check whether the selected marine layer is appropriate
+for those coordinates.
+
+When a large run is difficult to diagnose, reduce the workflow to the smallest
+case that reproduces the problem: one species, one overlay and the same output
+folder structure. Once that works, re-enable taxonomy preparation, evidence
+settings or additional overlays as needed.
+
+# Provider caches and citations
+
+Marine workflows may use several external data sources, including GBIF
+occurrence downloads, Marine Regions overlays, WoRMS taxonomic or distribution
+evidence, SInAS native/alien distribution evidence, and GRIIS introduced or
+invasive-status evidence. These resources are queried, downloaded or cached for
+the analysis; they are not bundled as package data.
+
+For reported analyses, keep enough information to show which data sources were
+used and how they were applied. At minimum, record:
+
+- the GBIF download DOI or download key, where available;
+- the selected marine overlay;
+- the overlay product name, version and access date, where available;
+- the overlay cache directory;
+- the coordinate-cleaning settings;
+- the thinning distance, if thinning was used;
+- the native-range and invasive-status evidence settings;
+- the `biofetchR` package version and R session information.
+
+Provider caches should be kept separate from final occurrence outputs. Caches
+make it easier to reuse large or provider-dependent resources, while the output
+folders should contain the files needed to inspect a specific run.
+
+## Suggested provider citations
+
+The exact citations depend on which data sources were used. The examples below
+give common starting points, but users should always check the provider page,
+download record, or metadata file for the exact citation associated with their
+analysis.
+
+```{r provider-citation-table, echo = FALSE}
+provider_citations <- data.frame(
+  source = c(
+    "GBIF occurrence data",
+    "Marine Regions",
+    "GRIIS",
+    "WoRMS",
+    "SInAS",
+    "mregions2"
+  ),
+  cite_when_used_for = c(
+    "Occurrence downloads from GBIF.",
+    "EEZ, LME, MEOW, IHO, high-seas, continental-shelf, or other Marine Regions products.",
+    "Species-by-country or species-by-territory alien/invasive status evidence.",
+    "Marine taxonomic names or WoRMS-derived native/distribution evidence.",
+    "Native and alien distribution evidence from SInAS.",
+    "R access to Marine Regions gazetteer or data products."
+  ),
+  citation_note = c(
+    "Cite the GBIF download DOI generated for the exact occurrence download.",
+    "Cite MarineRegions.org and, where relevant, the specific Marine Regions product used.",
+    "Cite Pagad et al. (2018), Scientific Data, 5, 170202, and any checklist-specific source where used.",
+    "Cite the WoRMS dataset DOI and/or the recommended WoRMS citation from the provider.",
+    "Cite the SInAS dataset version used and the associated Scientific Data paper.",
+    "Cite mregions2 if the R package was used directly in the workflow."
+  ),
+  stringsAsFactors = FALSE
+)
+
+provider_citations
+```
+
+Common citation strings include:
+
+- GBIF.org. GBIF Occurrence Download. Cite the DOI generated for the exact
+  download used in the analysis.
+- Flanders Marine Institute. MarineRegions.org. Available online at
+  www.marineregions.org. Include the access date and, where possible, the
+  specific Marine Regions product citation.
+- Pagad, S., Genovesi, P., Carnevali, L., Schigel, D. & McGeoch, M.A. (2018).
+  Introducing the Global Register of Introduced and Invasive Species.
+  *Scientific Data*, 5, 170202.
+- WoRMS Editorial Board. World Register of Marine Species. Dataset DOI:
+  10.14284/170.
+- Gómez-Suárez, M., Laeseke, P. & Seebens, H. (2025). A global dataset of native
+  and alien distributions of alien species. *Scientific Data*, 12, 1914.
+- Seebens, H. & Gómez-Suárez, M. SInAS: A global dataset of native and alien
+  distributions of alien species. Zenodo. Cite the exact dataset version used.
+
+Store citation details with the summary and audit files. This keeps occurrence
+retrieval, marine overlay attribution and evidence interpretation linked to the
+provider sources used in the run.
+
+# Practical recommendations
+
+For robust marine workflows:
+
+- begin with a one-species smoke test;
+- load the selected marine overlay directly before a larger run;
+- choose the overlay according to the spatial question;
+- use a marine workflow when offshore records need to be retained and
+  interpreted;
+- use `store_in_memory = FALSE` for larger runs;
+- keep provider caches separate from final outputs;
+- inspect records without overlay assignments;
+- compare overlays only when they represent distinct spatial questions;
+- keep origin and invasive-status evidence in audit mode until reviewed;
+- preserve `gbif_summary.csv` with the exported occurrence files;
+- report the overlay source, cleaning settings, thinning distance and evidence
+  settings.
+
+Marine occurrence processing is easiest to defend when the spatial interpretation
+is explicit. The marine pipeline keeps occurrence retrieval, coordinate
+processing, marine-region attribution, evidence attachment and output summaries
+in one workflow, while still allowing each part to be checked separately.
