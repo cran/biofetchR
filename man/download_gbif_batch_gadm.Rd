@@ -2,74 +2,295 @@
 % Please edit documentation in R/gbif_download_backends.R
 \name{download_gbif_batch_gadm}
 \alias{download_gbif_batch_gadm}
-\title{Submit country-filtered GBIF downloads for terrestrial/freshwater workflows}
+\title{Submit one multi-country GBIF download for a terrestrial/freshwater species}
 \usage{
-download_gbif_batch_gadm(species, iso2_codes, user, pwd, email)
+download_gbif_batch_gadm(
+  species,
+  iso2_codes,
+  user,
+  pwd,
+  email,
+  max_active_downloads = 1L,
+  slot_poll_seconds = 30,
+  slot_max_polls = 120L,
+  submission_max_tries = 120L
+)
 }
 \arguments{
-\item{species}{Character scalar. Scientific name of the species.}
+\item{species}{Character scalar. Scientific name of the species to resolve and
+submit to GBIF. Only the first supplied value is used after trimming.}
 
-\item{iso2_codes}{Character vector of ISO2 country codes. Codes are trimmed,
-upper-cased and deduplicated before submission.}
+\item{iso2_codes}{Character vector of requested ISO2 country codes. Codes are
+trimmed, converted to upper case, deduplicated, and stripped of missing or
+empty values before submission.}
 
-\item{user}{GBIF username. Required for \code{\link[rgbif:occ_download]{rgbif::occ_download()}}.}
+\item{user}{GBIF username used for authenticated occurrence-download
+submission and account-level queue inspection.}
 
-\item{pwd}{GBIF password. Required for \code{\link[rgbif:occ_download]{rgbif::occ_download()}}.}
+\item{pwd}{GBIF password used for authenticated occurrence-download submission
+and account-level queue inspection.}
 
-\item{email}{GBIF account email. Required for \code{\link[rgbif:occ_download]{rgbif::occ_download()}}.}
+\item{email}{GBIF account email passed to \code{\link[rgbif:occ_download]{rgbif::occ_download()}}.}
+
+\item{max_active_downloads}{Integer. Conservative maximum number of
+\code{PREPARING}/\code{RUNNING} GBIF occurrence downloads permitted for the
+authenticated account before another request is attempted. Defaults to
+\code{1L}.}
+
+\item{slot_poll_seconds}{Numeric. Seconds between proactive account-level
+download-slot checks and between retries following recognised GBIF capacity
+errors.}
+
+\item{slot_max_polls}{Integer. Maximum number of proactive account-level slot
+checks performed before submission is attempted and server-side retry
+handling becomes the final capacity guard.}
+
+\item{submission_max_tries}{Integer. Maximum number of attempts when GBIF
+repeatedly reports that asynchronous download capacity is full.}
 }
 \value{
-A named list of GBIF occurrence-download keys, with one element for
-each ISO2 country code where download submission succeeds. List names are
-the submitted ISO2 country codes and values are the corresponding GBIF
-download keys. These keys are used by downstream import helpers and should
-be retained in workflow summaries or manifests as the link to GBIF download
-metadata and citation DOI(s). Returns \code{NULL} when no valid species or
-country input is supplied, when the species cannot be resolved to a GBIF
-taxon key, or when all country-level submissions fail.
+On successful submission, a named list with one element for every
+requested ISO2 country. Each element contains the SAME shared GBIF
+occurrence-download key because all countries were submitted in one
+multi-country request.
+
+The returned object carries a \code{submission_audit} attribute and, for the
+multi-country workflow, the attributes \code{biofetchR_shared_download},
+\code{biofetchR_split_field}, and \code{biofetchR_requested_labels}. These attributes
+allow \code{\link[=wait_and_import_gbif]{wait_and_import_gbif()}} to poll/import the shared archive once and
+reconstruct country-level results.
+
+If taxon resolution or GBIF submission fails for otherwise valid input, a
+length-zero object can be returned with submission-audit information
+describing the failure. Invalid or empty species/country input can return
+\code{NULL} after a warning.
 }
 \description{
-Submit one GBIF occurrence download per ISO2 country for a single species.
-This backend is used by the terrestrial/freshwater pipeline, where inputs are
-organised as species x country combinations and GBIF records should be
-restricted to recipient countries before spatial overlay assignment.
+\code{download_gbif_batch_gadm()} provides the queue-aware GBIF submission backend
+used by \code{process_gbif_terrestrial_freshwater_pipeline()}.
+
+Rather than creating one asynchronous GBIF download job for every
+species-country combination, all valid requested countries for the supplied
+species are combined into a single GBIF request. The resulting archive is
+subsequently imported once and split back to country-level occurrence objects
+by \code{\link[=wait_and_import_gbif]{wait_and_import_gbif()}}.
+
+This design reduces the number of unfinished asynchronous GBIF jobs created by
+multi-country workflows while preserving one explicit country-level request
+label, retrieval outcome and downstream output for every requested country.
 }
 \details{
-The function resolves the species to a GBIF taxon key, then submits one
-download per country using the predicates:
+Submit a single asynchronous GBIF occurrence download for one species across
+one or more requested ISO2 countries. This backend is used by the
+terrestrial/freshwater biofetchR pipeline, where the logical input and audit
+units are species x recipient-country combinations but the GBIF download unit
+can contain several countries for the same species.
+
+The function performs the following steps:
+\enumerate{
+\item Input standardisation: \code{species} is trimmed to a single character value.
+\code{iso2_codes} are converted to upper case, trimmed, deduplicated and stripped
+of missing or empty values.
+\item GBIF taxon resolution: The species is resolved to a GBIF taxon key.
+When the package-visible \code{\link[=get_taxon_key]{get_taxon_key()}} helper is available it is used;
+otherwise the function falls back to \code{\link[rgbif:name_backbone]{rgbif::name_backbone()}}.
+\item Multi-country predicate construction: All requested ISO2 countries are
+combined into one \code{\link[rgbif:download_predicate_dsl]{rgbif::pred_in()}} country predicate. The submitted
+occurrence-download request therefore contains:
 
 \itemize{
-\item \verb{taxonKey = <resolved GBIF taxon key>};
+\item the resolved GBIF \code{taxonKey};
 \item \code{hasCoordinate = TRUE};
-\item \verb{country = <ISO2 country code>}.
+\item \verb{country IN <all requested ISO2 country codes>}.
+}
+\item Queue-aware submission: The request is submitted through biofetchR's
+queue-aware retry helper. Before each submission attempt, the authenticated
+GBIF account is checked for currently \code{PREPARING} or \code{RUNNING} occurrence
+downloads.
+\item Capacity-limit recovery: If GBIF explicitly reports that the account
+has reached its current incomplete/concurrent-download capacity, the SAME
+multi-country request is retained, paused and retried. Countries are not
+dropped merely because a submission attempt encountered a temporary GBIF
+capacity limit.
+\item Shared-key reconstruction metadata: After a successful submission,
+every requested ISO2 country is mapped to the same GBIF download key. The
+returned object carries metadata telling \code{\link[=wait_and_import_gbif]{wait_and_import_gbif()}} that this
+is a shared multi-country download and that the imported archive should be
+split using GBIF's \code{countryCode} column.
+}
+}
+\section{Species-country requests versus GBIF download jobs}{
+
+A central distinction in this backend is that the biological/request unit and
+the asynchronous GBIF job unit are not necessarily the same.
+
+For example, an input consisting of:
+
+\itemize{
+\item species A x country GB;
+\item species A x country IE;
+\item species A x country FR;
+\item species A x country ES
 }
 
-Download submission is retried up to three times per country. Successful
-submissions are returned as a named list, with names equal to the ISO2 country
-codes.
+remains four species-country retrieval requests for auditing and downstream
+processing, but is submitted to GBIF as ONE asynchronous occurrence download
+for species A with:
+
+\verb{country IN c("GB", "IE", "FR", "ES")}.
+
+The completed GBIF archive is then imported once and split locally back into
+the four requested country subsets.
 }
+
+\section{Queue and concurrency protection}{
+
+GBIF occurrence downloads are asynchronous and the number of incomplete jobs
+allowed for one account can be limited by the service. The backend therefore
+applies conservative queue protection before submission.
+
+\code{max_active_downloads} controls the maximum number of account-level
+\code{PREPARING}/\code{RUNNING} downloads permitted before another request is attempted.
+The default is \code{1L}, meaning that biofetchR waits while another active download
+is visible before submitting a new one.
+
+Account-level queue checks are repeated every \code{slot_poll_seconds} seconds for
+at most \code{slot_max_polls} checks. If the account-level download list cannot be
+inspected reliably, submission is allowed to proceed and GBIF's server-side
+response becomes the final capacity guard.
+
+If GBIF then returns a recognised concurrency or incomplete-download limit,
+the same request is retried up to \code{submission_max_tries} times. A temporary
+capacity error therefore does not consume a country request or silently remove
+that country from the workflow.
+}
+
+\section{Shared GBIF download keys}{
+
+On successful submission, the returned object contains one named list element
+for every requested ISO2 country. All elements intentionally contain the SAME
+GBIF download key because all countries were included in one asynchronous
+download.
+
+For example, the returned object may conceptually contain:
+
+\preformatted{
+GB = "0001234-260101120000000"
+IE = "0001234-260101120000000"
+FR = "0001234-260101120000000"
+ES = "0001234-260101120000000"
+}
+
+This repeated key is expected behaviour and preserves the pre-0.1.1
+country-labelled list interface while avoiding multiple redundant GBIF jobs.
+
+\code{\link[=wait_and_import_gbif]{wait_and_import_gbif()}} deduplicates the shared key, polls and imports the
+archive once, then reconstructs separate country-labelled results using
+\code{countryCode}.
+}
+
+\section{Returned metadata attributes}{
+
+The returned object can carry the following attributes:
+
+\itemize{
+\item \code{submission_audit}: submission-level audit information;
+\item \code{biofetchR_shared_download = TRUE}: identifies the object as a shared
+multi-country GBIF download;
+\item \code{biofetchR_split_field = "countryCode"}: tells the importer which GBIF
+field should be used to reconstruct country subsets;
+\item \code{biofetchR_requested_labels}: the original requested ISO2 country
+labels.
+}
+
+These attributes are internal workflow metadata and should normally be passed
+unchanged to \code{\link[=wait_and_import_gbif]{wait_and_import_gbif()}} or \code{\link[=wait_and_import_gbif_safe]{wait_and_import_gbif_safe()}}.
+}
+
+\section{Submission audit}{
+
+The \code{submission_audit} attribute contains one row per requested ISO2 country,
+even though the countries share one GBIF job. Its fields are:
+
+\itemize{
+\item \code{label}: requested ISO2 country code;
+\item \code{gbif_key}: shared GBIF download key when available;
+\item \code{submission_status}: submission outcome;
+\item \code{message}: diagnostic message when relevant;
+\item \code{attempts}: number of GBIF submission attempts used.
+}
+
+Successful countries normally share \code{submission_status = "submitted"} and the
+same \code{gbif_key}. Failed taxon resolution or download submission is represented
+explicitly in the audit rather than being silently interpreted as a
+zero-occurrence result.
+}
+
+\section{Failure handling}{
+
+Empty or invalid species/country input is rejected before submission.
+
+If no GBIF taxon key can be resolved for an otherwise valid species request,
+the function returns a length-zero object carrying a submission audit with
+\code{submission_status = "taxon_key_failed"}.
+
+Submission-level failures are returned through statuses produced by the
+queue-aware submission helper, including:
+
+\itemize{
+\item \code{submit_no_key}: GBIF returned a response but no usable download key
+could be extracted;
+\item \code{submit_failed}: submission failed for a non-capacity reason;
+\item \code{submit_timeout}: the configured capacity-retry limit was exhausted.
+}
+
+These states remain distinct from downstream polling/import failures handled
+by \code{\link[=wait_and_import_gbif]{wait_and_import_gbif()}}. In particular, a failed submission or unresolved
+asynchronous download must not be interpreted as evidence that GBIF contained
+zero occurrence records for the country.
+}
+
 \section{GBIF data use and citation}{
 
 This function submits live GBIF occurrence downloads and returns GBIF download
-keys. Users should retain those keys and cite the GBIF download DOI(s) for
-occurrence records used in research, reports or policy outputs. Because GBIF
-aggregates records from many data publishers, individual datasets may carry
-their own licence and attribution requirements. biofetchR does not
-redistribute GBIF records and does not replace those obligations.
+keys. Users should retain those keys and cite the corresponding GBIF download
+DOI(s) for occurrence records used in research, reports or policy outputs.
+
+A single multi-country submission normally corresponds to one GBIF download
+DOI shared by all country subsets reconstructed from that archive. The
+country-specific outputs should therefore retain the common GBIF key so that
+all derived records remain traceable to the exact source download.
+
+GBIF aggregates occurrence records from many contributing datasets.
+Individual datasets may carry their own licences and attribution requirements.
+biofetchR does not redistribute GBIF occurrence data and does not replace
+users' responsibility to comply with GBIF and publisher data-use terms.
 }
 
 \section{Side effects}{
 
-Submits live GBIF occurrence download jobs through \code{\link[rgbif:occ_download]{rgbif::occ_download()}}
-and prints submission/retry messages through \code{cli}.
+Submits a live asynchronous GBIF occurrence-download request through
+\code{\link[rgbif:occ_download]{rgbif::occ_download()}} when a usable taxon key and at least one ISO2 country
+are available.
+
+The function can also query the authenticated user's GBIF download list through
+\code{\link[rgbif:occ_download_list]{rgbif::occ_download_list()}} as part of proactive queue management, and prints
+submission, waiting and retry messages through \code{cli}.
+
+The function itself does not wait for the submitted occurrence download to
+finish, download the SIMPLE_CSV archive, clean coordinates, thin occurrences,
+or assign records to spatial units. Those operations occur downstream.
 }
 
 \section{Notes}{
 
-If a package-visible \code{get_taxon_key()} helper exists, it is used for GBIF
-name resolution. Otherwise the function falls back to
-\code{\link[rgbif:name_backbone]{rgbif::name_backbone()}} directly. Download-key extraction is delegated to
-\code{.bf_extract_gbif_download_key()} when available.
+The backend preserves the historical public return shape of
+\code{download_gbif_batch_gadm()}: a named list whose names represent requested
+countries.
+
+The important behavioural change is that those country labels can now point to
+one shared GBIF key. Code should therefore not assume that the number of
+returned list elements equals the number of distinct GBIF download jobs.
 }
 
 \examples{
@@ -84,12 +305,16 @@ if (interactive() && all(nzchar(Sys.getenv(gbif_env)))) {
     pwd = Sys.getenv("GBIF_PWD"),
     email = Sys.getenv("GBIF_EMAIL")
   )
+
+  keys
+  attr(keys, "submission_audit")
 }
 }
 
 }
 \seealso{
-\code{\link[=download_gbif_batch]{download_gbif_batch()}}, \code{\link[=wait_and_import_gbif_safe]{wait_and_import_gbif_safe()}}
+\code{\link[=download_gbif_batch]{download_gbif_batch()}}, \code{\link[=wait_and_import_gbif]{wait_and_import_gbif()}},
+\code{\link[=wait_and_import_gbif_safe]{wait_and_import_gbif_safe()}}
 
 Other GBIF download backends: 
 \code{\link{download_gbif_batch}()},

@@ -144,8 +144,9 @@ process_gbif_terrestrial_freshwater_pipeline(
 \arguments{
 \item{df}{Data frame containing at least \code{species} and \code{iso2c}.}
 
-\item{output_dir}{Directory where occurrence CSVs and summary/audit files are
-written.}
+\item{output_dir}{Directory where occurrence CSVs, \code{gbif_summary.csv},
+\code{gbif_retrieval_audit.csv}, \code{gbif_unresolved_requests.csv}, and optional
+taxonomy/origin audit files are written.}
 
 \item{user}{GBIF username.}
 
@@ -336,7 +337,11 @@ Footprint extraction.}
 \item{human_footprint_buffer_m}{Buffer radius in metres for Human Footprint
 extraction. \code{0} uses point extraction.}
 
-\item{batch_size}{Number of species to process per batch.}
+\item{batch_size}{Number of species grouped into each outer processing batch.
+Species are still processed sequentially within those batches. With the
+built-in terrestrial/freshwater backend, all eligible countries for one
+species are combined into one GBIF download; \code{batch_size} therefore does not
+represent the number of concurrent country-level GBIF jobs.}
 
 \item{dist_km}{Minimum distance in kilometres used when
 \code{apply_thinning = TRUE}.}
@@ -350,7 +355,8 @@ before export.}
 \item{return_all_results}{Logical. If \code{TRUE} and \code{store_in_memory = TRUE},
 return a combined tibble of all grouped records.}
 
-\item{export_summary}{Logical. If \code{TRUE}, write \code{gbif_summary.csv}.}
+\item{export_summary}{Logical. If \code{TRUE}, write \code{gbif_summary.csv},
+\code{gbif_retrieval_audit.csv}, and \code{gbif_unresolved_requests.csv}.}
 
 \item{store_in_memory}{Logical. If \code{TRUE}, retain grouped output rows in
 memory for return.}
@@ -468,20 +474,24 @@ thinning and writing workflow outputs.
 }
 \description{
 \code{process_gbif_terrestrial_freshwater_pipeline()} is the main high-level
-pipeline for terrestrial and freshwater occurrence processing in biofetchR.
-It is designed for reproducible batch processing rather than exploratory
-single-query use. The function is conservative by default: taxonomy and
-origin-evidence filters are applied before GBIF download submission, while
-overlay/context loading failures are recorded in \code{gbif_summary.csv} unless a
-strict mode is requested.
+terrestrial/freshwater occurrence workflow in biofetchR. It applies optional
+taxonomy and origin-evidence gates before GBIF submission, pre-checks retained
+species-country requests for georeferenced records, submits one combined
+multi-country download per species, imports that archive once, and reconstructs
+country-specific occurrence objects before the existing context, overlay,
+cleaning, thinning and export stages.
+
+Retrieval provenance is retained separately from downstream spatial-output
+summaries so every original request can be classified explicitly as successful,
+empty, failed, or unresolved.
 }
 \details{
 Download, import, clean, assign and export GBIF occurrence records for
-terrestrial and freshwater workflows. Input records are supplied as a
-species-by-country table. Each accepted species-country pair is submitted to
-GBIF, imported as occurrence points, optionally enriched with context layers,
-assigned to one or more spatial overlays, cleaned, optionally thinned, and
-exported as grouped CSV outputs.
+terrestrial and freshwater workflows. Input is supplied as a species x ISO2
+country table. Species-country combinations remain the logical retrieval,
+auditing and output units, but eligible countries for one species are combined
+into a single asynchronous GBIF occurrence download whenever the built-in
+multi-country backend is used.
 
 The pipeline runs in the following order:
 \enumerate{
@@ -489,29 +499,54 @@ The pipeline runs in the following order:
 species column and an ISO2 country column. Species names are coerced to
 character and ISO2 codes are upper-cased.
 \item \strong{Optional taxonomy gate.} When \code{prepare_taxonomy = TRUE}, names are
-cleaned, manual fixes can be applied, invalid or non-species entries can be
-rejected, and accepted names are used downstream for GBIF submission,
-summaries and filenames.
+cleaned, manual fixes can be applied, invalid/non-species entries can be
+rejected, and accepted names are used downstream.
 \item \strong{Optional origin-evidence gates.} GRIIS and native-range evidence can be
-attached and used to retain or reject rows before GBIF is queried.
-\item \strong{GBIF download submission.} Retained species-country rows are batched and
-submitted to GBIF with a country predicate.
-\item \strong{GBIF import and point preparation.} Returned downloads are imported,
-converted to WGS84 point geometries, and given stable longitude/latitude
-columns for downstream export.
+attached and used to retain or reject species-country rows before GBIF is
+queried.
+\item \strong{Country-level GBIF availability pre-check.} Each retained species-country
+combination is checked for georeferenced GBIF records. A confirmed zero is
+recorded explicitly as \code{precheck_zero} and is not included in the download.
+\item \strong{Multi-country GBIF submission.} For each species, all countries retained
+after the pre-check are submitted together to the built-in backend as one
+asynchronous GBIF download using a country-IN predicate.
+\item \strong{GBIF polling, import and country reconstruction.} The shared download is
+polled and imported once. Its records are split locally by GBIF
+\code{countryCode}, recreating one result object for every requested country.
+\item \strong{Retrieval reconciliation.} Every retained species-country request is
+reconciled against the submission/import audit. Successful empty subsets,
+failures, timeouts and internally missing outcomes remain explicit.
 \item \strong{Optional raster/context enrichment.} Requested raster/context variables
 are extracted to occurrence points as additional attributes.
 \item \strong{Vector overlay assignment.} Points are assigned to requested
 terrestrial/freshwater spatial units using polygon containment or
 nearest-feature snapping, depending on overlay type.
-\item \strong{Coordinate cleaning and thinning.} Coordinate-quality cleaning is applied
-through \code{thin_spatial_points()} when \code{apply_cleaning = TRUE}; distance-based
-thinning is applied when \code{apply_thinning = TRUE} and \code{dist_km > 0}.
-\item \strong{Export and summary.} Grouped occurrence CSVs and \code{gbif_summary.csv} are
-written to \code{output_dir}; if \code{store_in_memory = TRUE}, grouped records can
-also be returned as a combined tibble.
+\item \strong{Coordinate cleaning and thinning.} Coordinate-quality cleaning is
+applied when \code{apply_cleaning = TRUE}; distance-based thinning is applied
+when \code{apply_thinning = TRUE} and \code{dist_km > 0}.
+\item \strong{Export and auditing.} Grouped occurrence CSVs, processing summaries and
+GBIF retrieval-audit files are written to \code{output_dir}. If
+\code{store_in_memory = TRUE}, grouped records can also be returned as a
+combined tibble.
 }
 }
+\section{GBIF multi-country retrieval architecture}{
+
+The input and audit unit remains a species x ISO2-country combination. The
+asynchronous GBIF download unit is different: when the built-in
+\code{download_gbif_batch_gadm()} backend is used, all retained countries for one
+species are combined in a single country-IN request.
+
+Consequently, several countries for the same species normally carry the SAME
+GBIF download key. This is intentional. The completed archive is imported only
+once and \code{\link[=wait_and_import_gbif]{wait_and_import_gbif()}} splits it back to country-specific objects
+using GBIF \code{countryCode}.
+
+This design reduces unnecessary asynchronous download jobs while preserving
+country-level outputs and provenance. A successful country split containing no
+records is retained as \code{success_zero}; it is not silently omitted.
+}
+
 \section{Input table}{
 
 \code{df} must contain at least:
@@ -562,13 +597,49 @@ prioritises higher-quality records before removing nearby clustered records.
 The pipeline can write:
 \itemize{
 \item grouped occurrence CSVs for each species-region combination;
-\item \code{gbif_summary.csv}, recording status, row counts, download keys and failure
-stages;
+\item \code{gbif_summary.csv}, recording processing status, row counts, download keys and
+failure stages;
+\item \code{gbif_retrieval_audit.csv}, recording one explicit GBIF retrieval outcome
+for each taxonomy-approved species x country request;
+\item \code{gbif_unresolved_requests.csv}, containing only unresolved or failed GBIF
+retrieval requests for targeted review/recovery;
 \item \code{taxonomy_audit.csv}, \code{taxonomy_rejected.csv} and \code{taxonomy_summary.csv}
 when taxonomy auditing is enabled;
 \item \code{origin_evidence_audit.csv}, \code{origin_evidence_rejected.csv} and
 \code{origin_evidence_summary.csv} when origin-evidence auditing is enabled.
 }
+}
+
+\section{Retrieval audit and completeness}{
+
+\code{gbif_retrieval_audit.csv} is deliberately separate from
+\code{gbif_summary.csv}. The processing summary can contain multiple rows per
+original request after spatial overlay assignment, whereas the retrieval audit
+contains one row per retained GBIF request unit.
+
+The retrieval audit contains:
+
+\itemize{
+\item \code{species};
+\item \code{request_id} (ISO2 country);
+\item \code{request_type} (\code{"country"});
+\item \code{gbif_key};
+\item \code{gbif_status};
+\item \code{retrieval_status};
+\item \code{n_records};
+\item \code{fail_reason}.
+}
+
+Resolved retrieval outcomes include \code{success}, \code{success_zero}, and
+\code{precheck_zero}. Unresolved or failed states written to
+\code{gbif_unresolved_requests.csv} include \code{taxon_key_failed}, \code{submit_failed},
+\code{submit_no_key}, \code{submit_timeout}, \code{invalid_key}, \code{pending_timeout},
+\code{download_failed}, \code{killed}, \code{cancelled}, \code{file_erased}, \code{import_failed},
+\code{split_failed}, and \code{internal_unreconciled}.
+
+The final completeness gate compares the retained expected species-country
+requests with the retrieval ledger. Any request lacking an explicit outcome is
+added as \code{internal_unreconciled} rather than being silently omitted.
 }
 
 \section{Data access, licences and attribution}{
@@ -591,10 +662,23 @@ cite the exact product, version, year and provider used in the workflow.
 \section{Failure handling}{
 
 Overlay and raster-context failures are handled according to
-\code{strict_overlay_loading} and \code{strict_raster_context}. In fail-soft mode,
+\code{strict_overlay_loading} and \code{strict_raster_context}. In fail-soft mode these
 failures are recorded in \code{gbif_summary.csv} and processing continues where
-possible. In strict mode, the pipeline stops immediately so development tests
-and production checks can surface missing dependencies or invalid sources.
+possible.
+
+GBIF retrieval failures use a separate request-level ledger. Submission
+failures, invalid keys, download terminal states, polling timeouts, import
+failures, split failures and completeness failures are written to
+\code{gbif_retrieval_audit.csv}. Unresolved states are also copied to
+\code{gbif_unresolved_requests.csv}.
+
+A polling timeout is recorded as \code{pending_timeout} with the GBIF key retained.
+It is not treated as evidence of zero occurrence records. Likewise, a request
+that cannot be reconciled to either an imported result or an explicit failure
+is recorded as \code{internal_unreconciled}.
+
+Strict overlay/context modes can still stop the pipeline immediately for
+configuration or resource failures.
 }
 
 \section{Testing and dependency injection}{

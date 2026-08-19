@@ -7,39 +7,92 @@
 wait_and_import_gbif(keys, wait_time = 30, max_tries = 60)
 }
 \arguments{
-\item{keys}{Named list or named character vector of GBIF occurrence download
-keys. Names are used as the returned list names.}
+\item{keys}{Named list or named character vector of GBIF occurrence-download
+keys. Names are logical request labels. Several names may intentionally map
+to the same key.}
 
-\item{wait_time}{Numeric. Seconds to wait between polling attempts.}
+\item{wait_time}{Numeric. Seconds between GBIF metadata polling attempts.}
 
-\item{max_tries}{Integer. Maximum number of polling attempts per key.}
+\item{max_tries}{Integer. Maximum number of metadata polling attempts for each
+UNIQUE GBIF download key.}
 }
 \value{
-A named list of \code{sf} point objects in WGS84 longitude/latitude
-coordinates. Each list element contains imported GBIF occurrence records for
-one completed download key, filtered to records with non-missing
-\code{decimalLongitude} and \code{decimalLatitude} values and converted to EPSG:4326
-point geometry. List names are taken from \code{names(keys)}, so they usually
-represent the species, country, region or batch label supplied by the
-calling pipeline. Downloads that fail, are cancelled, time out or cannot be
-imported are skipped, so the returned list may be shorter than \code{keys} or
-empty.
+A named list of WGS84 \code{sf} point objects for successfully resolved
+request labels. For a normal species-level download, one imported object is
+returned under the corresponding species label. For a shared multi-country
+download, the archive is imported once and separate country-labelled \code{sf}
+objects are returned after splitting by the configured field.
+
+Successfully resolved labels with zero matching records are retained as
+zero-row \code{sf} objects. Failed or unresolved requests need not appear as list
+elements, but every original request is represented in the attached
+\code{gbif_status} audit attribute.
 }
 \description{
-Poll GBIF download metadata until each supplied download key succeeds, then
-download, import and convert the returned occurrence records to WGS84 \code{sf}
-points.
+Poll submitted GBIF occurrence-download keys, import successfully completed
+SIMPLE_CSV archives, convert coordinate-bearing records to WGS84 \code{sf} points,
+and preserve one explicit retrieval outcome for every original request label.
 }
 \details{
-\code{keys} should normally be the named list returned by a GBIF download-submission
-helper, where names represent the species, country, region or batch label used
-by the calling pipeline. Each successful import is stored under the same name.
+\code{keys} can be a named list or named character vector. Names represent logical
+request labels such as species names or ISO2 countries, while values are GBIF
+asynchronous download keys.
 
-Completed downloads are imported with \code{\link[rgbif:occ_download_import]{rgbif::occ_download_import()}}, filtered
-to records with non-missing \code{decimalLatitude} and \code{decimalLongitude}, and then
-converted to an \code{sf} point object with EPSG:4326 coordinates. Failed,
-cancelled, killed or timed-out downloads are skipped with a CLI message.
+Multiple labels are allowed to share the same GBIF key. Before polling,
+biofetchR constructs the request-label-to-key mapping and reduces the supplied
+keys to their unique non-missing values. Each unique GBIF download is therefore
+polled, downloaded and imported only once.
+
+For each unique key, GBIF metadata are polled up to \code{max_tries} times with
+\code{wait_time} seconds between attempts. \code{SUCCEEDED} proceeds to import.
+\code{FAILED}, \code{KILLED}, \code{CANCELLED}, and \code{FILE_ERASED} are treated as terminal
+failure states. If no terminal state is reached before the polling limit, the
+request is recorded as \code{pending_timeout}; the GBIF key is retained for later
+review or recovery.
+
+Completed archives are imported with \code{\link[rgbif:occ_download_import]{rgbif::occ_download_import()}}. Records
+lacking \code{decimalLatitude} or \code{decimalLongitude} are removed before conversion
+to EPSG:4326 point geometry.
 }
+\section{Shared download keys and country splitting}{
+
+The terrestrial/freshwater multi-country backend deliberately returns several
+country labels pointing to one shared GBIF download key and attaches
+\code{biofetchR_split_field = "countryCode"}.
+
+When a split field is present, the completed archive is imported once and then
+partitioned locally for each original label. A country with no matching rows
+after a successful import is retained as a zero-row WGS84 \code{sf} object and is
+audited as \code{success_zero}, rather than disappearing from the returned result.
+
+If no split field is supplied, each request label associated with a successful
+key receives the complete imported \code{sf} object.
+}
+
+\section{Retrieval-status audit}{
+
+The returned list carries a \code{gbif_status} attribute containing one row per
+original request label. Its columns are:
+
+\itemize{
+\item \code{label}: original request label;
+\item \code{gbif_key}: associated GBIF download key;
+\item \code{gbif_status}: terminal or last observed GBIF download status;
+\item \code{retrieval_status}: biofetchR retrieval interpretation;
+\item \code{n_records}: number of coordinate-bearing records assigned to the
+request label when known;
+\item \code{message}: diagnostic or recovery message where relevant.
+}
+
+Retrieval statuses include \code{success}, \code{success_zero}, \code{invalid_key},
+\code{pending_timeout}, \code{download_failed}, \code{killed}, \code{cancelled}, \code{file_erased},
+\code{import_failed}, and \code{split_failed}.
+
+Importantly, \code{pending_timeout} means that the download remained unresolved
+within the configured polling window. It is not interpreted as a biological
+zero and the associated GBIF key remains available in the audit.
+}
+
 \section{GBIF data use and citation}{
 
 This function imports GBIF occurrence-download data. Retain the GBIF download
@@ -54,6 +107,7 @@ if (interactive() && exists("keys")) {
   imported <- wait_and_import_gbif(keys)
 
   names(imported)
+  attr(imported, "gbif_status")
 }
 }
 

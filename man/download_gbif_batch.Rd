@@ -12,6 +12,10 @@ download_gbif_batch(
   species = NULL,
   predicate_extra = list(),
   quiet = FALSE,
+  max_active_downloads = 1L,
+  slot_poll_seconds = 30,
+  slot_max_polls = 120L,
+  submission_max_tries = 120L,
   ...
 )
 }
@@ -33,17 +37,29 @@ append to each download request. Defaults to an empty list.}
 
 \item{quiet}{Logical. If \code{TRUE}, suppress progress messages.}
 
+\item{max_active_downloads}{Integer. Conservative maximum number of PREPARING/RUNNING GBIF downloads allowed for the authenticated account before a new request is submitted. Defaults to 1.}
+
+\item{slot_poll_seconds}{Numeric. Seconds between account-level download-slot checks and retry sleeps.}
+
+\item{slot_max_polls}{Integer. Maximum number of account-level slot checks before submission is attempted and server-side retry handling takes over.}
+
+\item{submission_max_tries}{Integer. Maximum number of retries when GBIF explicitly reports that download capacity is full.}
+
 \item{...}{Additional arguments reserved for compatibility with pipeline code
 and future backend extensions. Currently ignored.}
 }
 \value{
-A named character vector of GBIF occurrence-download keys. Each value
-is the download key returned by GBIF for one successfully submitted
-species-level download, and each name is the corresponding submitted
-species name. The returned keys are used by downstream import helpers and
-should be retained in summaries or manifests as the link to GBIF download
-metadata and citation DOI(s). The function stops if no usable download key
-can be extracted for a submitted species.
+A named character vector containing GBIF occurrence-download keys for
+successfully submitted species. Names are the corresponding species names.
+The vector can be empty or contain fewer elements than the number of species
+requested when one or more species cannot be resolved or submitted.
+
+The returned vector carries a \code{submission_audit} attribute with one row per
+requested species and the columns \code{label}, \code{gbif_key},
+\code{submission_status}, \code{message}, and \code{attempts}. Successful rows use
+\code{submission_status = "submitted"}; failed rows retain the reason and attempt
+count so that missing species cannot be silently confused with zero GBIF
+occurrences.
 }
 \description{
 Submit one GBIF occurrence download per species without applying a GBIF
@@ -67,6 +83,30 @@ Additional GBIF predicates can be appended through \code{predicate_extra}, allow
 callers to add date, basis-of-record, dataset, licence or other GBIF filters
 without changing the backend.
 }
+\section{Queue-aware submission}{
+
+Each species is submitted through the shared queue-aware submission helper.
+Before each request, biofetchR checks the authenticated account for
+\code{PREPARING}/\code{RUNNING} GBIF occurrence downloads. The default
+\code{max_active_downloads = 1L} therefore avoids intentionally creating multiple
+unfinished asynchronous downloads from this backend.
+
+If GBIF nevertheless reports that download capacity is full, the same species
+request is retained and retried rather than being discarded.
+}
+
+\section{Submission audit and partial results}{
+
+The returned key vector carries a \code{submission_audit} attribute with one row
+per requested species and the columns \code{label}, \code{gbif_key},
+\code{submission_status}, \code{message}, and \code{attempts}.
+
+Species-level failures do not remove keys already obtained for other species.
+Consequently, the returned character vector can contain only the successfully
+submitted species while the audit records failures such as
+\code{taxon_key_failed}, \code{submit_no_key}, \code{submit_failed}, and \code{submit_timeout}.
+}
+
 \section{GBIF data use and citation}{
 
 This function submits live GBIF occurrence downloads and returns GBIF download
@@ -85,12 +125,16 @@ The function returns download keys only; it does not wait for, import, clean,
 thin, or spatially join downloaded occurrence records.
 }
 
-\section{Errors}{
+\section{Errors and failure handling}{
 
-The function stops if no valid species names are supplied, if GBIF credentials
-are missing, if \code{predicate_extra} is not a list, if a species cannot be
-resolved to a GBIF usage key, or if GBIF does not return an extractable
-download key.
+The function stops for invalid function-level configuration, including no valid
+species names, missing GBIF credentials, or a non-list \code{predicate_extra}.
+
+Failure to resolve or submit an individual species is handled fail-soft: the
+species receives an explicit row in the attached \code{submission_audit}, while
+processing can continue for other species. This prevents a later failed
+submission from discarding download keys that were successfully obtained
+earlier in the call.
 }
 
 \examples{

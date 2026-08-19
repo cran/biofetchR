@@ -57,7 +57,8 @@ process_gbif_marine_pipeline(
 cleaned accepted names are used downstream.}
 
 \item{output_dir}{Directory for per-region CSV exports, \code{gbif_summary.csv},
-and optional taxonomy/GRIIS/native-origin audit files.}
+\code{gbif_retrieval_audit.csv}, \code{gbif_unresolved_requests.csv}, and optional
+taxonomy/GRIIS/native-origin audit files.}
 
 \item{user}{GBIF username.}
 
@@ -65,8 +66,9 @@ and optional taxonomy/GRIIS/native-origin audit files.}
 
 \item{email}{GBIF account email address.}
 
-\item{batch_size}{Number of species submitted to the download backend per
-batch.}
+\item{batch_size}{Number of species grouped into each outer processing batch.
+GBIF submission and import are performed species-by-species within each
+batch so this value no longer determines the number of concurrent GBIF jobs.}
 
 \item{apply_cleaning}{Logical; if \code{TRUE}, apply coordinate/quality cleaning
 through \code{thin_spatial_points(..., dist_km = 0)} when available.}
@@ -79,7 +81,8 @@ assignment using \code{thin_spatial_points()}.}
 \item{return_all_results}{Logical; if \code{TRUE} and \code{store_in_memory = TRUE},
 return a combined table of processed occurrence rows.}
 
-\item{export_summary}{Logical; if \code{TRUE}, write \code{gbif_summary.csv}.}
+\item{export_summary}{Logical; if \code{TRUE}, write \code{gbif_summary.csv},
+\code{gbif_retrieval_audit.csv}, and \code{gbif_unresolved_requests.csv}.}
 
 \item{store_in_memory}{Logical; if \code{TRUE}, retain processed groups in memory;
 if \code{FALSE}, write groups to CSV and return invisibly.}
@@ -216,15 +219,47 @@ rejects non-taxa, open names and higher-rank placeholders.
 evidence and can filter to listed or invasive species.
 \item If requested, the native-origin gate attaches species-level origin evidence
 and can filter to species with origin evidence.
-\item Retained species are submitted to the configured GBIF download backend.
-\item Imported records are converted to WGS84 point \code{sf} objects.
-\item A package-managed marine overlay is loaded once, or a supplied \code{overlay_sf}
-object is used.
-\item Occurrences are assigned to marine regions by \code{sf::st_within()}, with an
-\code{sf::st_intersects()} fallback for coastal or boundary records.
-\item Export groups are optionally cleaned and spatially thinned.
-\item Results are written to CSV and/or returned as a combined in-memory table.
+\item \strong{Outer batching.} Retained species are grouped according to \code{batch_size}
+for progress and processing organisation.
+\item \strong{Sequential GBIF retrieval within each batch.} One species is submitted
+to the configured GBIF backend, polled and imported completely before the
+next species in that same outer batch is submitted.
+\item \strong{Retrieval reconciliation.} Each species receives an explicit GBIF
+retrieval outcome before downstream marine processing begins.
+\item \strong{Point and overlay preparation.} Successful imports are converted to
+WGS84 point \code{sf} objects and a package-managed marine overlay is loaded once,
+or a supplied \code{overlay_sf} object is used.
+\item \strong{Marine-region assignment.} Occurrences are assigned by
+\code{sf::st_within()}, with an \code{sf::st_intersects()} fallback for coastal or
+boundary records.
+\item \strong{Cleaning and thinning.} Export groups are optionally cleaned and
+spatially thinned.
+\item \strong{Export and auditing.} Results are written to CSV and/or returned as a
+combined in-memory table, with GBIF retrieval outcomes retained separately
+from downstream spatial-processing summaries.
 }
+}
+\section{GBIF download sequencing and retrieval auditing}{
+
+\code{batch_size} controls only the outer grouping of species. It does not define
+the number of simultaneous asynchronous GBIF downloads.
+
+Within every outer batch, the pipeline deliberately uses:
+
+\verb{submit species -> wait/poll -> import -> reconcile -> next species}.
+
+This ordering prevents a nominal batch containing several species from
+submitting all of those GBIF jobs before any one has completed.
+
+Each retained species receives one row in \code{gbif_retrieval_audit.csv}. The
+audit contains \code{species}, \code{request_id}, \code{request_type}, \code{gbif_key},
+\code{gbif_status}, \code{retrieval_status}, \code{n_records}, and \code{fail_reason}.
+For the marine workflow, \code{request_type} is \code{"species"} and the request
+identifier represents the species-level GBIF retrieval.
+
+Successfully completed downloads are recorded as \code{success} or \code{success_zero}.
+Unresolved or failed states are preserved explicitly rather than being
+interpreted as zero occurrences.
 
 Marine GRIIS and native-origin joins are species-level by default because
 marine recipient units are usually polygons rather than ISO country records.
@@ -243,12 +278,18 @@ The \code{deps} argument is for testing and advanced use. It can inject mock or
 alternative implementations of summary, download, import, export or thinning
 functions without changing the production pipeline.
 }
+
 \section{Output files}{
 
 When \code{store_in_memory = FALSE} or when export helpers are active, the pipeline
 writes one CSV per retained species x marine-region group. The output
-directory can also contain \code{gbif_summary.csv} and optional audit files for the
-taxonomy, GRIIS, native-origin and native-web evidence gates.
+directory can also contain \code{gbif_summary.csv}, \code{gbif_retrieval_audit.csv},
+\code{gbif_unresolved_requests.csv}, and optional audit files for the taxonomy,
+GRIIS, native-origin and native-web evidence gates. The retrieval audit records
+one explicit GBIF outcome per retained species. Successful, empty, failed and
+unresolved species therefore remain distinguishable independently of the
+number of marine-region output groups produced downstream. Unresolved requests
+retain their GBIF keys where available for targeted review or recovery.
 }
 
 \section{Data access, licensing and attribution}{
@@ -264,10 +305,26 @@ requirements of the exact data products used.
 
 \section{Failure handling}{
 
-Download, import, sf-conversion, overlay-matching and export failures are
-recorded in the summary table when possible. Fatal configuration errors, such
-as missing required packages or unsupported overlay names, stop early before
-submitting avoidable GBIF requests.
+Download submission, polling, import, sf-conversion, overlay matching and export
+failures are recorded explicitly where possible.
+
+GBIF retrieval outcomes are maintained independently in
+\code{gbif_retrieval_audit.csv}. Unresolved or failed statuses copied to
+\code{gbif_unresolved_requests.csv} include \code{taxon_key_failed}, \code{submit_failed},
+\code{submit_no_key}, \code{submit_timeout}, \code{invalid_key}, \code{pending_timeout},
+\code{download_failed}, \code{killed}, \code{cancelled}, \code{file_erased}, \code{import_failed},
+\code{split_failed}, and \code{internal_unreconciled}.
+
+\code{pending_timeout} means that the submitted GBIF download did not reach a
+terminal state within the configured polling window; its key is retained and
+the request is not interpreted as a zero-occurrence result.
+
+A final species-level completeness gate checks that every retained marine
+species received a retrieval outcome. Any missing species is recorded as
+\code{internal_unreconciled} rather than silently disappearing.
+
+Fatal configuration errors, such as missing required packages or unsupported
+overlay names, still stop early before avoidable GBIF requests are submitted.
 }
 
 \examples{

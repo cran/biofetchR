@@ -15,14 +15,24 @@
 #      downloads, and coercing returned records to WGS84 sf point objects.
 #
 # DESIGN NOTES
-#   - This file is intentionally small and does not submit GBIF downloads itself;
-#     submission is handled by the dedicated GBIF download-backend script.
-#   - `check_gbif_presence()` uses the GBIF occurrence-search API for a quick
-#     presence/absence pre-check. API search results do not themselves create a
-#     single reproducible download DOI.
-#   - `wait_and_import_gbif()` imports completed occurrence downloads and keeps
-#     the user-supplied download key as the reproducibility anchor in downstream
-#     summaries.
+#   - This file does not submit GBIF downloads itself; submission and queue
+#     management are handled by gbif_download_backends.R.
+#   - `check_gbif_presence()` uses the GBIF occurrence-search API for a lightweight
+#     availability pre-check. Search API calls do not themselves create a
+#     reproducible GBIF occurrence-download DOI.
+#   - `wait_and_import_gbif()` treats request labels and GBIF download keys as
+#     separate concepts. Several request labels can intentionally share one GBIF
+#     download key.
+#   - Shared download keys are deduplicated before polling/import, so one GBIF
+#     archive is downloaded and imported only once.
+#   - When a download object carries `biofetchR_split_field`, the imported archive
+#     is split back to its original request labels after import. The
+#     terrestrial/freshwater backend uses `countryCode` for this purpose.
+#   - Polling timeouts remain explicit unresolved states. They retain the GBIF key
+#     and are never interpreted as evidence that GBIF contained zero records.
+#   - `wait_and_import_gbif()` attaches a request-level retrieval audit to the
+#     returned list so successful, empty, failed, and unresolved requests remain
+#     distinguishable.
 #   - `harmonize_column_types()` is retained for backwards compatibility with
 #     older scripts that bind heterogeneous GBIF sf objects.
 #
@@ -160,34 +170,83 @@ get_taxon_key <- function(species, verbose = FALSE) {
 
 #' Wait for GBIF occurrence downloads and import completed records
 #'
-#' Poll GBIF download metadata until each supplied download key succeeds, then
-#' download, import and convert the returned occurrence records to WGS84 `sf`
-#' points.
+#' Poll submitted GBIF occurrence-download keys, import successfully completed
+#' SIMPLE_CSV archives, convert coordinate-bearing records to WGS84 `sf` points,
+#' and preserve one explicit retrieval outcome for every original request label.
 #'
 #' @details
-#' `keys` should normally be the named list returned by a GBIF download-submission
-#' helper, where names represent the species, country, region or batch label used
-#' by the calling pipeline. Each successful import is stored under the same name.
+#' `keys` can be a named list or named character vector. Names represent logical
+#' request labels such as species names or ISO2 countries, while values are GBIF
+#' asynchronous download keys.
 #'
-#' Completed downloads are imported with [rgbif::occ_download_import()], filtered
-#' to records with non-missing `decimalLatitude` and `decimalLongitude`, and then
-#' converted to an `sf` point object with EPSG:4326 coordinates. Failed,
-#' cancelled, killed or timed-out downloads are skipped with a CLI message.
+#' Multiple labels are allowed to share the same GBIF key. Before polling,
+#' biofetchR constructs the request-label-to-key mapping and reduces the supplied
+#' keys to their unique non-missing values. Each unique GBIF download is therefore
+#' polled, downloaded and imported only once.
 #'
-#' @param keys Named list or named character vector of GBIF occurrence download
-#'   keys. Names are used as the returned list names.
-#' @param wait_time Numeric. Seconds to wait between polling attempts.
-#' @param max_tries Integer. Maximum number of polling attempts per key.
+#' For each unique key, GBIF metadata are polled up to `max_tries` times with
+#' `wait_time` seconds between attempts. `SUCCEEDED` proceeds to import.
+#' `FAILED`, `KILLED`, `CANCELLED`, and `FILE_ERASED` are treated as terminal
+#' failure states. If no terminal state is reached before the polling limit, the
+#' request is recorded as `pending_timeout`; the GBIF key is retained for later
+#' review or recovery.
 #'
-#' @return A named list of `sf` point objects in WGS84 longitude/latitude
-#'   coordinates. Each list element contains imported GBIF occurrence records for
-#'   one completed download key, filtered to records with non-missing
-#'   `decimalLongitude` and `decimalLatitude` values and converted to EPSG:4326
-#'   point geometry. List names are taken from `names(keys)`, so they usually
-#'   represent the species, country, region or batch label supplied by the
-#'   calling pipeline. Downloads that fail, are cancelled, time out or cannot be
-#'   imported are skipped, so the returned list may be shorter than `keys` or
-#'   empty.
+#' Completed archives are imported with [rgbif::occ_download_import()]. Records
+#' lacking `decimalLatitude` or `decimalLongitude` are removed before conversion
+#' to EPSG:4326 point geometry.
+#'
+#' @section Shared download keys and country splitting:
+#' The terrestrial/freshwater multi-country backend deliberately returns several
+#' country labels pointing to one shared GBIF download key and attaches
+#' `biofetchR_split_field = "countryCode"`.
+#'
+#' When a split field is present, the completed archive is imported once and then
+#' partitioned locally for each original label. A country with no matching rows
+#' after a successful import is retained as a zero-row WGS84 `sf` object and is
+#' audited as `success_zero`, rather than disappearing from the returned result.
+#'
+#' If no split field is supplied, each request label associated with a successful
+#' key receives the complete imported `sf` object.
+#'
+#' @section Retrieval-status audit:
+#' The returned list carries a `gbif_status` attribute containing one row per
+#' original request label. Its columns are:
+#'
+#' \itemize{
+#'   \item `label`: original request label;
+#'   \item `gbif_key`: associated GBIF download key;
+#'   \item `gbif_status`: terminal or last observed GBIF download status;
+#'   \item `retrieval_status`: biofetchR retrieval interpretation;
+#'   \item `n_records`: number of coordinate-bearing records assigned to the
+#'     request label when known;
+#'   \item `message`: diagnostic or recovery message where relevant.
+#' }
+#'
+#' Retrieval statuses include `success`, `success_zero`, `invalid_key`,
+#' `pending_timeout`, `download_failed`, `killed`, `cancelled`, `file_erased`,
+#' `import_failed`, and `split_failed`.
+#'
+#' Importantly, `pending_timeout` means that the download remained unresolved
+#' within the configured polling window. It is not interpreted as a biological
+#' zero and the associated GBIF key remains available in the audit.
+#'
+#' @param keys Named list or named character vector of GBIF occurrence-download
+#'   keys. Names are logical request labels. Several names may intentionally map
+#'   to the same key.
+#' @param wait_time Numeric. Seconds between GBIF metadata polling attempts.
+#' @param max_tries Integer. Maximum number of metadata polling attempts for each
+#'   UNIQUE GBIF download key.
+#'
+#' @return A named list of WGS84 `sf` point objects for successfully resolved
+#'   request labels. For a normal species-level download, one imported object is
+#'   returned under the corresponding species label. For a shared multi-country
+#'   download, the archive is imported once and separate country-labelled `sf`
+#'   objects are returned after splitting by the configured field.
+#'
+#'   Successfully resolved labels with zero matching records are retained as
+#'   zero-row `sf` objects. Failed or unresolved requests need not appear as list
+#'   elements, but every original request is represented in the attached
+#'   `gbif_status` audit attribute.
 #'
 #' @section GBIF data use and citation:
 #' This function imports GBIF occurrence-download data. Retain the GBIF download
@@ -201,6 +260,7 @@ get_taxon_key <- function(species, verbose = FALSE) {
 #'   imported <- wait_and_import_gbif(keys)
 #'
 #'   names(imported)
+#'   attr(imported, "gbif_status")
 #' }
 #' }
 #'
@@ -208,23 +268,121 @@ get_taxon_key <- function(species, verbose = FALSE) {
 #' @md
 #' @export
 wait_and_import_gbif <- function(keys, wait_time = 30, max_tries = 60) {
+  split_field <- attr(keys, "biofetchR_split_field", exact = TRUE)
+  requested_labels_attr <- attr(keys, "biofetchR_requested_labels", exact = TRUE)
+
+  if (is.list(keys)) {
+    key_vec <- vapply(
+      keys,
+      function(x) {
+        x <- as.character(x)
+        x <- x[!is.na(x) & nzchar(x)]
+        if (length(x)) x[[1L]] else NA_character_
+      },
+      character(1)
+    )
+  } else {
+    key_vec <- as.character(keys)
+  }
+
+  labels <- names(keys)
+  if (is.null(labels) || length(labels) != length(key_vec) || any(is.na(labels) | !nzchar(labels))) {
+    if (!is.null(requested_labels_attr) && length(requested_labels_attr) == length(key_vec)) {
+      labels <- as.character(requested_labels_attr)
+    } else {
+      labels <- paste0("request_", seq_along(key_vec))
+    }
+  }
+
+  request_map <- data.frame(
+    label = as.character(labels),
+    gbif_key = as.character(key_vec),
+    stringsAsFactors = FALSE
+  )
+
+  audit <- data.frame(
+    label = request_map$label,
+    gbif_key = request_map$gbif_key,
+    gbif_status = NA_character_,
+    retrieval_status = ifelse(
+      is.na(request_map$gbif_key) | !nzchar(request_map$gbif_key),
+      "invalid_key",
+      "pending"
+    ),
+    n_records = NA_integer_,
+    message = NA_character_,
+    stringsAsFactors = FALSE
+  )
+
   results <- list()
 
-  for (region_id in names(keys)) {
-    key <- keys[[region_id]]
+  .set_audit <- function(labels_for_key,
+                         gbif_status = NA_character_,
+                         retrieval_status,
+                         n_records = NA_integer_,
+                         message = NA_character_) {
+    idx <- which(audit$label %in% labels_for_key)
+    if (!length(idx)) return(invisible(NULL))
+
+    audit$gbif_status[idx] <<- gbif_status
+    audit$retrieval_status[idx] <<- retrieval_status
+    audit$n_records[idx] <<- as.integer(n_records)
+    audit$message[idx] <<- message
+    invisible(NULL)
+  }
+
+  .to_sf <- function(df) {
+    if (!is.data.frame(df)) return(NULL)
+    if (!all(c("decimalLatitude", "decimalLongitude") %in% names(df))) return(NULL)
+
+    df <- dplyr::filter(
+      df,
+      !is.na(.data$decimalLatitude),
+      !is.na(.data$decimalLongitude)
+    )
+
+    if (!nrow(df)) {
+      return(
+        sf::st_sf(
+          df,
+          geometry = sf::st_sfc(crs = 4326)
+        )
+      )
+    }
+
+    sf::st_as_sf(
+      df,
+      coords = c("decimalLongitude", "decimalLatitude"),
+      crs = 4326
+    )
+  }
+
+  valid_keys <- unique(
+    request_map$gbif_key[
+      !is.na(request_map$gbif_key) & nzchar(request_map$gbif_key)
+    ]
+  )
+
+  for (key in valid_keys) {
+    labels_for_key <- request_map$label[request_map$gbif_key == key]
+    final_status <- NA_character_
     success <- FALSE
 
     for (i in seq_len(max_tries)) {
-      status <- tryCatch({
-        rgbif::occ_download_meta(key)$status
-      }, error = function(e) NA_character_)
+      status <- tryCatch(
+        rgbif::occ_download_meta(key)$status,
+        error = function(e) NA_character_
+      )
 
-      if (!is.na(status)) {
-        if (status == "SUCCEEDED") {
+      if (!is.na(status) && nzchar(status)) {
+        final_status <- toupper(as.character(status[[1L]]))
+
+        if (identical(final_status, "SUCCEEDED")) {
           success <- TRUE
           break
-        } else if (status %in% c("KILLED", "CANCELLED")) {
-          cli::cli_alert_danger("[x] Download {key} failed with status: {status}")
+        }
+
+        if (final_status %in% c("FAILED", "KILLED", "CANCELLED", "FILE_ERASED")) {
           break
         }
       }
@@ -232,26 +390,147 @@ wait_and_import_gbif <- function(keys, wait_time = 30, max_tries = 60) {
       Sys.sleep(wait_time)
     }
 
-    if (!success) {
-      cli::cli_alert_warning("[timeout] Timeout waiting for download {.val {key}} - skipping.")
+    if (!isTRUE(success)) {
+      retrieval_status <- if (identical(final_status, "FAILED")) {
+        "download_failed"
+      } else if (identical(final_status, "KILLED")) {
+        "killed"
+      } else if (identical(final_status, "CANCELLED")) {
+        "cancelled"
+      } else if (identical(final_status, "FILE_ERASED")) {
+        "file_erased"
+      } else {
+        "pending_timeout"
+      }
+
+      msg <- if (identical(retrieval_status, "pending_timeout")) {
+        paste0(
+          "Polling limit reached before GBIF download completed; key retained for recovery: ",
+          key
+        )
+      } else {
+        paste0("GBIF download ended with status ", final_status, ".")
+      }
+
+      .set_audit(
+        labels_for_key,
+        gbif_status = final_status,
+        retrieval_status = retrieval_status,
+        message = msg
+      )
+
+      if (identical(retrieval_status, "pending_timeout")) {
+        cli::cli_alert_warning(
+          "[timeout] GBIF download {.val {key}} is still unresolved; key retained for recovery."
+        )
+      } else {
+        cli::cli_alert_danger(
+          "[x] GBIF download {.val {key}} ended with status {.val {final_status}}."
+        )
+      }
+
       next
     }
 
-    occ_data <- tryCatch({
-      zipfile <- rgbif::occ_download_get(key, overwrite = TRUE, path = tempdir())
-      df <- rgbif::occ_download_import(zipfile)
-      df <- dplyr::filter(df, !is.na(decimalLatitude), !is.na(decimalLongitude))
-      sf::st_as_sf(df, coords = c("decimalLongitude", "decimalLatitude"), crs = 4326)
-    }, error = function(e) {
-      cli::cli_alert_danger("[x] Failed to import download {.val {key}}: {e$message}")
-      NULL
-    })
+    imported_df <- tryCatch(
+      {
+        zipfile <- rgbif::occ_download_get(
+          key,
+          overwrite = TRUE,
+          path = tempdir()
+        )
+        rgbif::occ_download_import(zipfile)
+      },
+      error = function(e) e
+    )
 
-    if (!is.null(occ_data)) {
-      results[[region_id]] <- occ_data
+    if (inherits(imported_df, "condition")) {
+      .set_audit(
+        labels_for_key,
+        gbif_status = "SUCCEEDED",
+        retrieval_status = "import_failed",
+        message = conditionMessage(imported_df)
+      )
+      cli::cli_alert_danger(
+        "[x] Failed to import GBIF download {.val {key}}: {conditionMessage(imported_df)}"
+      )
+      next
+    }
+
+    if (!is.data.frame(imported_df)) {
+      .set_audit(
+        labels_for_key,
+        gbif_status = "SUCCEEDED",
+        retrieval_status = "import_failed",
+        message = "GBIF import did not return a data frame."
+      )
+      next
+    }
+
+    if (!is.null(split_field) && nzchar(as.character(split_field[[1L]]))) {
+      split_field <- as.character(split_field[[1L]])
+
+      if (!split_field %in% names(imported_df)) {
+        .set_audit(
+          labels_for_key,
+          gbif_status = "SUCCEEDED",
+          retrieval_status = "split_failed",
+          message = paste0("Imported GBIF data do not contain split field `", split_field, "`.")
+        )
+        next
+      }
+
+      split_values <- toupper(trimws(as.character(imported_df[[split_field]])))
+
+      for (label in labels_for_key) {
+        keep <- !is.na(split_values) & split_values == toupper(trimws(label))
+        df_label <- imported_df[keep, , drop = FALSE]
+        sf_label <- tryCatch(.to_sf(df_label), error = function(e) NULL)
+
+        if (is.null(sf_label)) {
+          .set_audit(
+            label,
+            gbif_status = "SUCCEEDED",
+            retrieval_status = "split_failed",
+            message = paste0("Failed to convert country subset `", label, "` to sf.")
+          )
+          next
+        }
+
+        results[[label]] <- sf_label
+        n_label <- nrow(sf_label)
+        .set_audit(
+          label,
+          gbif_status = "SUCCEEDED",
+          retrieval_status = if (n_label > 0L) "success" else "success_zero",
+          n_records = n_label
+        )
+      }
+    } else {
+      occ_sf <- tryCatch(.to_sf(imported_df), error = function(e) NULL)
+
+      if (is.null(occ_sf)) {
+        .set_audit(
+          labels_for_key,
+          gbif_status = "SUCCEEDED",
+          retrieval_status = "import_failed",
+          message = "Failed to convert imported GBIF records to sf."
+        )
+        next
+      }
+
+      for (label in labels_for_key) {
+        results[[label]] <- occ_sf
+        .set_audit(
+          label,
+          gbif_status = "SUCCEEDED",
+          retrieval_status = if (nrow(occ_sf) > 0L) "success" else "success_zero",
+          n_records = nrow(occ_sf)
+        )
+      }
     }
   }
 
-  return(results)
+  attr(results, "gbif_status") <- audit
+  results
 }
-

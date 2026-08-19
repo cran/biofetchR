@@ -6,11 +6,11 @@
 #
 # Package role
 #   This file defines the main terrestrial/freshwater occurrence-processing
-#   workflow used by biofetchR. It accepts a species-by-country table, optionally
-#   standardises taxon names and origin evidence, submits retained species-country
-#   combinations to GBIF, imports occurrence records, assigns records to requested
-#   terrestrial/freshwater overlays, applies coordinate cleaning and optional
-#   thinning, and writes grouped occurrence CSVs plus audit/summary outputs.
+#   workflow used by biofetchR. Inputs remain species x recipient-country tables,
+#   but accepted countries for the same species can be combined into one
+#   asynchronous GBIF download, imported once, and split back to country-level
+#   occurrence objects before downstream overlay assignment, cleaning, thinning
+#   and export.
 #
 # Data access and attribution
 #   This pipeline can submit GBIF downloads and can use multiple third-party
@@ -24,24 +24,40 @@
 #
 # Core responsibilities
 #   1. Validate species x ISO2 input tables.
-#   2. Apply optional taxonomy preparation before any GBIF requests are made.
-#   3. Apply optional GRIIS and native-range origin-evidence gates before any
-#      GBIF requests are made.
-#   4. Submit GBIF occurrence downloads for retained species x country rows.
-#   5. Import GBIF records and standardise them as WGS84 point geometries.
-#   6. Optionally enrich points with raster-derived context fields.
-#   7. Assign points to requested terrestrial/freshwater vector overlays.
-#   8. Apply coordinate cleaning and, optionally, spatial thinning.
-#   9. Export per-species/per-region CSVs and write gbif_summary.csv.
+#   2. Apply optional taxonomy preparation before GBIF requests are made.
+#   3. Apply optional GRIIS and native-range origin-evidence gates before GBIF
+#      requests are made.
+#   4. Pre-check retained species x country combinations for georeferenced GBIF
+#      records.
+#   5. For each species, combine all retained positive countries into one
+#      multi-country asynchronous GBIF download request.
+#   6. Import each successful GBIF archive once and reconstruct country-specific
+#      occurrence objects using GBIF `countryCode`.
+#   7. Reconcile every retained species x country retrieval request to an explicit
+#      success, zero, failure, or unresolved status.
+#   8. Optionally enrich occurrence points with raster-derived context fields.
+#   9. Assign points to requested terrestrial/freshwater vector overlays.
+#  10. Apply coordinate cleaning and, optionally, spatial thinning.
+#  11. Export per-species/per-region CSVs plus processing and GBIF retrieval
+#      audits.
 #
 # Design principles
 #   - Conservative ordering: taxonomy and origin filters run before GBIF
 #     submission, so rejected rows are never submitted to GBIF.
+#   - Retrieval efficiency: species-country combinations remain the logical audit
+#     units, while several countries for one species can share one GBIF download
+#     key and one imported archive.
+#   - Retrieval completeness: every retained species x country request receives an
+#     explicit retrieval outcome; missing requests are marked
+#     `internal_unreconciled` rather than disappearing silently.
+#   - Timeout integrity: a polling timeout remains an unresolved download with its
+#     GBIF key retained and is never converted to a zero-occurrence result.
 #   - Fail-soft by default: overlay/context failures are recorded in the summary
 #     rather than aborting an entire run, unless strict_* arguments are TRUE.
-#   - Reproducible auditing: taxonomy and origin decisions can be written to CSV.
-#   - Testable internals: the `deps` argument allows dependency injection for
-#     unit tests without changing the public API.
+#   - Reproducible auditing: taxonomy, origin and GBIF retrieval decisions can be
+#     written to CSV.
+#   - Testable internals: the `deps` argument allows dependency injection for unit
+#     tests without changing the public API.
 #   - Data-processing scope: this file produces processed occurrence tables,
 #     grouped CSV outputs and audit files only.
 #
@@ -77,20 +93,24 @@
 #' Process terrestrial and freshwater GBIF occurrences
 #'
 #' Download, import, clean, assign and export GBIF occurrence records for
-#' terrestrial and freshwater workflows. Input records are supplied as a
-#' species-by-country table. Each accepted species-country pair is submitted to
-#' GBIF, imported as occurrence points, optionally enriched with context layers,
-#' assigned to one or more spatial overlays, cleaned, optionally thinned, and
-#' exported as grouped CSV outputs.
+#' terrestrial and freshwater workflows. Input is supplied as a species x ISO2
+#' country table. Species-country combinations remain the logical retrieval,
+#' auditing and output units, but eligible countries for one species are combined
+#' into a single asynchronous GBIF occurrence download whenever the built-in
+#' multi-country backend is used.
 #'
 #' @description
 #' `process_gbif_terrestrial_freshwater_pipeline()` is the main high-level
-#' pipeline for terrestrial and freshwater occurrence processing in biofetchR.
-#' It is designed for reproducible batch processing rather than exploratory
-#' single-query use. The function is conservative by default: taxonomy and
-#' origin-evidence filters are applied before GBIF download submission, while
-#' overlay/context loading failures are recorded in `gbif_summary.csv` unless a
-#' strict mode is requested.
+#' terrestrial/freshwater occurrence workflow in biofetchR. It applies optional
+#' taxonomy and origin-evidence gates before GBIF submission, pre-checks retained
+#' species-country requests for georeferenced records, submits one combined
+#' multi-country download per species, imports that archive once, and reconstructs
+#' country-specific occurrence objects before the existing context, overlay,
+#' cleaning, thinning and export stages.
+#'
+#' Retrieval provenance is retained separately from downstream spatial-output
+#' summaries so every original request can be classified explicitly as successful,
+#' empty, failed, or unresolved.
 #'
 #' @details
 #' The pipeline runs in the following order:
@@ -99,27 +119,50 @@
 #'    species column and an ISO2 country column. Species names are coerced to
 #'    character and ISO2 codes are upper-cased.
 #' 2. **Optional taxonomy gate.** When `prepare_taxonomy = TRUE`, names are
-#'    cleaned, manual fixes can be applied, invalid or non-species entries can be
-#'    rejected, and accepted names are used downstream for GBIF submission,
-#'    summaries and filenames.
+#'    cleaned, manual fixes can be applied, invalid/non-species entries can be
+#'    rejected, and accepted names are used downstream.
 #' 3. **Optional origin-evidence gates.** GRIIS and native-range evidence can be
-#'    attached and used to retain or reject rows before GBIF is queried.
-#' 4. **GBIF download submission.** Retained species-country rows are batched and
-#'    submitted to GBIF with a country predicate.
-#' 5. **GBIF import and point preparation.** Returned downloads are imported,
-#'    converted to WGS84 point geometries, and given stable longitude/latitude
-#'    columns for downstream export.
-#' 6. **Optional raster/context enrichment.** Requested raster/context variables
+#'    attached and used to retain or reject species-country rows before GBIF is
+#'    queried.
+#' 4. **Country-level GBIF availability pre-check.** Each retained species-country
+#'    combination is checked for georeferenced GBIF records. A confirmed zero is
+#'    recorded explicitly as `precheck_zero` and is not included in the download.
+#' 5. **Multi-country GBIF submission.** For each species, all countries retained
+#'    after the pre-check are submitted together to the built-in backend as one
+#'    asynchronous GBIF download using a country-IN predicate.
+#' 6. **GBIF polling, import and country reconstruction.** The shared download is
+#'    polled and imported once. Its records are split locally by GBIF
+#'    `countryCode`, recreating one result object for every requested country.
+#' 7. **Retrieval reconciliation.** Every retained species-country request is
+#'    reconciled against the submission/import audit. Successful empty subsets,
+#'    failures, timeouts and internally missing outcomes remain explicit.
+#' 8. **Optional raster/context enrichment.** Requested raster/context variables
 #'    are extracted to occurrence points as additional attributes.
-#' 7. **Vector overlay assignment.** Points are assigned to requested
+#' 9. **Vector overlay assignment.** Points are assigned to requested
 #'    terrestrial/freshwater spatial units using polygon containment or
 #'    nearest-feature snapping, depending on overlay type.
-#' 8. **Coordinate cleaning and thinning.** Coordinate-quality cleaning is applied
-#'    through `thin_spatial_points()` when `apply_cleaning = TRUE`; distance-based
-#'    thinning is applied when `apply_thinning = TRUE` and `dist_km > 0`.
-#' 9. **Export and summary.** Grouped occurrence CSVs and `gbif_summary.csv` are
-#'    written to `output_dir`; if `store_in_memory = TRUE`, grouped records can
-#'    also be returned as a combined tibble.
+#' 10. **Coordinate cleaning and thinning.** Coordinate-quality cleaning is
+#'     applied when `apply_cleaning = TRUE`; distance-based thinning is applied
+#'     when `apply_thinning = TRUE` and `dist_km > 0`.
+#' 11. **Export and auditing.** Grouped occurrence CSVs, processing summaries and
+#'     GBIF retrieval-audit files are written to `output_dir`. If
+#'     `store_in_memory = TRUE`, grouped records can also be returned as a
+#'     combined tibble.
+#'
+#' @section GBIF multi-country retrieval architecture:
+#' The input and audit unit remains a species x ISO2-country combination. The
+#' asynchronous GBIF download unit is different: when the built-in
+#' `download_gbif_batch_gadm()` backend is used, all retained countries for one
+#' species are combined in a single country-IN request.
+#'
+#' Consequently, several countries for the same species normally carry the SAME
+#' GBIF download key. This is intentional. The completed archive is imported only
+#' once and [wait_and_import_gbif()] splits it back to country-specific objects
+#' using GBIF `countryCode`.
+#'
+#' This design reduces unnecessary asynchronous download jobs while preserving
+#' country-level outputs and provenance. A successful country split containing no
+#' records is retained as `success_zero`; it is not silently omitted.
 #'
 #' @section Input table:
 #' `df` must contain at least:
@@ -161,12 +204,47 @@
 #' The pipeline can write:
 #'
 #' - grouped occurrence CSVs for each species-region combination;
-#' - `gbif_summary.csv`, recording status, row counts, download keys and failure
-#'   stages;
+#' - `gbif_summary.csv`, recording processing status, row counts, download keys and
+#'   failure stages;
+#' - `gbif_retrieval_audit.csv`, recording one explicit GBIF retrieval outcome
+#'   for each taxonomy-approved species x country request;
+#' - `gbif_unresolved_requests.csv`, containing only unresolved or failed GBIF
+#'   retrieval requests for targeted review/recovery;
 #' - `taxonomy_audit.csv`, `taxonomy_rejected.csv` and `taxonomy_summary.csv`
 #'   when taxonomy auditing is enabled;
 #' - `origin_evidence_audit.csv`, `origin_evidence_rejected.csv` and
 #'   `origin_evidence_summary.csv` when origin-evidence auditing is enabled.
+#'
+#'
+#' @section Retrieval audit and completeness:
+#' `gbif_retrieval_audit.csv` is deliberately separate from
+#' `gbif_summary.csv`. The processing summary can contain multiple rows per
+#' original request after spatial overlay assignment, whereas the retrieval audit
+#' contains one row per retained GBIF request unit.
+#'
+#' The retrieval audit contains:
+#'
+#' \itemize{
+#'   \item `species`;
+#'   \item `request_id` (ISO2 country);
+#'   \item `request_type` (`"country"`);
+#'   \item `gbif_key`;
+#'   \item `gbif_status`;
+#'   \item `retrieval_status`;
+#'   \item `n_records`;
+#'   \item `fail_reason`.
+#' }
+#'
+#' Resolved retrieval outcomes include `success`, `success_zero`, and
+#' `precheck_zero`. Unresolved or failed states written to
+#' `gbif_unresolved_requests.csv` include `taxon_key_failed`, `submit_failed`,
+#' `submit_no_key`, `submit_timeout`, `invalid_key`, `pending_timeout`,
+#' `download_failed`, `killed`, `cancelled`, `file_erased`, `import_failed`,
+#' `split_failed`, and `internal_unreconciled`.
+#'
+#' The final completeness gate compares the retained expected species-country
+#' requests with the retrieval ledger. Any request lacking an explicit outcome is
+#' added as `internal_unreconciled` rather than being silently omitted.
 #'
 #' @section Data access, licences and attribution:
 #' This function can submit live GBIF occurrence downloads and can call helper
@@ -185,10 +263,23 @@
 #'
 #' @section Failure handling:
 #' Overlay and raster-context failures are handled according to
-#' `strict_overlay_loading` and `strict_raster_context`. In fail-soft mode,
+#' `strict_overlay_loading` and `strict_raster_context`. In fail-soft mode these
 #' failures are recorded in `gbif_summary.csv` and processing continues where
-#' possible. In strict mode, the pipeline stops immediately so development tests
-#' and production checks can surface missing dependencies or invalid sources.
+#' possible.
+#'
+#' GBIF retrieval failures use a separate request-level ledger. Submission
+#' failures, invalid keys, download terminal states, polling timeouts, import
+#' failures, split failures and completeness failures are written to
+#' `gbif_retrieval_audit.csv`. Unresolved states are also copied to
+#' `gbif_unresolved_requests.csv`.
+#'
+#' A polling timeout is recorded as `pending_timeout` with the GBIF key retained.
+#' It is not treated as evidence of zero occurrence records. Likewise, a request
+#' that cannot be reconciled to either an imported result or an explicit failure
+#' is recorded as `internal_unreconciled`.
+#'
+#' Strict overlay/context modes can still stop the pipeline immediately for
+#' configuration or resource failures.
 #'
 #' @section Testing and dependency injection:
 #' The `deps` argument allows tests to inject mock download, import, export,
@@ -197,8 +288,9 @@
 #' submitting live GBIF downloads or requiring large remote overlay resources.
 #'
 #' @param df Data frame containing at least `species` and `iso2c`.
-#' @param output_dir Directory where occurrence CSVs and summary/audit files are
-#'   written.
+#' @param output_dir Directory where occurrence CSVs, `gbif_summary.csv`,
+#'   `gbif_retrieval_audit.csv`, `gbif_unresolved_requests.csv`, and optional
+#'   taxonomy/origin audit files are written.
 #' @param user GBIF username.
 #' @param pwd GBIF password.
 #' @param email GBIF account email address.
@@ -346,7 +438,11 @@
 #'   Footprint extraction.
 #' @param human_footprint_buffer_m Buffer radius in metres for Human Footprint
 #'   extraction. `0` uses point extraction.
-#' @param batch_size Number of species to process per batch.
+#' @param batch_size Number of species grouped into each outer processing batch.
+#'   Species are still processed sequentially within those batches. With the
+#'   built-in terrestrial/freshwater backend, all eligible countries for one
+#'   species are combined into one GBIF download; `batch_size` therefore does not
+#'   represent the number of concurrent country-level GBIF jobs.
 #' @param dist_km Minimum distance in kilometres used when
 #'   `apply_thinning = TRUE`.
 #' @param apply_thinning Logical. If `TRUE`, apply distance-based thinning after
@@ -355,7 +451,8 @@
 #'   before export.
 #' @param return_all_results Logical. If `TRUE` and `store_in_memory = TRUE`,
 #'   return a combined tibble of all grouped records.
-#' @param export_summary Logical. If `TRUE`, write `gbif_summary.csv`.
+#' @param export_summary Logical. If `TRUE`, write `gbif_summary.csv`,
+#'   `gbif_retrieval_audit.csv`, and `gbif_unresolved_requests.csv`.
 #' @param store_in_memory Logical. If `TRUE`, retain grouped output rows in
 #'   memory for return.
 #' @param use_planar Logical. If `TRUE`, disable spherical geometry for selected
@@ -1117,6 +1214,20 @@ process_gbif_terrestrial_freshwater_pipeline <- function(
   if (!"gbif_key" %in% names(summary_tbl)) summary_tbl$gbif_key <- NA_character_
   all_results <- list()
 
+  # One row per taxonomy-approved species x country retrieval request. This is
+  # deliberately separate from gbif_summary.csv because downstream overlay
+  # outputs can have multiple rows per original country request.
+  retrieval_audit <- tibble::tibble(
+    species = character(),
+    request_id = character(),
+    request_type = character(),
+    gbif_key = character(),
+    gbif_status = character(),
+    retrieval_status = character(),
+    n_records = integer(),
+    fail_reason = character()
+  )
+
   # ---------------------------------------------------------------------------
   # Local status, summary and error helpers
   # ---------------------------------------------------------------------------
@@ -1141,6 +1252,43 @@ process_gbif_terrestrial_freshwater_pipeline <- function(
     summary_tbl$fail_stage[i] <<- fail_stage
     summary_tbl$fail_reason[i] <<- fail_reason
     summary_tbl$gbif_key[i] <<- gbif_key
+    invisible(NULL)
+  }
+
+  .append_retrieval_audit <- function(species,
+                                      request_id,
+                                      gbif_key = NA_character_,
+                                      gbif_status = NA_character_,
+                                      retrieval_status,
+                                      n_records = NA_integer_,
+                                      fail_reason = NA_character_) {
+    species <- as.character(species[[1L]])
+    request_id <- as.character(request_id[[1L]])
+
+    # Upsert rather than append blindly: every species x country request should
+    # have exactly one final retrieval outcome.
+    if (nrow(retrieval_audit)) {
+      keep <- !(
+        retrieval_audit$species == species &
+          retrieval_audit$request_id == request_id
+      )
+      retrieval_audit <<- retrieval_audit[keep, , drop = FALSE]
+    }
+
+    retrieval_audit <<- dplyr::bind_rows(
+      retrieval_audit,
+      tibble::tibble(
+        species = species,
+        request_id = request_id,
+        request_type = "country",
+        gbif_key = as.character(gbif_key[[1L]]),
+        gbif_status = as.character(gbif_status[[1L]]),
+        retrieval_status = as.character(retrieval_status[[1L]]),
+        n_records = as.integer(n_records[[1L]]),
+        fail_reason = as.character(fail_reason[[1L]])
+      )
+    )
+
     invisible(NULL)
   }
 
@@ -2201,6 +2349,13 @@ process_gbif_terrestrial_freshwater_pipeline <- function(
             fail_stage = "precheck_no_geo",
             fail_reason = "GBIF precheck returned 0 georeferenced records (species x country)."
           )
+          .append_retrieval_audit(
+            species = species_name,
+            request_id = cc,
+            retrieval_status = "precheck_zero",
+            n_records = 0L,
+            fail_reason = "GBIF precheck returned 0 georeferenced records (species x country)."
+          )
         }
       }
       if (!length(valid_countries)) next
@@ -2221,24 +2376,87 @@ process_gbif_terrestrial_freshwater_pipeline <- function(
       )
 
       download_keys <- tryCatch(
-        download_fun(species = species_name, iso2_codes = valid_countries, user = user, pwd = pwd, email = email),
-        error = function(e) {
-          for (cc in valid_countries) {
-            .append_row(
-              species = species_name,
-              region_id = cc,
-              region_type = .region_type_for_fail(),
-              status = "failed",
-              fail_stage = "submit_download",
-              fail_reason = .errmsg(e)
-            )
-          }
-          NULL
-        }
+        download_fun(
+          species = species_name,
+          iso2_codes = valid_countries,
+          user = user,
+          pwd = pwd,
+          email = email
+        ),
+        error = function(e) e
       )
-      if (is.null(download_keys) || !length(download_keys)) {
+
+      if (inherits(download_keys, "condition")) {
+        for (cc in valid_countries) {
+          .append_row(
+            species = species_name,
+            region_id = cc,
+            region_type = .region_type_for_fail(),
+            status = "failed",
+            fail_stage = "submit_download",
+            fail_reason = .errmsg(download_keys)
+          )
+          .append_retrieval_audit(
+            species = species_name,
+            request_id = cc,
+            retrieval_status = "submit_failed",
+            fail_reason = .errmsg(download_keys)
+          )
+        }
+
         bf_console_bullet(
-          paste0("GBIF request failed or returned no keys for ", species_name, "."),
+          paste0("GBIF request failed for ", species_name, "."),
+          quiet = quiet
+        )
+        next
+      }
+
+      submission_audit <- attr(download_keys, "submission_audit", exact = TRUE)
+
+      if (is.null(download_keys) || !length(download_keys)) {
+        for (cc in valid_countries) {
+          row_cc <- NULL
+          if (is.data.frame(submission_audit) && "label" %in% names(submission_audit)) {
+            hit <- which(as.character(submission_audit$label) == cc)
+            if (length(hit)) row_cc <- submission_audit[hit[[1L]], , drop = FALSE]
+          }
+
+          sub_status <- if (!is.null(row_cc) && "submission_status" %in% names(row_cc)) {
+            as.character(row_cc$submission_status[[1L]])
+          } else {
+            "submit_failed"
+          }
+          sub_reason <- if (!is.null(row_cc) && "message" %in% names(row_cc)) {
+            as.character(row_cc$message[[1L]])
+          } else {
+            "GBIF request returned no usable download key."
+          }
+          sub_key <- if (!is.null(row_cc) && "gbif_key" %in% names(row_cc)) {
+            as.character(row_cc$gbif_key[[1L]])
+          } else {
+            NA_character_
+          }
+
+          .append_row(
+            species = species_name,
+            region_id = cc,
+            region_type = .region_type_for_fail(),
+            status = "failed",
+            fail_stage = sub_status,
+            fail_reason = sub_reason,
+            gbif_key = sub_key
+          )
+          .append_retrieval_audit(
+            species = species_name,
+            request_id = cc,
+            gbif_key = sub_key,
+            retrieval_status = sub_status,
+            fail_reason = sub_reason
+          )
+        }
+
+        bf_console_bullet(
+          paste0("GBIF request failed or returned no key for ", species_name, "."),
           quiet = quiet
         )
         next
@@ -2247,7 +2465,7 @@ process_gbif_terrestrial_freshwater_pipeline <- function(
       bf_console_gbif_request(
         species = species_name,
         elapsed = bf_console_elapsed(download_start_time),
-        gbif_key = download_keys,
+        gbif_key = unique(as.character(unlist(download_keys))),
         quiet = quiet
       )
 
@@ -2255,39 +2473,151 @@ process_gbif_terrestrial_freshwater_pipeline <- function(
       if (is.character(download_keys)) keys_named <- download_keys
       if (is.list(download_keys)) {
         if (!is.null(names(download_keys))) {
-          keys_named <- vapply(download_keys, function(z) if (length(z)) as.character(z[[1]]) else NA_character_, character(1))
+          keys_named <- vapply(
+            download_keys,
+            function(z) if (length(z)) as.character(z[[1]]) else NA_character_,
+            character(1)
+          )
           names(keys_named) <- names(download_keys)
-        } else keys_named <- as.character(unlist(download_keys))
+        } else {
+          keys_named <- as.character(unlist(download_keys))
+        }
       }
       if (is.null(keys_named)) keys_named <- as.character(unlist(download_keys))
 
       import_start_time <- bf_console_now()
 
-      results_list <- tryCatch({
-        if (is.function(import_fun)) {
-          import_fun(download_keys)
-        } else {
-          if (exists("wait_and_import_gbif_safe", mode="function")) wait_and_import_gbif_safe(download_keys)
-          else if (exists("wait_and_import_gbif", mode="function")) wait_and_import_gbif(download_keys)
-          else stop("No import function available (wait_and_import_gbif[_safe] missing and deps$import_fun not provided).")
-        }
-      }, error=function(e) {
+      results_list <- tryCatch(
+        {
+          if (is.function(import_fun)) {
+            import_fun(download_keys)
+          } else if (exists("wait_and_import_gbif_safe", mode = "function")) {
+            wait_and_import_gbif_safe(download_keys)
+          } else if (exists("wait_and_import_gbif", mode = "function")) {
+            wait_and_import_gbif(download_keys)
+          } else {
+            stop("No import function available (wait_and_import_gbif[_safe] missing and deps$import_fun not provided).")
+          }
+        },
+        error = function(e) e
+      )
+
+      if (inherits(results_list, "condition")) {
         for (cc in valid_countries) {
+          key_cc <- if (!is.null(names(keys_named)) && cc %in% names(keys_named)) {
+            keys_named[[cc]]
+          } else {
+            NA_character_
+          }
+
           .append_row(
             species = species_name,
             region_id = cc,
             region_type = .region_type_for_fail(),
             status = "failed",
             fail_stage = "wait_import",
-            fail_reason = .errmsg(e),
-            gbif_key = if (!is.null(names(keys_named)) && cc %in% names(keys_named)) keys_named[[cc]] else NA_character_
+            fail_reason = .errmsg(results_list),
+            gbif_key = key_cc
+          )
+          .append_retrieval_audit(
+            species = species_name,
+            request_id = cc,
+            gbif_key = key_cc,
+            retrieval_status = "import_failed",
+            fail_reason = .errmsg(results_list)
           )
         }
-        NULL
-      })
+        next
+      }
+
+      import_audit <- attr(results_list, "gbif_status", exact = TRUE)
+      result_names <- names(results_list)
+      if (is.null(result_names)) result_names <- character(0)
+
+      # Reconcile every requested country before downstream processing. A country
+      # may be absent from `results_list` only when the import audit explicitly
+      # explains why.
+      for (cc in valid_countries) {
+        row_cc <- NULL
+        if (is.data.frame(import_audit) && "label" %in% names(import_audit)) {
+          hit <- which(as.character(import_audit$label) == cc)
+          if (length(hit)) row_cc <- import_audit[hit[[1L]], , drop = FALSE]
+        }
+
+        if (!is.null(row_cc)) {
+          retrieval_status_cc <- as.character(row_cc$retrieval_status[[1L]])
+          gbif_status_cc <- as.character(row_cc$gbif_status[[1L]])
+          n_records_cc <- suppressWarnings(as.integer(row_cc$n_records[[1L]]))
+          fail_reason_cc <- as.character(row_cc$message[[1L]])
+          key_cc <- as.character(row_cc$gbif_key[[1L]])
+
+          .append_retrieval_audit(
+            species = species_name,
+            request_id = cc,
+            gbif_key = key_cc,
+            gbif_status = gbif_status_cc,
+            retrieval_status = retrieval_status_cc,
+            n_records = n_records_cc,
+            fail_reason = fail_reason_cc
+          )
+
+          if (!retrieval_status_cc %in% c("success", "success_zero")) {
+            .append_row(
+              species = species_name,
+              region_id = cc,
+              region_type = .region_type_for_fail(),
+              status = "failed",
+              fail_stage = retrieval_status_cc,
+              fail_reason = fail_reason_cc,
+              gbif_key = key_cc
+            )
+          }
+        } else if (cc %in% result_names) {
+          n_records_cc <- as.integer(bf_console_nrow(results_list[[cc]]))
+          key_cc <- if (!is.null(names(keys_named)) && cc %in% names(keys_named)) {
+            keys_named[[cc]]
+          } else {
+            NA_character_
+          }
+
+          .append_retrieval_audit(
+            species = species_name,
+            request_id = cc,
+            gbif_key = key_cc,
+            gbif_status = "SUCCEEDED",
+            retrieval_status = if (n_records_cc > 0L) "success" else "success_zero",
+            n_records = n_records_cc
+          )
+        } else {
+          key_cc <- if (!is.null(names(keys_named)) && cc %in% names(keys_named)) {
+            keys_named[[cc]]
+          } else {
+            NA_character_
+          }
+          reason_cc <- "Country request was neither returned by the importer nor represented in its retrieval audit."
+
+          .append_retrieval_audit(
+            species = species_name,
+            request_id = cc,
+            gbif_key = key_cc,
+            retrieval_status = "internal_unreconciled",
+            fail_reason = reason_cc
+          )
+          .append_row(
+            species = species_name,
+            region_id = cc,
+            region_type = .region_type_for_fail(),
+            status = "failed",
+            fail_stage = "internal_unreconciled",
+            fail_reason = reason_cc,
+            gbif_key = key_cc
+          )
+        }
+      }
+
       if (is.null(results_list) || !length(results_list)) {
         bf_console_bullet(
-          paste0("GBIF import returned no records for ", species_name, "."),
+          paste0("GBIF import produced no successfully resolved country objects for ", species_name, "."),
           quiet = quiet
         )
         next
@@ -2571,7 +2901,68 @@ process_gbif_terrestrial_freshwater_pipeline <- function(
   }
 
   if (isTRUE(export_summary)) {
+    # Final completeness gate: every taxonomy-approved species x country request
+    # must have one retrieval outcome, even when GBIF itself failed or timed out.
+    expected_retrievals <- df |>
+      dplyr::distinct(.data$species, .data$iso2c) |>
+      dplyr::transmute(
+        species = as.character(.data$species),
+        request_id = as.character(.data$iso2c)
+      )
+
+    observed_retrievals <- retrieval_audit |>
+      dplyr::distinct(.data$species, .data$request_id)
+
+    missing_retrievals <- dplyr::anti_join(
+      expected_retrievals,
+      observed_retrievals,
+      by = c("species", "request_id")
+    )
+
+    if (nrow(missing_retrievals)) {
+      for (i in seq_len(nrow(missing_retrievals))) {
+        .append_retrieval_audit(
+          species = missing_retrievals$species[[i]],
+          request_id = missing_retrievals$request_id[[i]],
+          retrieval_status = "internal_unreconciled",
+          fail_reason = "Final retrieval completeness gate found no recorded outcome for this request."
+        )
+      }
+      warning(
+        nrow(missing_retrievals),
+        " species x country GBIF request(s) lacked a retrieval outcome and were marked internal_unreconciled.",
+        call. = FALSE
+      )
+    }
+
+    unresolved_statuses <- c(
+      "taxon_key_failed",
+      "submit_failed",
+      "submit_no_key",
+      "submit_timeout",
+      "invalid_key",
+      "pending_timeout",
+      "download_failed",
+      "killed",
+      "cancelled",
+      "file_erased",
+      "import_failed",
+      "split_failed",
+      "internal_unreconciled"
+    )
+
+    unresolved_requests <- retrieval_audit |>
+      dplyr::filter(.data$retrieval_status %in% unresolved_statuses)
+
     readr::write_csv(summary_tbl, file.path(output_dir, "gbif_summary.csv"))
+    readr::write_csv(
+      retrieval_audit,
+      file.path(output_dir, "gbif_retrieval_audit.csv")
+    )
+    readr::write_csv(
+      unresolved_requests,
+      file.path(output_dir, "gbif_unresolved_requests.csv")
+    )
   }
 
   if (isTRUE(return_all_results) && isTRUE(store_in_memory)) {

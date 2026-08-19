@@ -18,14 +18,18 @@
 #   2. Optionally apply the taxonomy gate before live GBIF submission.
 #   3. Optionally attach species-level GRIIS evidence.
 #   4. Optionally attach species-level native-origin evidence.
-#   5. Submit marine/global GBIF downloads through a configurable backend.
-#   6. Import completed GBIF downloads and coerce records to WGS84 point sf.
-#   7. Load a package-managed marine overlay, or use a supplied sf overlay.
-#   8. Assign occurrence records to marine regions by spatial containment, with
+#   5. Group retained species into outer processing batches for organisation and
+#      progress reporting.
+#   6. Within each outer batch, process GBIF retrieval strictly species-by-species:
+#      submit one species, wait for/import that download, reconcile its retrieval
+#      outcome, and only then submit the next species.
+#   7. Convert successful imports to WGS84 point sf objects.
+#   8. Load a package-managed marine overlay, or use a supplied sf overlay.
+#   9. Assign occurrence records to marine regions by spatial containment, with
 #      an intersects fallback for boundary/coastal records.
-#   9. Optionally clean coordinates and spatially thin records.
-#  10. Export per species x marine-region occurrence tables and/or return a
-#      combined in-memory table.
+#  10. Optionally clean coordinates and spatially thin records.
+#  11. Export per species x marine-region occurrence tables plus processing and
+#      GBIF retrieval audit files and/or return a combined in-memory table.
 #
 # Marine evidence interpretation
 #   Marine recipient units are usually polygons such as EEZs, MEOW ecoregions,
@@ -642,14 +646,46 @@
 #'    evidence and can filter to listed or invasive species.
 #' 4. If requested, the native-origin gate attaches species-level origin evidence
 #'    and can filter to species with origin evidence.
-#' 5. Retained species are submitted to the configured GBIF download backend.
-#' 6. Imported records are converted to WGS84 point `sf` objects.
-#' 7. A package-managed marine overlay is loaded once, or a supplied `overlay_sf`
-#'    object is used.
-#' 8. Occurrences are assigned to marine regions by `sf::st_within()`, with an
-#'    `sf::st_intersects()` fallback for coastal or boundary records.
-#' 9. Export groups are optionally cleaned and spatially thinned.
-#' 10. Results are written to CSV and/or returned as a combined in-memory table.
+#' 5. **Outer batching.** Retained species are grouped according to `batch_size`
+#'    for progress and processing organisation.
+#' 6. **Sequential GBIF retrieval within each batch.** One species is submitted
+#'    to the configured GBIF backend, polled and imported completely before the
+#'    next species in that same outer batch is submitted.
+#' 7. **Retrieval reconciliation.** Each species receives an explicit GBIF
+#'    retrieval outcome before downstream marine processing begins.
+#' 8. **Point and overlay preparation.** Successful imports are converted to
+#'    WGS84 point `sf` objects and a package-managed marine overlay is loaded once,
+#'    or a supplied `overlay_sf` object is used.
+#' 9. **Marine-region assignment.** Occurrences are assigned by
+#'    `sf::st_within()`, with an `sf::st_intersects()` fallback for coastal or
+#'    boundary records.
+#' 10. **Cleaning and thinning.** Export groups are optionally cleaned and
+#'     spatially thinned.
+#' 11. **Export and auditing.** Results are written to CSV and/or returned as a
+#'     combined in-memory table, with GBIF retrieval outcomes retained separately
+#'     from downstream spatial-processing summaries.
+#'
+#'
+#' @section GBIF download sequencing and retrieval auditing:
+#' `batch_size` controls only the outer grouping of species. It does not define
+#' the number of simultaneous asynchronous GBIF downloads.
+#'
+#' Within every outer batch, the pipeline deliberately uses:
+#'
+#' `submit species -> wait/poll -> import -> reconcile -> next species`.
+#'
+#' This ordering prevents a nominal batch containing several species from
+#' submitting all of those GBIF jobs before any one has completed.
+#'
+#' Each retained species receives one row in `gbif_retrieval_audit.csv`. The
+#' audit contains `species`, `request_id`, `request_type`, `gbif_key`,
+#' `gbif_status`, `retrieval_status`, `n_records`, and `fail_reason`.
+#' For the marine workflow, `request_type` is `"species"` and the request
+#' identifier represents the species-level GBIF retrieval.
+#'
+#' Successfully completed downloads are recorded as `success` or `success_zero`.
+#' Unresolved or failed states are preserved explicitly rather than being
+#' interpreted as zero occurrences.
 #'
 #' Marine GRIIS and native-origin joins are species-level by default because
 #' marine recipient units are usually polygons rather than ISO country records.
@@ -671,8 +707,13 @@
 #' @section Output files:
 #' When `store_in_memory = FALSE` or when export helpers are active, the pipeline
 #' writes one CSV per retained species x marine-region group. The output
-#' directory can also contain `gbif_summary.csv` and optional audit files for the
-#' taxonomy, GRIIS, native-origin and native-web evidence gates.
+#' directory can also contain `gbif_summary.csv`, `gbif_retrieval_audit.csv`,
+#' `gbif_unresolved_requests.csv`, and optional audit files for the taxonomy,
+#' GRIIS, native-origin and native-web evidence gates. The retrieval audit records
+#' one explicit GBIF outcome per retained species. Successful, empty, failed and
+#' unresolved species therefore remain distinguishable independently of the
+#' number of marine-region output groups produced downstream. Unresolved requests
+#' retain their GBIF keys where available for targeted review or recovery.
 #'
 #' @section Data access, licensing and attribution:
 #' This function can submit live GBIF downloads and can use third-party marine
@@ -684,21 +725,39 @@
 #' requirements of the exact data products used.
 #'
 #' @section Failure handling:
-#' Download, import, sf-conversion, overlay-matching and export failures are
-#' recorded in the summary table when possible. Fatal configuration errors, such
-#' as missing required packages or unsupported overlay names, stop early before
-#' submitting avoidable GBIF requests.
+#' Download submission, polling, import, sf-conversion, overlay matching and export
+#' failures are recorded explicitly where possible.
+#'
+#' GBIF retrieval outcomes are maintained independently in
+#' `gbif_retrieval_audit.csv`. Unresolved or failed statuses copied to
+#' `gbif_unresolved_requests.csv` include `taxon_key_failed`, `submit_failed`,
+#' `submit_no_key`, `submit_timeout`, `invalid_key`, `pending_timeout`,
+#' `download_failed`, `killed`, `cancelled`, `file_erased`, `import_failed`,
+#' `split_failed`, and `internal_unreconciled`.
+#'
+#' `pending_timeout` means that the submitted GBIF download did not reach a
+#' terminal state within the configured polling window; its key is retained and
+#' the request is not interpreted as a zero-occurrence result.
+#'
+#' A final species-level completeness gate checks that every retained marine
+#' species received a retrieval outcome. Any missing species is recorded as
+#' `internal_unreconciled` rather than silently disappearing.
+#'
+#' Fatal configuration errors, such as missing required packages or unsupported
+#' overlay names, still stop early before avoidable GBIF requests are submitted.
 #'
 #' @param df Data frame containing at least a `species` column. When
 #'   `prepare_taxonomy = TRUE`, names are cleaned before GBIF submission and the
 #'   cleaned accepted names are used downstream.
 #' @param output_dir Directory for per-region CSV exports, `gbif_summary.csv`,
-#'   and optional taxonomy/GRIIS/native-origin audit files.
+#'   `gbif_retrieval_audit.csv`, `gbif_unresolved_requests.csv`, and optional
+#'   taxonomy/GRIIS/native-origin audit files.
 #' @param user GBIF username.
 #' @param pwd GBIF password.
 #' @param email GBIF account email address.
-#' @param batch_size Number of species submitted to the download backend per
-#'   batch.
+#' @param batch_size Number of species grouped into each outer processing batch.
+#'   GBIF submission and import are performed species-by-species within each
+#'   batch so this value no longer determines the number of concurrent GBIF jobs.
 #' @param apply_cleaning Logical; if `TRUE`, apply coordinate/quality cleaning
 #'   through `thin_spatial_points(..., dist_km = 0)` when available.
 #' @param apply_thinning Logical; if `TRUE`, spatially thin records after overlay
@@ -706,7 +765,8 @@
 #' @param dist_km Numeric thinning distance in kilometres.
 #' @param return_all_results Logical; if `TRUE` and `store_in_memory = TRUE`,
 #'   return a combined table of processed occurrence rows.
-#' @param export_summary Logical; if `TRUE`, write `gbif_summary.csv`.
+#' @param export_summary Logical; if `TRUE`, write `gbif_summary.csv`,
+#'   `gbif_retrieval_audit.csv`, and `gbif_unresolved_requests.csv`.
 #' @param store_in_memory Logical; if `TRUE`, retain processed groups in memory;
 #'   if `FALSE`, write groups to CSV and return invisibly.
 #' @param use_planar Logical; if `TRUE`, disable spherical S2 predicates during
@@ -1192,6 +1252,17 @@ process_gbif_marine_pipeline <- function(
 
   summary_tbl <- bf_repair_utf8_df(summary_tbl)
 
+  retrieval_audit <- tibble::tibble(
+    species = character(),
+    request_id = character(),
+    request_type = character(),
+    gbif_key = character(),
+    gbif_status = character(),
+    retrieval_status = character(),
+    n_records = integer(),
+    fail_reason = character()
+  )
+
   all_results <- list()
   result_i <- 0L
 
@@ -1229,6 +1300,37 @@ process_gbif_marine_pipeline <- function(
 
     summary_tbl <<- bf_repair_utf8_df(summary_tbl)
 
+    invisible(NULL)
+  }
+
+  append_retrieval_audit <- function(species,
+                                   gbif_key = NA_character_,
+                                   gbif_status = NA_character_,
+                                   retrieval_status,
+                                   n_records = NA_integer_,
+                                   fail_reason = NA_character_) {
+    species <- bf_repair_utf8_one(species)
+
+    if (nrow(retrieval_audit)) {
+      keep <- retrieval_audit$species != species
+      retrieval_audit <<- retrieval_audit[keep, , drop = FALSE]
+    }
+
+    retrieval_audit <<- dplyr::bind_rows(
+      retrieval_audit,
+      tibble::tibble(
+        species = species,
+        request_id = species,
+        request_type = "species",
+        gbif_key = bf_repair_utf8_one(gbif_key, fallback = NA_character_),
+        gbif_status = bf_repair_utf8_one(gbif_status, fallback = NA_character_),
+        retrieval_status = bf_repair_utf8_one(retrieval_status),
+        n_records = as.integer(n_records[[1L]]),
+        fail_reason = bf_repair_utf8_one(fail_reason, fallback = NA_character_)
+      )
+    )
+
+    retrieval_audit <<- bf_repair_utf8_df(retrieval_audit)
     invisible(NULL)
   }
 
@@ -1483,96 +1585,215 @@ process_gbif_marine_pipeline <- function(
     batch_df <- df[df$species %in% batch_species, , drop = FALSE]
     batch_df <- bf_repair_utf8_df(batch_df)
 
-    download_start_time <- bf_console_now()
+    # `batch_size` still controls progress grouping, but GBIF submission/import is
+    # intentionally species-by-species. This prevents a nominal batch of five
+    # species from creating five simultaneous asynchronous downloads.
+    imported <- list()
+    gbif_key_map <- character(0)
 
-    bf_console_bullet(
-      paste0(
-        "Submitting marine GBIF request for ",
-        length(batch_species),
-        " species: ",
-        paste(batch_species, collapse = ", ")
-      ),
-      quiet = quiet
-    )
+    for (sp in batch_species) {
+      sp <- bf_repair_utf8_one(sp)
+      species_df <- batch_df[batch_df$species == sp, , drop = FALSE]
+      species_df <- bf_repair_utf8_df(species_df)
 
-    download_keys <- tryCatch(
-      submit_batch(batch_df),
-      error = function(e) {
-        for (sp in batch_species) {
+      download_start_time <- bf_console_now()
+
+      bf_console_bullet(
+        paste0("Submitting marine GBIF request for ", sp, "."),
+        quiet = quiet
+      )
+
+      one_keys <- tryCatch(
+        submit_batch(species_df),
+        error = function(e) e
+      )
+
+      if (inherits(one_keys, "condition")) {
+        reason <- bf_compact_error(one_keys)
+        append_row(
+          species = sp,
+          region_id = overlay,
+          region_type = toupper(overlay),
+          status = "failed",
+          fail_stage = "submit_download",
+          fail_reason = reason
+        )
+        append_retrieval_audit(
+          species = sp,
+          retrieval_status = "submit_failed",
+          fail_reason = reason
+        )
+        next
+      }
+
+      submission_audit <- attr(one_keys, "submission_audit", exact = TRUE)
+
+      if (is.null(one_keys) || !length(one_keys)) {
+        row_sp <- NULL
+        if (is.data.frame(submission_audit) && "label" %in% names(submission_audit)) {
+          hit <- which(as.character(submission_audit$label) == sp)
+          if (length(hit)) row_sp <- submission_audit[hit[[1L]], , drop = FALSE]
+        }
+
+        sub_status <- if (!is.null(row_sp) && "submission_status" %in% names(row_sp)) {
+          as.character(row_sp$submission_status[[1L]])
+        } else {
+          "submit_failed"
+        }
+        sub_reason <- if (!is.null(row_sp) && "message" %in% names(row_sp)) {
+          as.character(row_sp$message[[1L]])
+        } else {
+          "GBIF request returned no usable download key."
+        }
+        sub_key <- if (!is.null(row_sp) && "gbif_key" %in% names(row_sp)) {
+          as.character(row_sp$gbif_key[[1L]])
+        } else {
+          NA_character_
+        }
+
+        append_row(
+          species = sp,
+          region_id = overlay,
+          region_type = toupper(overlay),
+          status = "failed",
+          fail_stage = sub_status,
+          fail_reason = sub_reason,
+          gbif_key = sub_key
+        )
+        append_retrieval_audit(
+          species = sp,
+          gbif_key = sub_key,
+          retrieval_status = sub_status,
+          fail_reason = sub_reason
+        )
+        next
+      }
+
+      key_sp <- as.character(unlist(one_keys, use.names = FALSE))
+      key_sp <- key_sp[!is.na(key_sp) & nzchar(key_sp)]
+      key_sp <- if (length(key_sp)) key_sp[[1L]] else NA_character_
+
+      bf_console_gbif_request(
+        species = sp,
+        elapsed = bf_console_elapsed(download_start_time),
+        gbif_key = key_sp,
+        quiet = quiet
+      )
+
+      import_start_time <- bf_console_now()
+      one_imported <- tryCatch(
+        import_batch(one_keys),
+        error = function(e) e
+      )
+
+      if (inherits(one_imported, "condition")) {
+        reason <- bf_compact_error(one_imported)
+        append_row(
+          species = sp,
+          region_id = overlay,
+          region_type = toupper(overlay),
+          status = "failed",
+          fail_stage = "wait_import",
+          fail_reason = reason,
+          gbif_key = key_sp
+        )
+        append_retrieval_audit(
+          species = sp,
+          gbif_key = key_sp,
+          retrieval_status = "import_failed",
+          fail_reason = reason
+        )
+        next
+      }
+
+      import_audit <- attr(one_imported, "gbif_status", exact = TRUE)
+      row_sp <- NULL
+      if (is.data.frame(import_audit) && "label" %in% names(import_audit)) {
+        hit <- which(as.character(import_audit$label) == sp)
+        if (length(hit)) row_sp <- import_audit[hit[[1L]], , drop = FALSE]
+      }
+
+      if (!is.null(row_sp)) {
+        retrieval_status_sp <- as.character(row_sp$retrieval_status[[1L]])
+        gbif_status_sp <- as.character(row_sp$gbif_status[[1L]])
+        n_records_sp <- suppressWarnings(as.integer(row_sp$n_records[[1L]]))
+        reason_sp <- as.character(row_sp$message[[1L]])
+        audit_key_sp <- as.character(row_sp$gbif_key[[1L]])
+
+        append_retrieval_audit(
+          species = sp,
+          gbif_key = audit_key_sp,
+          gbif_status = gbif_status_sp,
+          retrieval_status = retrieval_status_sp,
+          n_records = n_records_sp,
+          fail_reason = reason_sp
+        )
+
+        if (!retrieval_status_sp %in% c("success", "success_zero")) {
           append_row(
             species = sp,
             region_id = overlay,
             region_type = toupper(overlay),
             status = "failed",
-            fail_stage = "submit_download",
-            fail_reason = bf_compact_error(e)
+            fail_stage = retrieval_status_sp,
+            fail_reason = reason_sp,
+            gbif_key = audit_key_sp
           )
+          next
         }
-        NULL
       }
-    )
-    if (is.null(download_keys) || !length(download_keys)) {
+
+      if (is.null(names(one_imported))) {
+        names(one_imported) <- sp
+      }
+
+      if (!sp %in% names(one_imported)) {
+        reason <- "Species request was neither returned by the importer nor represented as an explicit retrieval failure."
+        append_retrieval_audit(
+          species = sp,
+          gbif_key = key_sp,
+          retrieval_status = "internal_unreconciled",
+          fail_reason = reason
+        )
+        append_row(
+          species = sp,
+          region_id = overlay,
+          region_type = toupper(overlay),
+          status = "failed",
+          fail_stage = "internal_unreconciled",
+          fail_reason = reason,
+          gbif_key = key_sp
+        )
+        next
+      }
+
+      imported[[sp]] <- bf_repair_utf8_df(one_imported[[sp]])
+      gbif_key_map[[sp]] <- key_sp
+
+      if (is.null(row_sp)) {
+        n_records_sp <- as.integer(bf_console_nrow(imported[[sp]]))
+        append_retrieval_audit(
+          species = sp,
+          gbif_key = key_sp,
+          gbif_status = "SUCCEEDED",
+          retrieval_status = if (n_records_sp > 0L) "success" else "success_zero",
+          n_records = n_records_sp
+        )
+      }
+
+      bf_console_gbif_import(
+        n_records = as.integer(bf_console_nrow(imported[[sp]])),
+        elapsed = bf_console_elapsed(import_start_time),
+        quiet = quiet
+      )
+    }
+
+    if (!length(imported)) {
       bf_console_bullet(
-        paste0("GBIF request failed or returned no keys for batch: ", paste(batch_species, collapse = ", ")),
+        paste0("GBIF import produced no successfully resolved species in batch: ", paste(batch_species, collapse = ", ")),
         quiet = quiet
       )
       next
-    }
-
-    bf_console_gbif_request(
-      species = paste(batch_species, collapse = ", "),
-      elapsed = bf_console_elapsed(download_start_time),
-      gbif_key = download_keys,
-      quiet = quiet
-    )
-
-    gbif_key_map <- as.character(unlist(download_keys, use.names = FALSE))
-    gbif_key_map <- bf_repair_utf8_chr(gbif_key_map)
-    names(gbif_key_map) <- bf_null_coalesce(names(download_keys), batch_species[seq_along(gbif_key_map)])
-
-    import_start_time <- bf_console_now()
-
-    imported <- tryCatch(
-      import_batch(download_keys),
-      error = function(e) {
-        for (sp in batch_species) {
-          append_row(
-            species = sp,
-            region_id = overlay,
-            region_type = toupper(overlay),
-            status = "failed",
-            fail_stage = "wait_import",
-            fail_reason = bf_compact_error(e),
-            gbif_key = if (!is.null(gbif_key_map[[sp]])) gbif_key_map[[sp]] else NA_character_
-          )
-        }
-        NULL
-      }
-    )
-    if (is.null(imported) || !length(imported)) {
-      bf_console_bullet(
-        paste0("GBIF import returned no records for batch: ", paste(batch_species, collapse = ", ")),
-        quiet = quiet
-      )
-      next
-    }
-
-    imported <- lapply(imported, bf_repair_utf8_df)
-
-    imported_record_counts_console <- vapply(
-      imported,
-      function(x) as.integer(bf_console_nrow(x)),
-      integer(1)
-    )
-
-    bf_console_gbif_import(
-      n_records = sum(imported_record_counts_console, na.rm = TRUE),
-      elapsed = bf_console_elapsed(import_start_time),
-      quiet = quiet
-    )
-
-    if (is.null(names(imported))) {
-      names(imported) <- batch_species[seq_len(min(length(batch_species), length(imported)))]
     }
 
     names(imported) <- bf_repair_utf8_chr(names(imported))
@@ -1805,8 +2026,65 @@ process_gbif_marine_pipeline <- function(
   }
 
   if (isTRUE(export_summary)) {
+    expected_species <- tibble::tibble(
+      species = unique(as.character(df$species))
+    )
+    observed_species <- retrieval_audit |>
+      dplyr::distinct(.data$species)
+
+    missing_species <- dplyr::anti_join(
+      expected_species,
+      observed_species,
+      by = "species"
+    )
+
+    if (nrow(missing_species)) {
+      for (i in seq_len(nrow(missing_species))) {
+        append_retrieval_audit(
+          species = missing_species$species[[i]],
+          retrieval_status = "internal_unreconciled",
+          fail_reason = "Final retrieval completeness gate found no recorded outcome for this species."
+        )
+      }
+      warning(
+        nrow(missing_species),
+        " marine species lacked a retrieval outcome and were marked internal_unreconciled.",
+        call. = FALSE
+      )
+    }
+
+    unresolved_statuses <- c(
+      "taxon_key_failed",
+      "submit_failed",
+      "submit_no_key",
+      "submit_timeout",
+      "invalid_key",
+      "pending_timeout",
+      "download_failed",
+      "killed",
+      "cancelled",
+      "file_erased",
+      "import_failed",
+      "split_failed",
+      "internal_unreconciled"
+    )
+
+    unresolved_requests <- retrieval_audit |>
+      dplyr::filter(.data$retrieval_status %in% unresolved_statuses)
+
     summary_tbl <- bf_repair_utf8_df(summary_tbl)
+    retrieval_audit <- bf_repair_utf8_df(retrieval_audit)
+    unresolved_requests <- bf_repair_utf8_df(unresolved_requests)
+
     readr::write_csv(summary_tbl, file.path(output_dir, "gbif_summary.csv"))
+    readr::write_csv(
+      retrieval_audit,
+      file.path(output_dir, "gbif_retrieval_audit.csv")
+    )
+    readr::write_csv(
+      unresolved_requests,
+      file.path(output_dir, "gbif_unresolved_requests.csv")
+    )
   }
 
   bf_console_bullet(
