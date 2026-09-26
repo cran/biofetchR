@@ -91,7 +91,7 @@ if (interactive()) {
 
 }
 \seealso{
-Other overlay loaders: 
-\code{\link{bf_load_ramsar}()}
+Other overlay loaders:
+\code{\link[=bf_load_ramsar]{bf_load_ramsar()}}
 }
 \concept{overlay loaders}

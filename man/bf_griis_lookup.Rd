@@ -60,13 +60,13 @@ lookup
 
 }
 \seealso{
-Other GRIIS origin-evidence helpers: 
-\code{\link{bf_attach_griis_status}()},
-\code{\link{bf_download_griis}()},
-\code{\link{bf_filter_griis_invasive}()},
-\code{\link{bf_find_griis_table}()},
-\code{\link{bf_read_griis}()},
-\code{\link{bf_standardise_griis}()},
-\code{\link{bf_unpack_griis}()}
+Other GRIIS origin-evidence helpers:
+\code{\link[=bf_attach_griis_status]{bf_attach_griis_status()}},
+\code{\link[=bf_download_griis]{bf_download_griis()}},
+\code{\link[=bf_filter_griis_invasive]{bf_filter_griis_invasive()}},
+\code{\link[=bf_find_griis_table]{bf_find_griis_table()}},
+\code{\link[=bf_read_griis]{bf_read_griis()}},
+\code{\link[=bf_standardise_griis]{bf_standardise_griis()}},
+\code{\link[=bf_unpack_griis]{bf_unpack_griis()}}
 }
 \concept{GRIIS origin-evidence helpers}

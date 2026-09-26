@@ -23,7 +23,7 @@
 #   already includes SInAS support and should be the one retained in R/.
 #
 # CURRENT SOURCES
-#   - SInAS 3.1.1 native-location records, accessed through the package-managed
+#   - SInAS 3.2 native-location records, accessed through the package-managed
 #     SInAS parser/download helpers.
 #   - GBIF Species API distribution records with native-like status language.
 #   - WoRMS REST Aphia distribution records with native-like status language.
@@ -533,17 +533,12 @@
 #' compile species-level native-origin evidence when a complete local native
 #' range table is not available.
 #'
-#' @return A data frame listing native-origin web/API evidence sources supported
-#'   by biofetchR. The returned table contains `source`, the source identifier
-#'   accepted by [bf_fetch_native_ranges_web()]; `description`, a short
-#'   explanation of the evidence provider; `access_type`, the way the source is
-#'   accessed or cached; and `default`, a logical flag indicating whether the
-#'   source is included in the default source set. The table is intended for
-#'   inspecting valid source names before requesting web-derived native-origin
-#'   evidence.
+#' @return A data frame with columns `source`, `description`, `access_type` and
+#'   `default`.
 #'
 #' @examples
 #' bf_available_native_web_sources()
+#'
 #'
 #' @section Relationship to other helpers:
 #' This function lists optional evidence providers only. The returned sources
@@ -557,7 +552,7 @@ bf_available_native_web_sources <- function() {
   data.frame(
     source = c("sinas", "gbif", "worms"),
     description = c(
-      "SInAS 3.1.1 native-location records resolved through AllLocations",
+      "SInAS 3.2 native-location records resolved through AllLocations",
       "GBIF Species API distributions with native-like establishment/status fields",
       "WoRMS REST Aphia distributions for marine and aquatic taxa"
     ),
@@ -575,38 +570,24 @@ bf_available_native_web_sources <- function() {
 #' wording, and attempts to convert reported areas or country codes to ISO3.
 #'
 #' @param species Character vector of species names.
-#' @param cache_dir Directory used to cache GBIF JSON responses. Must be
-#'   supplied explicitly. In examples, tests and vignettes, use a path under
-#'   `tempdir()`.
+#' @param cache_dir Directory used to cache GBIF JSON responses.
 #' @param force_refresh Logical; if `TRUE`, ignore cached responses and fetch
 #'   from the API again.
 #' @param sleep_sec Delay between requests, in seconds.
 #' @param user_agent HTTP user-agent string.
 #' @param quiet Logical; suppress progress messages.
 #'
-#' @return A tibble with one row per retained native-like GBIF Species API
-#'   distribution record. The output uses the standard long native-evidence
-#'   schema: `species`, the requested species name; `source`, set to `"GBIF"`;
-#'   `accepted_name`, the matched GBIF scientific or canonical name;
-#'   `source_taxon_id`, the GBIF taxon key; `raw_native_area`, the source
-#'   country, area, locality or location string; `raw_status`, the establishment
-#'   or status text used for native-like screening; `origin_iso3`, the resolved
-#'   ISO3 country code where available; `evidence_type`, usually
-#'   `"native_distribution"`; and `source_url`, the GBIF API endpoint used. If
-#'   no native-like records are retained, an empty tibble with the same columns
-#'   is returned.
+#' @return A tibble with one row per retained native-like GBIF distribution
+#'   record and standard columns: `species`, `source`, `accepted_name`,
+#'   `source_taxon_id`, `raw_native_area`, `raw_status`, `origin_iso3`,
+#'   `evidence_type` and `source_url`.
 #'
 #' @examples
 #' \donttest{
-#' if (interactive()) {
-#'   gbif_native <- bf_web_native_gbif(
-#'     species = "Carcinus maenas",
-#'     cache_dir = file.path(tempdir(), "biofetchR_native_web"),
-#'     quiet = FALSE
-#'   )
-#'
-#'   gbif_native
-#' }
+#' bf_web_native_gbif(
+#'   c("Rattus rattus", "Sturnus vulgaris"),
+#'   cache_dir = tempdir()
+#' )
 #' }
 #'
 #' @section Data source and interpretation:
@@ -619,7 +600,7 @@ bf_available_native_web_sources <- function() {
 #' @md
 #' @export
 bf_web_native_gbif <- function(species,
-                               cache_dir = NULL,
+                               cache_dir = tools::R_user_dir("biofetchR", "cache"),
                                force_refresh = FALSE,
                                sleep_sec = 0.25,
                                user_agent = "biofetchR native-range web helper (academic use)",
@@ -632,20 +613,6 @@ bf_web_native_gbif <- function(species,
   if (!length(species)) {
     return(.bf_nrw_empty_long())
   }
-
-  if (is.null(cache_dir) || length(cache_dir) == 0L ||
-      !nzchar(trimws(as.character(cache_dir[[1L]])))) {
-    stop(
-      "`cache_dir` must be supplied explicitly. In examples, tests and vignettes, use `file.path(tempdir(), ...)`.",
-      call. = FALSE
-    )
-  }
-
-  cache_dir <- normalizePath(
-    as.character(cache_dir[[1L]]),
-    winslash = "/",
-    mustWork = FALSE
-  )
 
   cache_dir <- file.path(cache_dir, "native_range_web", "gbif")
   dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
@@ -755,9 +722,7 @@ bf_web_native_gbif <- function(species,
 #' attempts to map reported localities to ISO3 countries.
 #'
 #' @param species Character vector of species names.
-#' @param cache_dir Directory used to cache WoRMS JSON responses. Must be
-#'   supplied explicitly. In examples, tests and vignettes, use a path under
-#'   `tempdir()`.
+#' @param cache_dir Directory used to cache WoRMS JSON responses.
 #' @param force_refresh Logical; if `TRUE`, ignore cached responses and fetch
 #'   from the API again.
 #' @param sleep_sec Delay between requests, in seconds.
@@ -765,28 +730,17 @@ bf_web_native_gbif <- function(species,
 #' @param user_agent HTTP user-agent string.
 #' @param quiet Logical; suppress progress messages.
 #'
-#' @return A tibble with one row per retained native-like WoRMS Aphia
-#'   distribution record. The output uses the standard long native-evidence
-#'   schema: `species`, the requested species name; `source`, set to `"WoRMS"`;
-#'   `accepted_name`, the valid or accepted WoRMS name; `source_taxon_id`, the
-#'   AphiaID; `raw_native_area`, the source locality, area or geounit string;
-#'   `raw_status`, the status, origin or establishment text used for native-like
-#'   screening; `origin_iso3`, the resolved ISO3 country code where available;
-#'   `evidence_type`, usually `"native_distribution"`; and `source_url`, the
-#'   WoRMS REST endpoint used. If no native-like records are retained, an empty
-#'   tibble with the same columns is returned.
+#' @return A tibble with one row per retained native-like WoRMS distribution
+#'   record and standard columns: `species`, `source`, `accepted_name`,
+#'   `source_taxon_id`, `raw_native_area`, `raw_status`, `origin_iso3`,
+#'   `evidence_type` and `source_url`.
 #'
 #' @examples
 #' \donttest{
-#' if (interactive()) {
-#'   worms_native <- bf_web_native_worms(
-#'     species = "Carcinus maenas",
-#'     cache_dir = file.path(tempdir(), "biofetchR_native_web"),
-#'     quiet = FALSE
-#'   )
-#'
-#'   worms_native
-#' }
+#' bf_web_native_worms(
+#'   c("Carcinus maenas", "Ficopomatus enigmaticus"),
+#'   cache_dir = tempdir()
+#' )
 #' }
 #'
 #' @section Data source and interpretation:
@@ -798,7 +752,7 @@ bf_web_native_gbif <- function(species,
 #' @md
 #' @export
 bf_web_native_worms <- function(species,
-                                cache_dir = NULL,
+                                cache_dir = tools::R_user_dir("biofetchR", "cache"),
                                 force_refresh = FALSE,
                                 sleep_sec = 0.25,
                                 marine_only = FALSE,
@@ -812,20 +766,6 @@ bf_web_native_worms <- function(species,
   if (!length(species)) {
     return(.bf_nrw_empty_long())
   }
-
-  if (is.null(cache_dir) || length(cache_dir) == 0L ||
-      !nzchar(trimws(as.character(cache_dir[[1L]])))) {
-    stop(
-      "`cache_dir` must be supplied explicitly. In examples, tests and vignettes, use `file.path(tempdir(), ...)`.",
-      call. = FALSE
-    )
-  }
-
-  cache_dir <- normalizePath(
-    as.character(cache_dir[[1L]]),
-    winslash = "/",
-    mustWork = FALSE
-  )
 
   cache_dir <- file.path(cache_dir, "native_range_web", "worms")
   dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
@@ -950,18 +890,16 @@ bf_web_native_worms <- function(species,
 #' @param species_col Species column name when `species` is a data frame.
 #' @param sources Character vector of native evidence sources. Currently supports
 #'   `"sinas"`, `"gbif"` and `"worms"`.
-#' @param cache_dir Directory used for all web-response caches. Must be supplied
-#'   explicitly when web/API sources need to be queried or cached. In examples,
-#'   tests and vignettes, use a path under `tempdir()`.
+#' @param cache_dir Directory used for all web-response caches.
 #' @param force_refresh Logical; if `TRUE`, ignore cached responses and fetch
 #'   from web sources again.
 #' @param sleep_sec Delay between requests, in seconds.
 #' @param quiet Logical; suppress progress messages.
-#' @param sinas_main_path Optional local path to `SInAS_3.1.1.csv`.
+#' @param sinas_main_path Optional local path to `SInAS_3.2.csv`.
 #' @param sinas_alllocations_path Optional local path to `AllLocations.xlsx`,
 #'   `.csv` or `.tsv`.
 #' @param sinas_fulltaxa_path Optional local path to
-#'   `SInAS_3.1.1_FullTaxaList.csv`.
+#'   `SInAS_3.2_FullTaxaList.csv`.
 #' @param sinas_record_id Zenodo record identifier used for package-managed
 #'   SInAS downloads.
 #' @param sinas_main_url Optional direct URL for the main SInAS CSV.
@@ -969,37 +907,24 @@ bf_web_native_worms <- function(species,
 #' @param sinas_config_zip_url Optional direct URL for the SInAS config archive.
 #' @param return One of `"list"`, `"species"` or `"long"`.
 #'
-#' @return The returned object depends on `return`. If `return = "list"`, the
-#'   function returns a named list with four elements: `long`, a tibble with one
-#'   row per retained source evidence record using the standard columns
-#'   `species`, `source`, `accepted_name`, `source_taxon_id`,
-#'   `raw_native_area`, `raw_status`, `origin_iso3`, `evidence_type` and
-#'   `source_url`; `species`, a collapsed species-level tibble containing
-#'   `species`, `native_origin_iso3`, `native_sources_used`,
-#'   `native_web_unmapped_strings`, `native_web_n_records` and
-#'   `native_has_origin`; `unmapped`, the subset of long-format native-like
-#'   evidence rows whose locality or area string could not be resolved to ISO3;
-#'   and `summary`, a one-row tibble reporting input species counts, matched web
-#'   records, ISO3-resolved species, unmapped records and sources used. If
-#'   `return = "species"`, only the collapsed species-level tibble is returned.
-#'   If `return = "long"`, only the long evidence tibble is returned. These
-#'   outputs provide species-level native-origin evidence for downstream use in
-#'   [bf_attach_native_status()] and do not themselves classify recipient records
-#'   as native or non-native.
+#' @return By default, a list with:
+#'   \describe{
+#'     \item{long}{Long evidence table, one row per source record.}
+#'     \item{species}{Collapsed species-level native-origin table.}
+#'     \item{unmapped}{Native-like source rows where the place string could not
+#'       be mapped to ISO3.}
+#'     \item{summary}{One-row summary table.}
+#'   }
 #'
 #' @examples
 #' \donttest{
-#' if (interactive()) {
-#'   native_web <- bf_fetch_native_ranges_web(
-#'     species = c("Carcinus maenas", "Ficopomatus enigmaticus"),
-#'     sources = c("gbif", "worms"),
-#'     cache_dir = file.path(tempdir(), "biofetchR_native_web"),
-#'     return = "species",
-#'     quiet = FALSE
-#'   )
-#'
-#'   native_web
-#' }
+#' native_web <- bf_fetch_native_ranges_web(
+#'   species = "Rattus rattus",
+#'   sources = "gbif",
+#'   cache_dir = tempdir(),
+#'   return = "list"
+#' )
+#' native_web$summary
 #' }
 #'
 #' @section Relationship to SInAS:
@@ -1019,14 +944,14 @@ bf_web_native_worms <- function(species,
 bf_fetch_native_ranges_web <- function(species,
                                        species_col = "species",
                                        sources = c("sinas", "gbif", "worms"),
-                                       cache_dir = NULL,
+                                       cache_dir = tools::R_user_dir("biofetchR", "cache"),
                                        force_refresh = FALSE,
                                        sleep_sec = 0.25,
                                        quiet = FALSE,
                                        sinas_main_path = NULL,
                                        sinas_alllocations_path = NULL,
                                        sinas_fulltaxa_path = NULL,
-                                       sinas_record_id = "18220953",
+                                       sinas_record_id = "21933976",
                                        sinas_main_url = NULL,
                                        sinas_fulltaxa_url = NULL,
                                        sinas_config_zip_url = NULL,
@@ -1065,21 +990,6 @@ bf_fetch_native_ranges_web <- function(species,
         call. = FALSE
       )
     }
-
-    if (is.null(cache_dir) || length(cache_dir) == 0L ||
-        !nzchar(trimws(as.character(cache_dir[[1L]])))) {
-      stop(
-        "`cache_dir` must be supplied explicitly when native web/API evidence is requested. ",
-        "In examples, tests and vignettes, use `file.path(tempdir(), ...)`.",
-        call. = FALSE
-      )
-    }
-
-    cache_dir <- normalizePath(
-      as.character(cache_dir[[1L]]),
-      winslash = "/",
-      mustWork = FALSE
-    )
 
     parts <- list()
 
@@ -1143,6 +1053,18 @@ bf_fetch_native_ranges_web <- function(species,
 
   sources_used <- paste(sort(unique(long$source)), collapse = ";")
 
+  sinas_release_meta <- if ("sinas" %in% sources &&
+                            exists(".bf_sinas_release", mode = "function", inherits = TRUE)) {
+    .bf_sinas_release(sinas_record_id)
+  } else {
+    list(
+      record_id = NA_character_,
+      dataset_version = NA_character_,
+      workflow_version = NA_character_,
+      doi = NA_character_
+    )
+  }
+
   summary <- tibble::tibble(
     n_species_input = length(species_vec),
     n_species_with_web_records = length(unique(long$species)),
@@ -1150,7 +1072,11 @@ bf_fetch_native_ranges_web <- function(species,
     n_long_records = nrow(long),
     n_unmapped_records = nrow(unmapped),
     sources = sources_used,
-    sources_used = sources_used
+    sources_used = sources_used,
+    sinas_version = sinas_release_meta$dataset_version,
+    sinas_workflow_version = sinas_release_meta$workflow_version,
+    sinas_record_id = sinas_release_meta$record_id,
+    sinas_doi = sinas_release_meta$doi
   )
 
   out <- list(
@@ -1181,45 +1107,22 @@ bf_fetch_native_ranges_web <- function(species,
 #' @param output_dir Directory for CSV outputs.
 #' @param prefix Filename prefix. Defaults to `"native_web"`.
 #'
-#' @return Invisibly returns a named character vector of file paths written to
-#'   `output_dir`. The vector contains paths named `long`, `species`,
-#'   `unmapped` and `summary`, corresponding to the CSV files written from the
-#'   matching elements of `x`. The function is called primarily for its side
-#'   effect of writing auditable native-web evidence tables to disk.
+#' @return Invisibly returns a named character vector of written file paths.
 #'
 #' @examples
-#' native_web <- list(
-#'   long = data.frame(
-#'     species = "Example species",
-#'     source = "example",
-#'     accepted_name = "Example species",
-#'     source_taxon_id = "example_id",
-#'     raw_native_area = "Exampleland",
-#'     raw_status = "native",
-#'     origin_iso3 = "GBR",
-#'     evidence_type = "native_distribution",
-#'     source_url = NA_character_
-#'   ),
-#'   species = data.frame(
-#'     species = "Example species",
-#'     native_origin_iso3 = "GBR",
-#'     native_sources_used = "example",
-#'     native_web_unmapped_strings = NA_character_,
-#'     native_web_n_records = 1L,
-#'     native_has_origin = TRUE
-#'   ),
-#'   unmapped = data.frame(),
-#'   summary = data.frame(
-#'     n_species_input = 1L,
-#'     n_species_with_origin = 1L,
-#'     n_records_long = 1L,
-#'     n_records_unmapped = 0L
-#'   )
+#' \donttest{
+#' x <- bf_fetch_native_ranges_web(
+#'   species = "Rattus rattus",
+#'   sources = "gbif",
+#'   cache_dir = tempdir(),
+#'   return = "list"
 #' )
 #'
-#' out_dir <- tempfile("native_web_outputs_")
-#' paths <- bf_write_native_web_outputs(native_web, output_dir = out_dir)
-#' names(paths)
+#' bf_write_native_web_outputs(
+#'   x,
+#'   file.path(tempdir(), "native_web")
+#' )
+#' }
 #'
 #' @section Audit role:
 #' Writing these outputs preserves the exact web-derived evidence used by a

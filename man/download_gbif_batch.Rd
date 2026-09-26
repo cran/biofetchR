@@ -155,8 +155,8 @@ if (interactive() && all(nzchar(Sys.getenv(gbif_env)))) {
 \seealso{
 \code{\link[=download_gbif_batch_gadm]{download_gbif_batch_gadm()}}, \code{\link[=wait_and_import_gbif_safe]{wait_and_import_gbif_safe()}}
 
-Other GBIF download backends: 
-\code{\link{download_gbif_batch_gadm}()},
-\code{\link{wait_and_import_gbif_safe}()}
+Other GBIF download backends:
+\code{\link[=download_gbif_batch_gadm]{download_gbif_batch_gadm()}},
+\code{\link[=wait_and_import_gbif_safe]{wait_and_import_gbif_safe()}}
 }
 \concept{GBIF download backends}

@@ -28,7 +28,7 @@ can continue to run while the package uses the more general marine-overlay
 workflow internally.
 }
 \seealso{
-Other marine processing pipelines: 
-\code{\link{process_gbif_marine_pipeline}()}
+Other marine processing pipelines:
+\code{\link[=process_gbif_marine_pipeline]{process_gbif_marine_pipeline()}}
 }
 \concept{marine processing pipelines}

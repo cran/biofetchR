@@ -41,12 +41,12 @@ Thin wrapper around \code{\link[=bf_standardise_native_ranges]{bf_standardise_na
 in pipelines and tests.
 }
 \seealso{
-Other native-origin status helpers: 
-\code{\link{bf_attach_native_status}()},
-\code{\link{bf_filter_native}()},
-\code{\link{bf_filter_non_native}()},
-\code{\link{bf_native_status_summary}()},
-\code{\link{bf_reconcile_griis_native_status}()},
-\code{\link{bf_standardise_native_ranges}()}
+Other native-origin status helpers:
+\code{\link[=bf_attach_native_status]{bf_attach_native_status()}},
+\code{\link[=bf_filter_native]{bf_filter_native()}},
+\code{\link[=bf_filter_non_native]{bf_filter_non_native()}},
+\code{\link[=bf_native_status_summary]{bf_native_status_summary()}},
+\code{\link[=bf_reconcile_griis_native_status]{bf_reconcile_griis_native_status()}},
+\code{\link[=bf_standardise_native_ranges]{bf_standardise_native_ranges()}}
 }
 \concept{native-origin status helpers}

@@ -8,14 +8,14 @@ bf_fetch_native_ranges_web(
   species,
   species_col = "species",
   sources = c("sinas", "gbif", "worms"),
-  cache_dir = NULL,
+  cache_dir = tools::R_user_dir("biofetchR", "cache"),
   force_refresh = FALSE,
   sleep_sec = 0.25,
   quiet = FALSE,
   sinas_main_path = NULL,
   sinas_alllocations_path = NULL,
   sinas_fulltaxa_path = NULL,
-  sinas_record_id = "18220953",
+  sinas_record_id = "21933976",
   sinas_main_url = NULL,
   sinas_fulltaxa_url = NULL,
   sinas_config_zip_url = NULL,
@@ -31,9 +31,7 @@ a species column.}
 \item{sources}{Character vector of native evidence sources. Currently supports
 \code{"sinas"}, \code{"gbif"} and \code{"worms"}.}
 
-\item{cache_dir}{Directory used for all web-response caches. Must be supplied
-explicitly when web/API sources need to be queried or cached. In examples,
-tests and vignettes, use a path under \code{tempdir()}.}
+\item{cache_dir}{Directory used for all web-response caches.}
 
 \item{force_refresh}{Logical; if \code{TRUE}, ignore cached responses and fetch
 from web sources again.}
@@ -42,13 +40,13 @@ from web sources again.}
 
 \item{quiet}{Logical; suppress progress messages.}
 
-\item{sinas_main_path}{Optional local path to \code{SInAS_3.1.1.csv}.}
+\item{sinas_main_path}{Optional local path to \code{SInAS_3.2.csv}.}
 
 \item{sinas_alllocations_path}{Optional local path to \code{AllLocations.xlsx},
 \code{.csv} or \code{.tsv}.}
 
 \item{sinas_fulltaxa_path}{Optional local path to
-\code{SInAS_3.1.1_FullTaxaList.csv}.}
+\code{SInAS_3.2_FullTaxaList.csv}.}
 
 \item{sinas_record_id}{Zenodo record identifier used for package-managed
 SInAS downloads.}
@@ -62,23 +60,14 @@ SInAS downloads.}
 \item{return}{One of \code{"list"}, \code{"species"} or \code{"long"}.}
 }
 \value{
-The returned object depends on \code{return}. If \code{return = "list"}, the
-function returns a named list with four elements: \code{long}, a tibble with one
-row per retained source evidence record using the standard columns
-\code{species}, \code{source}, \code{accepted_name}, \code{source_taxon_id},
-\code{raw_native_area}, \code{raw_status}, \code{origin_iso3}, \code{evidence_type} and
-\code{source_url}; \code{species}, a collapsed species-level tibble containing
-\code{species}, \code{native_origin_iso3}, \code{native_sources_used},
-\code{native_web_unmapped_strings}, \code{native_web_n_records} and
-\code{native_has_origin}; \code{unmapped}, the subset of long-format native-like
-evidence rows whose locality or area string could not be resolved to ISO3;
-and \code{summary}, a one-row tibble reporting input species counts, matched web
-records, ISO3-resolved species, unmapped records and sources used. If
-\code{return = "species"}, only the collapsed species-level tibble is returned.
-If \code{return = "long"}, only the long evidence tibble is returned. These
-outputs provide species-level native-origin evidence for downstream use in
-\code{\link[=bf_attach_native_status]{bf_attach_native_status()}} and do not themselves classify recipient records
-as native or non-native.
+By default, a list with:
+\describe{
+\item{long}{Long evidence table, one row per source record.}
+\item{species}{Collapsed species-level native-origin table.}
+\item{unmapped}{Native-like source rows where the place string could not
+be mapped to ISO3.}
+\item{summary}{One-row summary table.}
+}
 }
 \description{
 Queries one or more web/API sources for species-level native-origin evidence,
@@ -108,25 +97,21 @@ native, non-native or absent from any place.
 
 \examples{
 \donttest{
-if (interactive()) {
-  native_web <- bf_fetch_native_ranges_web(
-    species = c("Carcinus maenas", "Ficopomatus enigmaticus"),
-    sources = c("gbif", "worms"),
-    cache_dir = file.path(tempdir(), "biofetchR_native_web"),
-    return = "species",
-    quiet = FALSE
-  )
-
-  native_web
-}
+native_web <- bf_fetch_native_ranges_web(
+  species = "Rattus rattus",
+  sources = "gbif",
+  cache_dir = tempdir(),
+  return = "list"
+)
+native_web$summary
 }
 
 }
 \seealso{
-Other native-range web-source helpers: 
-\code{\link{bf_available_native_web_sources}()},
-\code{\link{bf_web_native_gbif}()},
-\code{\link{bf_web_native_worms}()},
-\code{\link{bf_write_native_web_outputs}()}
+Other native-range web-source helpers:
+\code{\link[=bf_available_native_web_sources]{bf_available_native_web_sources()}},
+\code{\link[=bf_web_native_gbif]{bf_web_native_gbif()}},
+\code{\link[=bf_web_native_worms]{bf_web_native_worms()}},
+\code{\link[=bf_write_native_web_outputs]{bf_write_native_web_outputs()}}
 }
 \concept{native-range web-source helpers}

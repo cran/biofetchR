@@ -50,12 +50,12 @@ classification is performed by \code{\link[=bf_attach_native_status]{bf_attach_n
 recipient ISO3 code against the native-origin ISO3 set.
 }
 \seealso{
-Other native-origin status helpers: 
-\code{\link{bf_attach_native_status}()},
-\code{\link{bf_filter_native}()},
-\code{\link{bf_filter_non_native}()},
-\code{\link{bf_native_range_lookup}()},
-\code{\link{bf_native_status_summary}()},
-\code{\link{bf_reconcile_griis_native_status}()}
+Other native-origin status helpers:
+\code{\link[=bf_attach_native_status]{bf_attach_native_status()}},
+\code{\link[=bf_filter_native]{bf_filter_native()}},
+\code{\link[=bf_filter_non_native]{bf_filter_non_native()}},
+\code{\link[=bf_native_range_lookup]{bf_native_range_lookup()}},
+\code{\link[=bf_native_status_summary]{bf_native_status_summary()}},
+\code{\link[=bf_reconcile_griis_native_status]{bf_reconcile_griis_native_status()}}
 }
 \concept{native-origin status helpers}

@@ -65,8 +65,8 @@ if (interactive()) {
 
 }
 \seealso{
-Other GBIF helpers: 
-\code{\link{get_taxon_key}()},
-\code{\link{wait_and_import_gbif}()}
+Other GBIF helpers:
+\code{\link[=get_taxon_key]{get_taxon_key()}},
+\code{\link[=wait_and_import_gbif]{wait_and_import_gbif()}}
 }
 \concept{GBIF helpers}

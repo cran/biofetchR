@@ -27,10 +27,10 @@ river labels to HydroRIVERS features.
 Annotate HydroRIVERS reaches with OSM river names
 }
 \seealso{
-Other freshwater overlay loaders: 
-\code{\link{bf_load_basins}()},
-\code{\link{bf_load_feow}()},
-\code{\link{bf_load_lakes}()},
-\code{\link{bf_load_rivers}()}
+Other freshwater overlay loaders:
+\code{\link[=bf_load_basins]{bf_load_basins()}},
+\code{\link[=bf_load_feow]{bf_load_feow()}},
+\code{\link[=bf_load_lakes]{bf_load_lakes()}},
+\code{\link[=bf_load_rivers]{bf_load_rivers()}}
 }
 \concept{freshwater overlay loaders}

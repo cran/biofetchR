@@ -66,7 +66,7 @@ filter_by_status(x, normalize_only = TRUE, verbose = FALSE)
 
 }
 \seealso{
-Other status helpers: 
-\code{\link{list_status_presets}()}
+Other status helpers:
+\code{\link[=list_status_presets]{list_status_presets()}}
 }
 \concept{status helpers}

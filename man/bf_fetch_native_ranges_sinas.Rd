@@ -7,13 +7,13 @@
 bf_fetch_native_ranges_sinas(
   species,
   species_col = "species",
-  cache_dir = NULL,
+  cache_dir = tools::R_user_dir("biofetchR", "cache"),
   force_refresh = FALSE,
   quiet = FALSE,
   main_path = NULL,
   alllocations_path = NULL,
   fulltaxa_path = NULL,
-  record_id = "18220953",
+  record_id = "21933976",
   main_url = NULL,
   fulltaxa_url = NULL,
   config_zip_url = NULL,
@@ -27,21 +27,19 @@ a species column.}
 \item{species_col}{Species column name when \code{species} is a data frame.}
 
 \item{cache_dir}{Cache directory used when SInAS resources need to be
-downloaded. Must be supplied explicitly unless all three local resource
-paths are supplied via \code{main_path}, \code{alllocations_path} and \code{fulltaxa_path}.
-In examples, tests and vignettes, use a path under \code{tempdir()}.}
+downloaded.}
 
 \item{force_refresh}{Logical; re-download/re-read package-managed resources.}
 
 \item{quiet}{Logical; suppress progress messages.}
 
-\item{main_path}{Optional local path to \code{SInAS_3.1.1.csv}.}
+\item{main_path}{Optional local path to \code{SInAS_3.2.csv}.}
 
 \item{alllocations_path}{Optional local path to \code{AllLocations.xlsx}, \code{.csv},
 or \code{.tsv}.}
 
 \item{fulltaxa_path}{Optional local path to
-\code{SInAS_3.1.1_FullTaxaList.csv}.}
+\code{SInAS_3.2_FullTaxaList.csv}.}
 
 \item{record_id}{Zenodo record identifier used by
 \code{bf_download_sinas_resources()}.}
@@ -56,25 +54,12 @@ or \code{.tsv}.}
 \item{return}{One of \code{"long"}, \code{"species"} or \code{"list"}.}
 }
 \value{
-The returned object depends on \code{return}. If \code{return = "long"}, the
-function returns a tibble with one row per retained SInAS native-origin
-evidence record, including \code{species}, \code{source}, \code{accepted_name},
-\code{source_taxon_id}, \code{raw_native_area}, \code{raw_status}, \code{origin_iso3},
-\code{evidence_type} and \code{source_url}. If \code{return = "species"}, the function
-returns a species-level tibble with collapsed native-origin evidence,
-including \code{species}, \code{native_origin_iso3}, \code{native_sources_used},
-\code{native_web_unmapped_strings}, \code{native_web_n_records} and
-\code{native_has_origin}. If \code{return = "list"}, the function returns a named
-list with \code{long}, \code{species}, \code{unmapped} and \code{summary} elements. The
-\code{unmapped} element contains long-format evidence rows without resolved ISO3
-origin codes, and \code{summary} is a one-row tibble reporting input species
-counts, matched SInAS records, ISO3-resolved species and unmapped records.
-These outputs provide species-level native-origin evidence only; recipient-
-level native/non-native classification is performed by
-\code{\link[=bf_attach_native_status]{bf_attach_native_status()}}.
+Depends on \code{return}. \code{"long"} returns one row per retained SInAS
+species-origin record. \code{"species"} returns collapsed species-level native
+origins. \code{"list"} returns \code{long}, \code{species}, \code{unmapped} and \code{summary}.
 }
 \description{
-Reads SInAS 3.1.1 native-location records, converts SInAS \code{locationID} values
+Reads SInAS 3.2 native-location records, converts SInAS \code{locationID} values
 to ISO3 countries using \code{AllLocations}, and returns native-origin evidence in
 the same structure as the optional native web/API helpers. When local paths
 are not supplied, the function uses \code{bf_download_sinas_resources()} to resolve
@@ -87,7 +72,7 @@ whether a recipient country is native or non-native. Pass the returned
 species-level table to \code{\link[=bf_attach_native_status]{bf_attach_native_status()}} for recipient-level
 classification.
 
-SInAS 3.1.1 can use a quoted whitespace-delimited text format despite the
+SInAS 3.2 can use a quoted whitespace-delimited text format despite the
 \code{.csv} extension. The internal reader therefore tries a SInAS-aware parser
 before falling back to more conventional CSV, TSV and pipe-delimited readers.
 }
@@ -109,16 +94,14 @@ follow the licence terms attached to that release.
 
 \examples{
 \donttest{
-if (interactive()) {
-  sinas_native <- bf_fetch_native_ranges_sinas(
-    species = c("Carcinus maenas", "Ficopomatus enigmaticus"),
-    cache_dir = file.path(tempdir(), "biofetchR_sinas"),
-    return = "species",
-    quiet = FALSE
-  )
+sinas_native <- bf_fetch_native_ranges_sinas(
+  species = "Carcinus maenas",
+  cache_dir = file.path(tempdir(), "biofetchR_sinas"),
+  return = "species",
+  quiet = TRUE
+)
 
-  sinas_native
-}
+sinas_native
 }
 
 }

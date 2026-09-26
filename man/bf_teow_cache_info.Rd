@@ -23,10 +23,10 @@ not load the spatial layer itself.
 Return cache path/info for TEOW
 }
 \seealso{
-Other terrestrial overlay loaders: 
-\code{\link{bf_load_ne_urban_areas}()},
-\code{\link{bf_load_resolve_ecoregions2017}()},
-\code{\link{bf_load_teow}()},
-\code{\link{bf_teow_clear_cache}()}
+Other terrestrial overlay loaders:
+\code{\link[=bf_load_ne_urban_areas]{bf_load_ne_urban_areas()}},
+\code{\link[=bf_load_resolve_ecoregions2017]{bf_load_resolve_ecoregions2017()}},
+\code{\link[=bf_load_teow]{bf_load_teow()}},
+\code{\link[=bf_teow_clear_cache]{bf_teow_clear_cache()}}
 }
 \concept{terrestrial overlay loaders}

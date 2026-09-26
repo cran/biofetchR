@@ -2,29 +2,24 @@
 % Please edit documentation in R/utils_sinas_download.R
 \name{bf_sinas_default_urls}
 \alias{bf_sinas_default_urls}
-\title{Return default SInAS 3.1.1 resource URLs}
+\title{Return default SInAS resource URLs}
 \usage{
-bf_sinas_default_urls(record_id = "18220953")
+bf_sinas_default_urls(record_id = "21933976")
 }
 \arguments{
-\item{record_id}{Character scalar. Zenodo record identifier used to construct
-the file URLs. Defaults to \code{"18220953"}.}
+\item{record_id}{Character scalar. Supported Zenodo record identifier.
+Defaults to \code{"21933976"} (SInAS 3.2). Record \code{"18220953"} resolves the
+previous SInAS 3.1.1 layout.}
 }
 \value{
-A named character vector of direct Zenodo file URLs used by the SInAS
-downloader. The vector contains four entries: \code{main_csv}, the URL for
-\code{SInAS_3.1.1.csv}; \code{config_zip}, the URL for
-\code{All_Config_Files_SInAS_v3.1.1.zip}, which contains \code{AllLocations.xlsx};
-\code{output_zip}, the URL for \code{All_Output_Files_SInAS_v3.1.1.zip}, which
-contains \code{SInAS_3.1.1_FullTaxaList.csv} for the default record; and
-\code{fulltaxa_csv}, a legacy-style standalone FullTaxaList URL returned for
-completeness. The function only constructs URLs and does not download,
-cache, read or validate any SInAS files.
+A named character vector with \code{main_csv}, \code{config_zip},
+\code{output_zip}, and \code{fulltaxa_csv}. \code{fulltaxa_csv} is \code{NA} because the
+package-managed releases recover FullTaxaList from \code{output_zip}.
 }
 \description{
-Constructs the direct Zenodo file URLs used by
-\code{\link[=bf_download_sinas_resources]{bf_download_sinas_resources()}}. The default record is the SInAS 3.1.1 record
-used by the biofetchR native-evidence workflow.
+Constructs direct Zenodo file URLs for a supported SInAS release. The default
+is SInAS dataset 3.2 (Zenodo record 21933976), generated with SInAS workflow
+v2.0.
 }
 \section{Data access}{
 
@@ -37,7 +32,7 @@ bf_sinas_default_urls()
 
 }
 \seealso{
-Other SInAS resource helpers: 
-\code{\link{bf_download_sinas_resources}()}
+Other SInAS resource helpers:
+\code{\link[=bf_download_sinas_resources]{bf_download_sinas_resources()}}
 }
 \concept{SInAS resource helpers}

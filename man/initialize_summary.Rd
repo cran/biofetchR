@@ -55,7 +55,7 @@ summary_tbl
 
 }
 \seealso{
-Other processing summary helpers: 
-\code{\link{append_summary_row}()}
+Other processing summary helpers:
+\code{\link[=append_summary_row]{append_summary_row()}}
 }
 \concept{processing summary helpers}

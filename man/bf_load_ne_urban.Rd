@@ -58,8 +58,8 @@ Earth and the scale used in any downstream analysis.
 }
 
 \seealso{
-Other Natural Earth and RESOLVE overlay loaders: 
-\code{\link{bf_load_ne_admin1}()},
-\code{\link{bf_load_resolve2017}()}
+Other Natural Earth and RESOLVE overlay loaders:
+\code{\link[=bf_load_ne_admin1]{bf_load_ne_admin1()}},
+\code{\link[=bf_load_resolve2017]{bf_load_resolve2017()}}
 }
 \concept{Natural Earth and RESOLVE overlay loaders}

@@ -95,7 +95,7 @@ of missing or empty values.
 When the package-visible \code{\link[=get_taxon_key]{get_taxon_key()}} helper is available it is used;
 otherwise the function falls back to \code{\link[rgbif:name_backbone]{rgbif::name_backbone()}}.
 \item Multi-country predicate construction: All requested ISO2 countries are
-combined into one \code{\link[rgbif:download_predicate_dsl]{rgbif::pred_in()}} country predicate. The submitted
+combined into one \code{\link[rgbif:pred_in]{rgbif::pred_in()}} country predicate. The submitted
 occurrence-download request therefore contains:
 
 \itemize{
@@ -316,8 +316,8 @@ if (interactive() && all(nzchar(Sys.getenv(gbif_env)))) {
 \code{\link[=download_gbif_batch]{download_gbif_batch()}}, \code{\link[=wait_and_import_gbif]{wait_and_import_gbif()}},
 \code{\link[=wait_and_import_gbif_safe]{wait_and_import_gbif_safe()}}
 
-Other GBIF download backends: 
-\code{\link{download_gbif_batch}()},
-\code{\link{wait_and_import_gbif_safe}()}
+Other GBIF download backends:
+\code{\link[=download_gbif_batch]{download_gbif_batch()}},
+\code{\link[=wait_and_import_gbif_safe]{wait_and_import_gbif_safe()}}
 }
 \concept{GBIF download backends}

@@ -51,8 +51,8 @@ bf_available_marine_overlays(include_extended = TRUE)
 
 }
 \seealso{
-Other marine overlay loaders: 
-\code{\link{bf_load_marine_regions_overlay}()},
-\code{\link{bf_marine_overlay_canonical}()}
+Other marine overlay loaders:
+\code{\link[=bf_load_marine_regions_overlay]{bf_load_marine_regions_overlay()}},
+\code{\link[=bf_marine_overlay_canonical]{bf_marine_overlay_canonical()}}
 }
 \concept{marine overlay loaders}

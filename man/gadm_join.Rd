@@ -94,8 +94,8 @@ if (requireNamespace("sf", quietly = TRUE)) {
 
 }
 \seealso{
-Other GADM spatial helpers: 
-\code{\link{load_all_gadm}()},
-\code{\link{load_gadm}()}
+Other GADM spatial helpers:
+\code{\link[=load_all_gadm]{load_all_gadm()}},
+\code{\link[=load_gadm]{load_gadm()}}
 }
 \concept{GADM spatial helpers}

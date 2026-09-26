@@ -83,7 +83,7 @@ if (interactive()) {
 
 }
 \seealso{
-Other marine overlay joins: 
-\code{\link{overlay_join}()}
+Other marine overlay joins:
+\code{\link[=overlay_join]{overlay_join()}}
 }
 \concept{marine overlay joins}

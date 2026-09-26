@@ -68,10 +68,10 @@ if (interactive()) {
 
 }
 \seealso{
-Other freshwater overlay loaders: 
-\code{\link{bf_load_basins}()},
-\code{\link{bf_load_lakes}()},
-\code{\link{bf_load_rivers}()},
-\code{\link{bf_name_rivers_osm}()}
+Other freshwater overlay loaders:
+\code{\link[=bf_load_basins]{bf_load_basins()}},
+\code{\link[=bf_load_lakes]{bf_load_lakes()}},
+\code{\link[=bf_load_rivers]{bf_load_rivers()}},
+\code{\link[=bf_name_rivers_osm]{bf_name_rivers_osm()}}
 }
 \concept{freshwater overlay loaders}

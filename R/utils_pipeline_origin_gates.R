@@ -209,12 +209,12 @@
 #'   cache files where supported.
 #' @param native_web_sleep_sec Numeric delay in seconds between native-web
 #'   requests.
-#' @param native_web_sinas_main_path Optional local path to `SInAS_3.1.1.csv`
+#' @param native_web_sinas_main_path Optional local path to `SInAS_3.2.csv`
 #'   when `"sinas"` is included in `native_web_sources`.
 #' @param native_web_sinas_alllocations_path Optional local path to
 #'   `AllLocations.xlsx`, `.csv` or `.tsv`.
 #' @param native_web_sinas_fulltaxa_path Optional local path to
-#'   `SInAS_3.1.1_FullTaxaList.csv`.
+#'   `SInAS_3.2_FullTaxaList.csv`.
 #' @param export_native_web_audit Logical. If `TRUE`, write native-web long,
 #'   species, unmapped and summary outputs using `bf_write_native_web_outputs()`.
 #' @param use_native_filter Logical. If `TRUE`, attach native-range status and

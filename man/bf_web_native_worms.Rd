@@ -6,7 +6,7 @@
 \usage{
 bf_web_native_worms(
   species,
-  cache_dir = NULL,
+  cache_dir = tools::R_user_dir("biofetchR", "cache"),
   force_refresh = FALSE,
   sleep_sec = 0.25,
   marine_only = FALSE,
@@ -17,9 +17,7 @@ bf_web_native_worms(
 \arguments{
 \item{species}{Character vector of species names.}
 
-\item{cache_dir}{Directory used to cache WoRMS JSON responses. Must be
-supplied explicitly. In examples, tests and vignettes, use a path under
-\code{tempdir()}.}
+\item{cache_dir}{Directory used to cache WoRMS JSON responses.}
 
 \item{force_refresh}{Logical; if \code{TRUE}, ignore cached responses and fetch
 from the API again.}
@@ -33,16 +31,10 @@ from the API again.}
 \item{quiet}{Logical; suppress progress messages.}
 }
 \value{
-A tibble with one row per retained native-like WoRMS Aphia
-distribution record. The output uses the standard long native-evidence
-schema: \code{species}, the requested species name; \code{source}, set to \code{"WoRMS"};
-\code{accepted_name}, the valid or accepted WoRMS name; \code{source_taxon_id}, the
-AphiaID; \code{raw_native_area}, the source locality, area or geounit string;
-\code{raw_status}, the status, origin or establishment text used for native-like
-screening; \code{origin_iso3}, the resolved ISO3 country code where available;
-\code{evidence_type}, usually \code{"native_distribution"}; and \code{source_url}, the
-WoRMS REST endpoint used. If no native-like records are retained, an empty
-tibble with the same columns is returned.
+A tibble with one row per retained native-like WoRMS distribution
+record and standard columns: \code{species}, \code{source}, \code{accepted_name},
+\code{source_taxon_id}, \code{raw_native_area}, \code{raw_status}, \code{origin_iso3},
+\code{evidence_type} and \code{source_url}.
 }
 \description{
 Resolves species names to valid AphiaIDs through the WoRMS REST API, retrieves
@@ -58,23 +50,18 @@ source locality cannot be resolved to an ISO3 country code.
 
 \examples{
 \donttest{
-if (interactive()) {
-  worms_native <- bf_web_native_worms(
-    species = "Carcinus maenas",
-    cache_dir = file.path(tempdir(), "biofetchR_native_web"),
-    quiet = FALSE
-  )
-
-  worms_native
-}
+bf_web_native_worms(
+  c("Carcinus maenas", "Ficopomatus enigmaticus"),
+  cache_dir = tempdir()
+)
 }
 
 }
 \seealso{
-Other native-range web-source helpers: 
-\code{\link{bf_available_native_web_sources}()},
-\code{\link{bf_fetch_native_ranges_web}()},
-\code{\link{bf_web_native_gbif}()},
-\code{\link{bf_write_native_web_outputs}()}
+Other native-range web-source helpers:
+\code{\link[=bf_available_native_web_sources]{bf_available_native_web_sources()}},
+\code{\link[=bf_fetch_native_ranges_web]{bf_fetch_native_ranges_web()}},
+\code{\link[=bf_web_native_gbif]{bf_web_native_gbif()}},
+\code{\link[=bf_write_native_web_outputs]{bf_write_native_web_outputs()}}
 }
 \concept{native-range web-source helpers}

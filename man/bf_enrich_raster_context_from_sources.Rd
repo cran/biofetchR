@@ -191,7 +191,7 @@ if (
 
 }
 \seealso{
-Other raster context helpers: 
-\code{\link{bf_enrich_raster_context}()}
+Other raster context helpers:
+\code{\link[=bf_enrich_raster_context]{bf_enrich_raster_context()}}
 }
 \concept{raster context helpers}

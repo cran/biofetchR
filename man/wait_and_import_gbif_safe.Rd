@@ -58,8 +58,8 @@ if (interactive() && exists("keys")) {
 \seealso{
 \code{\link[=download_gbif_batch]{download_gbif_batch()}}, \code{\link[=download_gbif_batch_gadm]{download_gbif_batch_gadm()}}
 
-Other GBIF download backends: 
-\code{\link{download_gbif_batch}()},
-\code{\link{download_gbif_batch_gadm}()}
+Other GBIF download backends:
+\code{\link[=download_gbif_batch]{download_gbif_batch()}},
+\code{\link[=download_gbif_batch_gadm]{download_gbif_batch_gadm()}}
 }
 \concept{GBIF download backends}

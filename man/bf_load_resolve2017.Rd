@@ -72,8 +72,8 @@ data source/service and record the access date and query settings used.
 }
 
 \seealso{
-Other Natural Earth and RESOLVE overlay loaders: 
-\code{\link{bf_load_ne_admin1}()},
-\code{\link{bf_load_ne_urban}()}
+Other Natural Earth and RESOLVE overlay loaders:
+\code{\link[=bf_load_ne_admin1]{bf_load_ne_admin1()}},
+\code{\link[=bf_load_ne_urban]{bf_load_ne_urban()}}
 }
 \concept{Natural Earth and RESOLVE overlay loaders}

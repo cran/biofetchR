@@ -94,8 +94,8 @@ if (interactive()) {
 
 }
 \seealso{
-Other marine overlay loaders: 
-\code{\link{bf_available_marine_overlays}()},
-\code{\link{bf_marine_overlay_canonical}()}
+Other marine overlay loaders:
+\code{\link[=bf_available_marine_overlays]{bf_available_marine_overlays()}},
+\code{\link[=bf_marine_overlay_canonical]{bf_marine_overlay_canonical()}}
 }
 \concept{marine overlay loaders}

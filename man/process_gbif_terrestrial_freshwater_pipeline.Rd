@@ -423,14 +423,14 @@ entries where supported.}
 \item{native_web_sleep_sec}{Numeric delay in seconds between native-web
 requests.}
 
-\item{native_web_sinas_main_path}{Optional local path to \code{SInAS_3.1.1.csv}
+\item{native_web_sinas_main_path}{Optional local path to \code{SInAS_3.2.csv}
 when \code{"sinas"} is included in \code{native_web_sources}.}
 
 \item{native_web_sinas_alllocations_path}{Optional local path to
 \code{AllLocations.xlsx}, \code{.csv} or \code{.tsv}.}
 
 \item{native_web_sinas_fulltaxa_path}{Optional local path to
-\code{SInAS_3.1.1_FullTaxaList.csv}.}
+\code{SInAS_3.2_FullTaxaList.csv}.}
 
 \item{export_native_web_audit}{Logical. If \code{TRUE}, write native-web long,
 species, unmapped and summary audit files to \code{output_dir}.}

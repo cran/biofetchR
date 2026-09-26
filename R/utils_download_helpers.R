@@ -212,6 +212,39 @@ bf_download_cached <- function(url, dest, force_refresh = FALSE, quiet = TRUE, m
   last_msg <- NULL
   attempts <- seq_len(retries + 1L)
 
+  .system2_ok <- function(status) {
+    exit_status <- attr(
+      status,
+      "status",
+      exact = TRUE
+    )
+
+    # With stdout/stderr capture, system2() returns character output.
+    # A non-zero exit code is stored in attr(x, "status"); successful
+    # captured commands have no status attribute.
+    if (!is.null(exit_status)) {
+      return(
+        identical(
+          as.integer(exit_status),
+          0L
+        )
+      )
+    }
+
+    # Without output capture, system2() returns the integer exit code.
+    if (is.numeric(status) && length(status) == 1L) {
+      return(
+        identical(
+          as.integer(status),
+          0L
+        )
+      )
+    }
+
+    # Character output with no status attribute means command success.
+    is.character(status)
+  }
+
   # Move the temporary .part file into the final cache location. On Windows,
   # file.rename() can fail across devices or locked paths, so we fall back to
   # file.copy() and then remove the temporary file.
@@ -257,8 +290,8 @@ bf_download_cached <- function(url, dest, force_refresh = FALSE, quiet = TRUE, m
         "--max-time", as.character(timeout),
         "-A", "biofetchR",
         "-C", as.character(bytes_existing),
-        "-o", tmp,
-        url
+        "-o", shQuote(tmp),
+        shQuote(url)
       )
 
       status <- system2(
@@ -268,7 +301,7 @@ bf_download_cached <- function(url, dest, force_refresh = FALSE, quiet = TRUE, m
         stderr = if (isTRUE(quiet)) TRUE else ""
       )
 
-      return(identical(status, 0L))
+      return(.system2_ok(status))
     }
 
     # Fresh download: curl package is fine here.
@@ -307,14 +340,14 @@ bf_download_cached <- function(url, dest, force_refresh = FALSE, quiet = TRUE, m
       "--connect-timeout", "60",
       "--max-time", as.character(timeout),
       "-A", "biofetchR",
-      "-o", tmp
+      "-o", shQuote(tmp)
     )
 
     if (isTRUE(resume) && file.exists(tmp) && bf_file_size(tmp) > 0) {
       args <- c(args, "-C", as.character(bf_file_size(tmp)))
     }
 
-    args <- c(args, url)
+    args <- c(args, shQuote(url))
 
     status <- system2(
       curl_bin,
@@ -323,7 +356,7 @@ bf_download_cached <- function(url, dest, force_refresh = FALSE, quiet = TRUE, m
       stderr = if (isTRUE(quiet)) TRUE else ""
     )
 
-    identical(status, 0L)
+    .system2_ok(status)
   }
 
   # Final dependency-free fallback. This does not reliably resume large files, but
@@ -418,7 +451,7 @@ bf_download_cached <- function(url, dest, force_refresh = FALSE, quiet = TRUE, m
 
 #' Download a file without reusing an existing completed cache
 #'
-#' Thin wrapper around [bf_download_cached()] for temporary or one-off downloads.
+#' Thin wrapper around `bf_download_cached()` for temporary or one-off downloads.
 #' Unlike `bf_download_cached()`, this helper always refreshes the destination
 #' file and disables resume/partial-file retention by default. It is useful where
 #' older code expected a simple `.bf_download_file()` helper but we still want to
@@ -427,7 +460,7 @@ bf_download_cached <- function(url, dest, force_refresh = FALSE, quiet = TRUE, m
 #' @param url Character. Remote URL.
 #' @param destfile Character. Local destination path.
 #' @param quiet Logical. If `TRUE`, suppress download messages where possible.
-#' @param mode Download mode passed to [bf_download_cached()]. Defaults to `"wb"`.
+#' @param mode Download mode passed to `bf_download_cached()`. Defaults to `"wb"`.
 #' @param min_bytes Minimum acceptable file size in bytes.
 #' @param validate_not_html Logical. If `TRUE`, reject likely HTML error pages.
 #'

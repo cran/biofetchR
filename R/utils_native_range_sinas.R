@@ -6,7 +6,7 @@
 #
 # PURPOSE
 #   Add SInAS as a first-class native-origin evidence source for biofetchR. This
-#   provider reads local or package-resolved SInAS 3.1.1 resources, converts
+#   provider reads local or package-resolved SInAS 3.2 resources, converts
 #   SInAS native-location evidence into ISO3 country codes, and returns the same
 #   evidence contract used by the wider native-origin workflow.
 #
@@ -49,6 +49,75 @@
 # Internal helpers
 # -----------------------------------------------------------------------------
 
+#' Require packages for SInAS native-range helpers
+#'
+#' @param pkgs Character vector of package names.
+#'
+#' @return Invisibly returns `TRUE` when all packages are available.
+#'
+#' @keywords internal
+#' @noRd
+.bf_sinas_native_require <- function(pkgs) {
+  missing <- pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)]
+
+  if (length(missing)) {
+    stop(
+      "Missing required package(s): ",
+      paste(missing, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
+}
+
+
+#' Emit a SInAS native-range message
+#'
+#' @param ... Components passed to [message()].
+#' @param quiet Logical; suppress messages.
+#'
+#' @return Invisibly returns `NULL`.
+#'
+#' @keywords internal
+#' @noRd
+.bf_sinas_native_msg <- function(..., quiet = FALSE) {
+  if (!isTRUE(quiet)) message(...)
+  invisible(NULL)
+}
+
+
+#' Null-coalescing helper for SInAS utilities
+#'
+#' @param x Primary object.
+#' @param y Fallback object.
+#'
+#' @return `x` unless it is `NULL` or length zero; otherwise `y`.
+#'
+#' @keywords internal
+#' @noRd
+.bf_sinas_native_coalesce <- function(x, y) {
+  if (is.null(x) || length(x) == 0L) y else x
+}
+
+
+#' Clean character values used by the SInAS helper
+#'
+#' @param x Input vector.
+#'
+#' @return Character vector with normalised whitespace and empty strings set to
+#'   `NA_character_`.
+#'
+#' @keywords internal
+#' @noRd
+.bf_sinas_native_clean_text <- function(x) {
+  x <- as.character(x)
+  x <- trimws(gsub("[[:space:]]+", " ", x))
+  x[x == ""] <- NA_character_
+  x
+}
+
+
 #' Extract a simple canonical binomial
 #'
 #' @param x Character vector of scientific names.
@@ -58,8 +127,8 @@
 #' @keywords internal
 #' @noRd
 .bf_sinas_native_binomial <- function(x) {
-  x <- bf_clean_text(x)
-  x <- gsub("x", "x", x, fixed = TRUE)
+  x <- .bf_sinas_native_clean_text(x)
+  x <- gsub("\u00d7", "x", x, fixed = TRUE)
   x <- gsub("\\s*\\([^)]*\\)", " ", x)
   x <- gsub("[[:space:]]+", " ", x)
   x <- trimws(x)
@@ -109,7 +178,7 @@
 #' @keywords internal
 #' @noRd
 .bf_sinas_native_is_native_like <- function(x) {
-  x <- toupper(bf_clean_text(x))
+  x <- toupper(.bf_sinas_native_clean_text(x))
   x[is.na(x)] <- ""
 
   native_hit <- grepl(
@@ -189,7 +258,7 @@
   ext <- tolower(tools::file_ext(path))
 
   if (ext %in% c("xlsx", "xls")) {
-    bf_require_packages(c("readxl", "tibble", "dplyr"), context = "SInAS native-range helper")
+    .bf_sinas_native_require(c("readxl", "tibble", "dplyr"))
 
     sheets <- readxl::excel_sheets(path)
     if (!length(sheets)) {
@@ -209,9 +278,9 @@
     return(dplyr::bind_rows(parts))
   }
 
-  bf_require_packages("tibble", context = "SInAS native-range helper")
+  .bf_sinas_native_require("tibble")
 
-  # SInAS 3.1.1 uses a quoted, whitespace-separated text format despite the
+  # SInAS 3.2 uses a quoted, whitespace-separated text format despite the
   # .csv extension, e.g.
   #
   #   "location" "locationID" "taxon" "taxonID" ...
@@ -272,7 +341,56 @@
       "taxonID", "taxaGroup"
     )))
 
-    has_taxon && has_loc && has_status_or_taxalist
+    # The same reader is also used for SInAS support tables. AllLocations is a
+    # location crosswalk and therefore need not contain taxon or status fields.
+    has_location_id <- any(
+      nms %in% .bf_sinas_native_clean_colname(c(
+        "locationID", "location_id", "locationid",
+        "areaID", "area_id", "regionID", "region_id",
+        "locationCode"
+      ))
+    )
+
+    has_location_descriptor <- any(
+      nms %in% .bf_sinas_native_clean_colname(c(
+        "ISO3", "iso3", "iso3c", "country_iso3",
+        "ISO_1", "ISO2", "iso2", "iso2c", "country_code",
+        "gadm0_name", "glonaf_country", "country", "country_name",
+        "location", "admin0", "admin0_name", "name"
+      ))
+    )
+
+    # FullTaxaList is an alias-to-accepted-name table and likewise does not
+    # require location or establishment-status columns.
+    has_alias_name <- any(
+      nms %in% .bf_sinas_native_clean_colname(c(
+        "scientificName", "scientific_name", "alias", "name"
+      ))
+    )
+
+    has_accepted_name <- any(
+      nms %in% .bf_sinas_native_clean_colname(c(
+        "taxon", "acceptedName", "accepted_name",
+        "acceptedNameUsage"
+      ))
+    )
+
+    has_main_sinas_shape <-
+      has_taxon &&
+      has_loc &&
+      has_status_or_taxalist
+
+    has_alllocations_shape <-
+      has_location_id &&
+      has_location_descriptor
+
+    has_fulltaxa_shape <-
+      has_alias_name &&
+      has_accepted_name
+
+    has_main_sinas_shape ||
+      has_alllocations_shape ||
+      has_fulltaxa_shape
   }
 
   base_ws <- read_base_whitespace()
@@ -387,9 +505,9 @@
 
   if (is.null(n)) {
     n <- max(
-      length(bf_null_coalesce(country, character(0))),
-      length(bf_null_coalesce(iso2c, character(0))),
-      length(bf_null_coalesce(iso3c, character(0))),
+      length(.bf_sinas_native_coalesce(country, character(0))),
+      length(.bf_sinas_native_coalesce(iso2c, character(0))),
+      length(.bf_sinas_native_coalesce(iso3c, character(0))),
       0L
     )
   }
@@ -428,7 +546,7 @@
   }
 
   if (!is.null(country) && requireNamespace("countrycode", quietly = TRUE)) {
-    x <- bf_clean_text(recycle_to_n(country))
+    x <- .bf_sinas_native_clean_text(recycle_to_n(country))
     y <- suppressWarnings(countrycode::countrycode(
       x,
       origin = "country.name",
@@ -452,7 +570,7 @@
 #' @keywords internal
 #' @noRd
 .bf_sinas_native_build_location_crosswalk <- function(alllocations) {
-  bf_require_packages(c("tibble", "dplyr"), context = "SInAS native-range helper")
+  .bf_sinas_native_require(c("tibble", "dplyr"))
 
   dat <- tibble::as_tibble(alllocations)
 
@@ -481,13 +599,13 @@
   )
 
   raw_location <- if (!is.na(name_col)) {
-    bf_clean_text(dat[[name_col]])
+    .bf_sinas_native_clean_text(dat[[name_col]])
   } else {
-    bf_clean_text(dat[[loc_col]])
+    .bf_sinas_native_clean_text(dat[[loc_col]])
   }
 
   tibble::tibble(
-    locationID = bf_clean_text(dat[[loc_col]]),
+    locationID = .bf_sinas_native_clean_text(dat[[loc_col]]),
     iso3c = toupper(iso3),
     raw_location = raw_location
   ) |>
@@ -503,7 +621,7 @@
 #' @keywords internal
 #' @noRd
 .bf_sinas_native_empty_long <- function() {
-  bf_require_packages("tibble", context = "SInAS native-range helper")
+  .bf_sinas_native_require("tibble")
 
   tibble::tibble(
     species = character(),
@@ -532,7 +650,7 @@
     return(.bf_nrw_collapse_species(long))
   }
 
-  bf_require_packages(c("tibble", "dplyr"), context = "SInAS native-range helper")
+  .bf_sinas_native_require(c("tibble", "dplyr"))
 
   if (is.null(long) || !nrow(long)) {
     return(tibble::tibble(
@@ -576,7 +694,7 @@
 
 #' Fetch native-origin evidence from SInAS
 #'
-#' Reads SInAS 3.1.1 native-location records, converts SInAS `locationID` values
+#' Reads SInAS 3.2 native-location records, converts SInAS `locationID` values
 #' to ISO3 countries using `AllLocations`, and returns native-origin evidence in
 #' the same structure as the optional native web/API helpers. When local paths
 #' are not supplied, the function uses `bf_download_sinas_resources()` to resolve
@@ -589,7 +707,7 @@
 #' species-level table to [bf_attach_native_status()] for recipient-level
 #' classification.
 #'
-#' SInAS 3.1.1 can use a quoted whitespace-delimited text format despite the
+#' SInAS 3.2 can use a quoted whitespace-delimited text format despite the
 #' `.csv` extension. The internal reader therefore tries a SInAS-aware parser
 #' before falling back to more conventional CSV, TSV and pipe-delimited readers.
 #'
@@ -609,16 +727,14 @@
 #'   a species column.
 #' @param species_col Species column name when `species` is a data frame.
 #' @param cache_dir Cache directory used when SInAS resources need to be
-#'   downloaded. Must be supplied explicitly unless all three local resource
-#'   paths are supplied via `main_path`, `alllocations_path` and `fulltaxa_path`.
-#'   In examples, tests and vignettes, use a path under `tempdir()`.
+#'   downloaded.
 #' @param force_refresh Logical; re-download/re-read package-managed resources.
 #' @param quiet Logical; suppress progress messages.
-#' @param main_path Optional local path to `SInAS_3.1.1.csv`.
+#' @param main_path Optional local path to `SInAS_3.2.csv`.
 #' @param alllocations_path Optional local path to `AllLocations.xlsx`, `.csv`,
 #'   or `.tsv`.
 #' @param fulltaxa_path Optional local path to
-#'   `SInAS_3.1.1_FullTaxaList.csv`.
+#'   `SInAS_3.2_FullTaxaList.csv`.
 #' @param record_id Zenodo record identifier used by
 #'   `bf_download_sinas_resources()`.
 #' @param main_url Optional direct URL for the main SInAS CSV.
@@ -627,35 +743,20 @@
 #'   `AllLocations.xlsx`.
 #' @param return One of `"long"`, `"species"` or `"list"`.
 #'
-#' @return The returned object depends on `return`. If `return = "long"`, the
-#'   function returns a tibble with one row per retained SInAS native-origin
-#'   evidence record, including `species`, `source`, `accepted_name`,
-#'   `source_taxon_id`, `raw_native_area`, `raw_status`, `origin_iso3`,
-#'   `evidence_type` and `source_url`. If `return = "species"`, the function
-#'   returns a species-level tibble with collapsed native-origin evidence,
-#'   including `species`, `native_origin_iso3`, `native_sources_used`,
-#'   `native_web_unmapped_strings`, `native_web_n_records` and
-#'   `native_has_origin`. If `return = "list"`, the function returns a named
-#'   list with `long`, `species`, `unmapped` and `summary` elements. The
-#'   `unmapped` element contains long-format evidence rows without resolved ISO3
-#'   origin codes, and `summary` is a one-row tibble reporting input species
-#'   counts, matched SInAS records, ISO3-resolved species and unmapped records.
-#'   These outputs provide species-level native-origin evidence only; recipient-
-#'   level native/non-native classification is performed by
-#'   [bf_attach_native_status()].
+#' @return Depends on `return`. `"long"` returns one row per retained SInAS
+#'   species-origin record. `"species"` returns collapsed species-level native
+#'   origins. `"list"` returns `long`, `species`, `unmapped` and `summary`.
 #'
 #' @examples
 #' \donttest{
-#' if (interactive()) {
-#'   sinas_native <- bf_fetch_native_ranges_sinas(
-#'     species = c("Carcinus maenas", "Ficopomatus enigmaticus"),
-#'     cache_dir = file.path(tempdir(), "biofetchR_sinas"),
-#'     return = "species",
-#'     quiet = FALSE
-#'   )
+#' sinas_native <- bf_fetch_native_ranges_sinas(
+#'   species = "Carcinus maenas",
+#'   cache_dir = file.path(tempdir(), "biofetchR_sinas"),
+#'   return = "species",
+#'   quiet = TRUE
+#' )
 #'
-#'   sinas_native
-#' }
+#' sinas_native
 #' }
 #'
 #' @seealso [bf_attach_native_status()], [bf_download_sinas_resources()]
@@ -664,18 +765,18 @@
 #' @export
 bf_fetch_native_ranges_sinas <- function(species,
                                          species_col = "species",
-                                         cache_dir = NULL,
+                                         cache_dir = tools::R_user_dir("biofetchR", "cache"),
                                          force_refresh = FALSE,
                                          quiet = FALSE,
                                          main_path = NULL,
                                          alllocations_path = NULL,
                                          fulltaxa_path = NULL,
-                                         record_id = "18220953",
+                                         record_id = "21933976",
                                          main_url = NULL,
                                          fulltaxa_url = NULL,
                                          config_zip_url = NULL,
                                          return = c("long", "species", "list")) {
-  bf_require_packages(c("tibble", "dplyr"), context = "SInAS native-range helper")
+  .bf_sinas_native_require(c("tibble", "dplyr"))
 
   return <- match.arg(return)
 
@@ -689,13 +790,23 @@ bf_fetch_native_ranges_sinas <- function(species,
     species_vec <- species
   }
 
-  species_vec <- unique(bf_clean_text(species_vec))
+  species_vec <- unique(.bf_sinas_native_clean_text(species_vec))
   species_vec <- species_vec[!is.na(species_vec) & nzchar(species_vec)]
 
   if (!length(species_vec)) {
     long <- .bf_sinas_native_empty_long()
     species_out <- .bf_sinas_native_collapse_species(long)
     unmapped <- long
+    release_meta <- if (exists(".bf_sinas_release", mode = "function", inherits = TRUE)) {
+      .bf_sinas_release(record_id)
+    } else {
+      list(
+        record_id = as.character(record_id),
+        dataset_version = if (identical(as.character(record_id), "21933976")) "3.2" else NA_character_,
+        workflow_version = if (identical(as.character(record_id), "21933976")) "2.0" else NA_character_,
+        doi = if (identical(as.character(record_id), "21933976")) "10.5281/zenodo.21933976" else NA_character_
+      )
+    }
     summary <- tibble::tibble(
       n_species_input = 0L,
       n_species_with_sinas_records = 0L,
@@ -703,7 +814,11 @@ bf_fetch_native_ranges_sinas <- function(species,
       n_long_records = 0L,
       n_unmapped_records = 0L,
       sources = "SInAS",
-      sources_used = "SInAS"
+      sources_used = "SInAS",
+      sinas_version = release_meta$dataset_version,
+      sinas_workflow_version = release_meta$workflow_version,
+      sinas_record_id = release_meta$record_id,
+      sinas_doi = release_meta$doi
     )
     out <- list(long = long, species = species_out, unmapped = unmapped, summary = summary)
     if (return == "species") return(out$species)
@@ -716,21 +831,16 @@ bf_fetch_native_ranges_sinas <- function(species,
   } else {
     base <- paste0("https://zenodo.org/records/", record_id, "/files/")
     c(
-      main_csv = paste0(base, "SInAS_3.1.1.csv?download=1"),
-      fulltaxa_csv = paste0(base, "SInAS_3.1.1_FullTaxaList.csv?download=1"),
-      config_zip = paste0(base, "All_Config_Files_SInAS_v3.1.1.zip?download=1")
+      main_csv = paste0(base, "SInAS_3.2.csv?download=1"),
+      fulltaxa_csv = NA_character_,
+      config_zip = paste0(base, "All_Config_Files_v3.2.zip?download=1"),
+      output_zip = paste0(base, "All_Output_Files_v3.2.zip?download=1")
     )
   }
 
-  main_url <- bf_null_coalesce(main_url, urls[["main_csv"]])
-
-  # Keep NULL by default.
-  # The default SInAS 3.1.1 Zenodo record does not expose FullTaxaList as a
-  # standalone CSV. Leaving this as NULL makes bf_download_sinas_resources()
-  # recover FullTaxaList from All_Output_Files_SInAS_v3.1.1.zip instead.
-  fulltaxa_url <- fulltaxa_url
-
-  config_zip_url <- bf_null_coalesce(config_zip_url, urls[["config_zip"]])
+  main_url <- .bf_sinas_native_coalesce(main_url, urls[["main_csv"]])
+  fulltaxa_url <- .bf_sinas_native_coalesce(fulltaxa_url, urls[["fulltaxa_csv"]])
+  config_zip_url <- .bf_sinas_native_coalesce(config_zip_url, urls[["config_zip"]])
 
   if (is.null(main_path) || is.null(alllocations_path) || is.null(fulltaxa_path)) {
     if (!exists("bf_download_sinas_resources", mode = "function", inherits = TRUE)) {
@@ -741,21 +851,6 @@ bf_fetch_native_ranges_sinas <- function(species,
         call. = FALSE
       )
     }
-
-    if (is.null(cache_dir) || length(cache_dir) == 0L ||
-        !nzchar(trimws(as.character(cache_dir[[1L]])))) {
-      stop(
-        "`cache_dir` must be supplied explicitly when SInAS resources need to be downloaded. ",
-        "Alternatively, supply `main_path`, `alllocations_path` and `fulltaxa_path`.",
-        call. = FALSE
-      )
-    }
-
-    cache_dir <- normalizePath(
-      as.character(cache_dir[[1L]]),
-      winslash = "/",
-      mustWork = FALSE
-    )
 
     resolved <- bf_download_sinas_resources(
       cache_dir = file.path(cache_dir, "native_range_sinas"),
@@ -775,7 +870,7 @@ bf_fetch_native_ranges_sinas <- function(species,
     fulltaxa_path <- resolved$fulltaxa_csv
   }
 
-  .bf_msg("Reading SInAS native-origin evidence.", quiet = quiet)
+  .bf_sinas_native_msg("Reading SInAS native-origin evidence.", quiet = quiet)
 
   sinas <- .bf_sinas_native_read_table(main_path, combine_sheets = FALSE)
   allloc <- .bf_sinas_native_read_table(alllocations_path, combine_sheets = TRUE)
@@ -807,11 +902,11 @@ bf_fetch_native_ranges_sinas <- function(species,
 
   sinas_tbl <- tibble::as_tibble(sinas) |>
     dplyr::mutate(
-      .bf_sinas_taxon = bf_clean_text(.data[[taxon_col]]),
+      .bf_sinas_taxon = .bf_sinas_native_clean_text(.data[[taxon_col]]),
       .bf_sinas_taxon_key = .bf_sinas_native_name_key(.data[[taxon_col]]),
-      .bf_sinas_location_id = bf_clean_text(.data[[loc_id_col]]),
-      .bf_sinas_location = if (!is.na(loc_col)) bf_clean_text(.data[[loc_col]]) else .bf_sinas_location_id,
-      .bf_sinas_status = bf_clean_text(.data[[status_col]]),
+      .bf_sinas_location_id = .bf_sinas_native_clean_text(.data[[loc_id_col]]),
+      .bf_sinas_location = if (!is.na(loc_col)) .bf_sinas_native_clean_text(.data[[loc_col]]) else .bf_sinas_location_id,
+      .bf_sinas_status = .bf_sinas_native_clean_text(.data[[status_col]]),
       .bf_sinas_taxon_id = if (!is.na(taxon_id_col)) as.character(.data[[taxon_id_col]]) else NA_character_
     ) |>
     dplyr::filter(.bf_sinas_native_is_native_like(.data$.bf_sinas_status)) |>
@@ -858,7 +953,8 @@ bf_fetch_native_ranges_sinas <- function(species,
           alias_matched <- alias_requested |>
             dplyr::left_join(
               sinas_tbl,
-              by = c(".bf_accepted_key" = ".bf_sinas_taxon_key")
+              by = c(".bf_accepted_key" = ".bf_sinas_taxon_key"),
+              relationship = "many-to-many"
             )
 
           matched <- dplyr::bind_rows(matched, alias_matched)
@@ -869,7 +965,7 @@ bf_fetch_native_ranges_sinas <- function(species,
 
   # Defensive exact-name fallback.
   #
-  # SInAS 3.1.1 taxon names are already canonical enough for exact comparison.
+  # SInAS 3.2 taxon names are already canonical enough for exact comparison.
   # The normal key-based join above should work, but exact lower-case matching is
   # kept as a fallback because user environments may load different taxonomy
   # cleaning helpers before this file, changing .bf_sinas_native_name_key()
@@ -922,6 +1018,17 @@ bf_fetch_native_ranges_sinas <- function(species,
   species_out <- .bf_sinas_native_collapse_species(long)
   unmapped <- long[is.na(long$origin_iso3) | !nzchar(long$origin_iso3), , drop = FALSE]
 
+  release_meta <- if (exists(".bf_sinas_release", mode = "function", inherits = TRUE)) {
+    .bf_sinas_release(record_id)
+  } else {
+    list(
+      record_id = as.character(record_id),
+      dataset_version = if (identical(as.character(record_id), "21933976")) "3.2" else NA_character_,
+      workflow_version = if (identical(as.character(record_id), "21933976")) "2.0" else NA_character_,
+      doi = if (identical(as.character(record_id), "21933976")) "10.5281/zenodo.21933976" else NA_character_
+    )
+  }
+
   summary <- tibble::tibble(
     n_species_input = length(species_vec),
     n_species_with_sinas_records = length(unique(long$species)),
@@ -929,7 +1036,11 @@ bf_fetch_native_ranges_sinas <- function(species,
     n_long_records = nrow(long),
     n_unmapped_records = nrow(unmapped),
     sources = "SInAS",
-    sources_used = "SInAS"
+    sources_used = "SInAS",
+    sinas_version = release_meta$dataset_version,
+    sinas_workflow_version = release_meta$workflow_version,
+    sinas_record_id = release_meta$record_id,
+    sinas_doi = release_meta$doi
   )
 
   out <- list(

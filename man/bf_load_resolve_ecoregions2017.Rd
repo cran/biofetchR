@@ -52,10 +52,10 @@ if (interactive()) {
 
 }
 \seealso{
-Other terrestrial overlay loaders: 
-\code{\link{bf_load_ne_urban_areas}()},
-\code{\link{bf_load_teow}()},
-\code{\link{bf_teow_cache_info}()},
-\code{\link{bf_teow_clear_cache}()}
+Other terrestrial overlay loaders:
+\code{\link[=bf_load_ne_urban_areas]{bf_load_ne_urban_areas()}},
+\code{\link[=bf_load_teow]{bf_load_teow()}},
+\code{\link[=bf_teow_cache_info]{bf_teow_cache_info()}},
+\code{\link[=bf_teow_clear_cache]{bf_teow_clear_cache()}}
 }
 \concept{terrestrial overlay loaders}

@@ -86,7 +86,7 @@ bf_repair_utf8_chr <- function(x) {
 
 #' Repair text columns in a data frame-like object
 #'
-#' Applies [bf_repair_utf8_chr()] to character columns and to factor columns
+#' Applies `bf_repair_utf8_chr()` to character columns and to factor levels
 #' after converting factor values to character. Geometry columns from `sf`
 #' objects are deliberately skipped because they store spatial vectors rather
 #' than ordinary text.
@@ -209,7 +209,7 @@ bf_clean_text <- function(x) {
 
 #' Clean one scalar text value
 #'
-#' Scalar version of [bf_clean_text()]. Returns the first cleaned value, or a
+#' Scalar version of `bf_clean_text()`. Returns the first cleaned value, or a
 #' fallback when the input is empty, missing or blank.
 #'
 #' @param x Object coercible to character.

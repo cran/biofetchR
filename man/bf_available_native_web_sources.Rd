@@ -7,14 +7,8 @@
 bf_available_native_web_sources()
 }
 \value{
-A data frame listing native-origin web/API evidence sources supported
-by biofetchR. The returned table contains \code{source}, the source identifier
-accepted by \code{\link[=bf_fetch_native_ranges_web]{bf_fetch_native_ranges_web()}}; \code{description}, a short
-explanation of the evidence provider; \code{access_type}, the way the source is
-accessed or cached; and \code{default}, a logical flag indicating whether the
-source is included in the default source set. The table is intended for
-inspecting valid source names before requesting web-derived native-origin
-evidence.
+A data frame with columns \code{source}, \code{description}, \code{access_type} and
+\code{default}.
 }
 \description{
 Returns the web/API sources currently implemented by
@@ -32,12 +26,13 @@ native-status classifier in \code{\link[=bf_attach_native_status]{bf_attach_nati
 \examples{
 bf_available_native_web_sources()
 
+
 }
 \seealso{
-Other native-range web-source helpers: 
-\code{\link{bf_fetch_native_ranges_web}()},
-\code{\link{bf_web_native_gbif}()},
-\code{\link{bf_web_native_worms}()},
-\code{\link{bf_write_native_web_outputs}()}
+Other native-range web-source helpers:
+\code{\link[=bf_fetch_native_ranges_web]{bf_fetch_native_ranges_web()}},
+\code{\link[=bf_web_native_gbif]{bf_web_native_gbif()}},
+\code{\link[=bf_web_native_worms]{bf_web_native_worms()}},
+\code{\link[=bf_write_native_web_outputs]{bf_write_native_web_outputs()}}
 }
 \concept{native-range web-source helpers}

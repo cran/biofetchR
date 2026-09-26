@@ -37,10 +37,10 @@ Downloads HydroLAKES once (RAW), standardizes key fields, then applies
 optional filters in-memory on each call. Cached as a single GeoPackage.
 }
 \seealso{
-Other freshwater overlay loaders: 
-\code{\link{bf_load_basins}()},
-\code{\link{bf_load_feow}()},
-\code{\link{bf_load_rivers}()},
-\code{\link{bf_name_rivers_osm}()}
+Other freshwater overlay loaders:
+\code{\link[=bf_load_basins]{bf_load_basins()}},
+\code{\link[=bf_load_feow]{bf_load_feow()}},
+\code{\link[=bf_load_rivers]{bf_load_rivers()}},
+\code{\link[=bf_name_rivers_osm]{bf_name_rivers_osm()}}
 }
 \concept{freshwater overlay loaders}

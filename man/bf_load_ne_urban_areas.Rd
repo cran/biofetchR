@@ -38,10 +38,10 @@ consistent ID + label column for downstream point-tagging.
 Users do not need to pre-download shapefiles; biofetchR handles retrieval and caching.
 }
 \seealso{
-Other terrestrial overlay loaders: 
-\code{\link{bf_load_resolve_ecoregions2017}()},
-\code{\link{bf_load_teow}()},
-\code{\link{bf_teow_cache_info}()},
-\code{\link{bf_teow_clear_cache}()}
+Other terrestrial overlay loaders:
+\code{\link[=bf_load_resolve_ecoregions2017]{bf_load_resolve_ecoregions2017()}},
+\code{\link[=bf_load_teow]{bf_load_teow()}},
+\code{\link[=bf_teow_cache_info]{bf_teow_cache_info()}},
+\code{\link[=bf_teow_clear_cache]{bf_teow_clear_cache()}}
 }
 \concept{terrestrial overlay loaders}

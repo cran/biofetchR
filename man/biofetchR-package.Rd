@@ -12,5 +12,10 @@ non-standard evaluation columns used in dplyr pipelines and spatial helpers.
 \author{
 \strong{Maintainer}: Darren Stuart \email{dstuart04@qub.ac.uk}
 
+Authors:
+\itemize{
+  \item Darren Stuart \email{dstuart04@qub.ac.uk}
+}
+
 }
 \keyword{internal}

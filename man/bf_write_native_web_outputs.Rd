@@ -14,11 +14,7 @@ bf_write_native_web_outputs(x, output_dir, prefix = "native_web")
 \item{prefix}{Filename prefix. Defaults to \code{"native_web"}.}
 }
 \value{
-Invisibly returns a named character vector of file paths written to
-\code{output_dir}. The vector contains paths named \code{long}, \code{species},
-\code{unmapped} and \code{summary}, corresponding to the CSV files written from the
-matching elements of \code{x}. The function is called primarily for its side
-effect of writing auditable native-web evidence tables to disk.
+Invisibly returns a named character vector of written file paths.
 }
 \description{
 Writes the list returned by \code{bf_fetch_native_ranges_web()} to CSV files so
@@ -33,45 +29,26 @@ evidence.
 }
 
 \examples{
-native_web <- list(
-  long = data.frame(
-    species = "Example species",
-    source = "example",
-    accepted_name = "Example species",
-    source_taxon_id = "example_id",
-    raw_native_area = "Exampleland",
-    raw_status = "native",
-    origin_iso3 = "GBR",
-    evidence_type = "native_distribution",
-    source_url = NA_character_
-  ),
-  species = data.frame(
-    species = "Example species",
-    native_origin_iso3 = "GBR",
-    native_sources_used = "example",
-    native_web_unmapped_strings = NA_character_,
-    native_web_n_records = 1L,
-    native_has_origin = TRUE
-  ),
-  unmapped = data.frame(),
-  summary = data.frame(
-    n_species_input = 1L,
-    n_species_with_origin = 1L,
-    n_records_long = 1L,
-    n_records_unmapped = 0L
-  )
+\donttest{
+x <- bf_fetch_native_ranges_web(
+  species = "Rattus rattus",
+  sources = "gbif",
+  cache_dir = tempdir(),
+  return = "list"
 )
 
-out_dir <- tempfile("native_web_outputs_")
-paths <- bf_write_native_web_outputs(native_web, output_dir = out_dir)
-names(paths)
+bf_write_native_web_outputs(
+  x,
+  file.path(tempdir(), "native_web")
+)
+}
 
 }
 \seealso{
-Other native-range web-source helpers: 
-\code{\link{bf_available_native_web_sources}()},
-\code{\link{bf_fetch_native_ranges_web}()},
-\code{\link{bf_web_native_gbif}()},
-\code{\link{bf_web_native_worms}()}
+Other native-range web-source helpers:
+\code{\link[=bf_available_native_web_sources]{bf_available_native_web_sources()}},
+\code{\link[=bf_fetch_native_ranges_web]{bf_fetch_native_ranges_web()}},
+\code{\link[=bf_web_native_gbif]{bf_web_native_gbif()}},
+\code{\link[=bf_web_native_worms]{bf_web_native_worms()}}
 }
 \concept{native-range web-source helpers}

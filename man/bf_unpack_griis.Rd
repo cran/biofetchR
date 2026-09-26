@@ -69,13 +69,13 @@ dir.exists(unpacked)
 
 }
 \seealso{
-Other GRIIS origin-evidence helpers: 
-\code{\link{bf_attach_griis_status}()},
-\code{\link{bf_download_griis}()},
-\code{\link{bf_filter_griis_invasive}()},
-\code{\link{bf_find_griis_table}()},
-\code{\link{bf_griis_lookup}()},
-\code{\link{bf_read_griis}()},
-\code{\link{bf_standardise_griis}()}
+Other GRIIS origin-evidence helpers:
+\code{\link[=bf_attach_griis_status]{bf_attach_griis_status()}},
+\code{\link[=bf_download_griis]{bf_download_griis()}},
+\code{\link[=bf_filter_griis_invasive]{bf_filter_griis_invasive()}},
+\code{\link[=bf_find_griis_table]{bf_find_griis_table()}},
+\code{\link[=bf_griis_lookup]{bf_griis_lookup()}},
+\code{\link[=bf_read_griis]{bf_read_griis()}},
+\code{\link[=bf_standardise_griis]{bf_standardise_griis()}}
 }
 \concept{GRIIS origin-evidence helpers}

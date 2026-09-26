@@ -72,8 +72,8 @@ if (interactive()) {
 
 }
 \seealso{
-Other additional context overlay loaders: 
-\code{\link{bf_load_global_mining}()},
-\code{\link{bf_load_hydrowaste}()}
+Other additional context overlay loaders:
+\code{\link[=bf_load_global_mining]{bf_load_global_mining()}},
+\code{\link[=bf_load_hydrowaste]{bf_load_hydrowaste()}}
 }
 \concept{additional context overlay loaders}

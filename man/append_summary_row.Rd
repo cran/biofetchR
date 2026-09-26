@@ -65,7 +65,7 @@ missing values. It does not validate that \code{n_cleaned <= n_total} or
 different stages or use specialised cleaning/thinning backends.
 
 When \code{quiet = FALSE}, the helper prints a short success message using
-\code{\link[cli:cli_alert]{cli::cli_alert_success()}}. Set \code{quiet = TRUE} in batch tests, package checks
+\code{\link[cli:cli_alert_success]{cli::cli_alert_success()}}. Set \code{quiet = TRUE} in batch tests, package checks
 or non-interactive workflows where console output should be suppressed.
 }
 \examples{
@@ -88,7 +88,7 @@ summary_tbl
 
 }
 \seealso{
-Other processing summary helpers: 
-\code{\link{initialize_summary}()}
+Other processing summary helpers:
+\code{\link[=initialize_summary]{initialize_summary()}}
 }
 \concept{processing summary helpers}

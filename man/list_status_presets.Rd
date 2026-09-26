@@ -32,7 +32,7 @@ list_status_presets()
 
 }
 \seealso{
-Other status helpers: 
-\code{\link{filter_by_status}()}
+Other status helpers:
+\code{\link[=filter_by_status]{filter_by_status()}}
 }
 \concept{status helpers}

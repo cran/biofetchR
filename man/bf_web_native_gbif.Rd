@@ -6,7 +6,7 @@
 \usage{
 bf_web_native_gbif(
   species,
-  cache_dir = NULL,
+  cache_dir = tools::R_user_dir("biofetchR", "cache"),
   force_refresh = FALSE,
   sleep_sec = 0.25,
   user_agent = "biofetchR native-range web helper (academic use)",
@@ -16,9 +16,7 @@ bf_web_native_gbif(
 \arguments{
 \item{species}{Character vector of species names.}
 
-\item{cache_dir}{Directory used to cache GBIF JSON responses. Must be
-supplied explicitly. In examples, tests and vignettes, use a path under
-\code{tempdir()}.}
+\item{cache_dir}{Directory used to cache GBIF JSON responses.}
 
 \item{force_refresh}{Logical; if \code{TRUE}, ignore cached responses and fetch
 from the API again.}
@@ -30,17 +28,10 @@ from the API again.}
 \item{quiet}{Logical; suppress progress messages.}
 }
 \value{
-A tibble with one row per retained native-like GBIF Species API
-distribution record. The output uses the standard long native-evidence
-schema: \code{species}, the requested species name; \code{source}, set to \code{"GBIF"};
-\code{accepted_name}, the matched GBIF scientific or canonical name;
-\code{source_taxon_id}, the GBIF taxon key; \code{raw_native_area}, the source
-country, area, locality or location string; \code{raw_status}, the establishment
-or status text used for native-like screening; \code{origin_iso3}, the resolved
-ISO3 country code where available; \code{evidence_type}, usually
-\code{"native_distribution"}; and \code{source_url}, the GBIF API endpoint used. If
-no native-like records are retained, an empty tibble with the same columns
-is returned.
+A tibble with one row per retained native-like GBIF distribution
+record and standard columns: \code{species}, \code{source}, \code{accepted_name},
+\code{source_taxon_id}, \code{raw_native_area}, \code{raw_status}, \code{origin_iso3},
+\code{evidence_type} and \code{source_url}.
 }
 \description{
 Matches species names to GBIF taxon keys, retrieves checklist distribution
@@ -57,23 +48,18 @@ definitive native range.
 
 \examples{
 \donttest{
-if (interactive()) {
-  gbif_native <- bf_web_native_gbif(
-    species = "Carcinus maenas",
-    cache_dir = file.path(tempdir(), "biofetchR_native_web"),
-    quiet = FALSE
-  )
-
-  gbif_native
-}
+bf_web_native_gbif(
+  c("Rattus rattus", "Sturnus vulgaris"),
+  cache_dir = tempdir()
+)
 }
 
 }
 \seealso{
-Other native-range web-source helpers: 
-\code{\link{bf_available_native_web_sources}()},
-\code{\link{bf_fetch_native_ranges_web}()},
-\code{\link{bf_web_native_worms}()},
-\code{\link{bf_write_native_web_outputs}()}
+Other native-range web-source helpers:
+\code{\link[=bf_available_native_web_sources]{bf_available_native_web_sources()}},
+\code{\link[=bf_fetch_native_ranges_web]{bf_fetch_native_ranges_web()}},
+\code{\link[=bf_web_native_worms]{bf_web_native_worms()}},
+\code{\link[=bf_write_native_web_outputs]{bf_write_native_web_outputs()}}
 }
 \concept{native-range web-source helpers}

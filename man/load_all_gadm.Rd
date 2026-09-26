@@ -54,8 +54,8 @@ if (interactive()) {
 
 }
 \seealso{
-Other GADM spatial helpers: 
-\code{\link{gadm_join}()},
-\code{\link{load_gadm}()}
+Other GADM spatial helpers:
+\code{\link[=gadm_join]{gadm_join()}},
+\code{\link[=load_gadm]{load_gadm()}}
 }
 \concept{GADM spatial helpers}

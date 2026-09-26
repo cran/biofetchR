@@ -50,7 +50,7 @@ bf_null_coalesce <- function(x, y) {
 
 #' Null-coalescing operator
 #'
-#' Infix alias for [bf_null_coalesce()]. This is used internally for compact
+#' Infix alias for `bf_null_coalesce()`. This is used internally for compact
 #' optional-value handling.
 #'
 #' @param x Primary object.

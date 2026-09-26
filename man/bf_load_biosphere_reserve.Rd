@@ -74,8 +74,8 @@ if (interactive()) {
 
 }
 \seealso{
-Other remote overlay loaders: 
-\code{\link{bf_load_gdw_barriers}()},
-\code{\link{bf_load_gloric}()}
+Other remote overlay loaders:
+\code{\link[=bf_load_gdw_barriers]{bf_load_gdw_barriers()}},
+\code{\link[=bf_load_gloric]{bf_load_gloric()}}
 }
 \concept{remote overlay loaders}

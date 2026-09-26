@@ -31,10 +31,10 @@ caches once, and returns polygons with canonical fields:
 hybas_id, next_down, next_sink, main_bas, sub_area, up_area, endo, order.
 }
 \seealso{
-Other freshwater overlay loaders: 
-\code{\link{bf_load_feow}()},
-\code{\link{bf_load_lakes}()},
-\code{\link{bf_load_rivers}()},
-\code{\link{bf_name_rivers_osm}()}
+Other freshwater overlay loaders:
+\code{\link[=bf_load_feow]{bf_load_feow()}},
+\code{\link[=bf_load_lakes]{bf_load_lakes()}},
+\code{\link[=bf_load_rivers]{bf_load_rivers()}},
+\code{\link[=bf_name_rivers_osm]{bf_name_rivers_osm()}}
 }
 \concept{freshwater overlay loaders}

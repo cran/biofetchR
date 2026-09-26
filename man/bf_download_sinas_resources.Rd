@@ -5,13 +5,13 @@
 \title{Download and locate required SInAS resources}
 \usage{
 bf_download_sinas_resources(
-  cache_dir = NULL,
+  cache_dir = tools::R_user_dir("biofetchR", "data"),
   force_refresh = FALSE,
   quiet = FALSE,
   main_path = NULL,
   allloc_path = NULL,
   fulltaxa_path = NULL,
-  record_id = "18220953",
+  record_id = "21933976",
   main_url = bf_sinas_default_urls(record_id)[["main_csv"]],
   fulltaxa_url = NULL,
   config_zip_url = bf_sinas_default_urls(record_id)[["config_zip"]],
@@ -19,98 +19,64 @@ bf_download_sinas_resources(
 )
 }
 \arguments{
-\item{cache_dir}{Character scalar. Local cache directory for downloaded and
-extracted SInAS resources. Must be supplied explicitly when any required
-SInAS resource needs to be downloaded or extracted. If \code{main_path},
-\code{allloc_path} and \code{fulltaxa_path} all point to existing local files,
-\code{cache_dir} is not required. In examples, tests and vignettes, use a path
-under \code{tempdir()}.}
+\item{cache_dir}{Local cache directory.}
 
-\item{force_refresh}{Logical scalar. If \code{TRUE}, re-download and re-extract
-cached resources even when existing files are present.}
+\item{force_refresh}{Re-download and re-extract cached resources.}
 
-\item{quiet}{Logical scalar. If \code{TRUE}, suppress progress messages.}
+\item{quiet}{Suppress progress messages.}
 
-\item{main_path}{Optional character scalar. Existing local path to
-\code{SInAS_3.1.1.csv}. When supplied and valid, this path is used instead of
-downloading \code{main_url}.}
+\item{main_path}{Optional local main SInAS table.}
 
-\item{allloc_path}{Optional character scalar. Existing local path to
-\code{AllLocations.xlsx}. When supplied and valid, this path is used instead of
-searching the extracted configuration archive.}
+\item{allloc_path}{Optional local \code{AllLocations} table.}
 
-\item{fulltaxa_path}{Optional character scalar. Existing local path to
-\code{SInAS_3.1.1_FullTaxaList.csv}. When supplied and valid, this path is used
-instead of downloading or extracting FullTaxaList.}
+\item{fulltaxa_path}{Optional local FullTaxaList.}
 
-\item{record_id}{Character scalar. Zenodo record identifier used by
-\code{\link[=bf_sinas_default_urls]{bf_sinas_default_urls()}} to construct default URLs.}
+\item{record_id}{Zenodo record identifier. Defaults to \code{"21933976"}.}
 
-\item{main_url}{Character scalar. Direct URL for the main SInAS CSV.}
+\item{main_url}{Optional direct main-table URL. By default it is derived from
+\code{\link[=bf_sinas_default_urls]{bf_sinas_default_urls()}}.}
 
-\item{fulltaxa_url}{Optional character scalar. Direct URL for a standalone
-FullTaxaList CSV. Defaults to \code{NULL} because the default SInAS 3.1.1 record
-stores FullTaxaList inside the output ZIP rather than as a standalone file.}
+\item{fulltaxa_url}{Optional standalone FullTaxaList URL. Defaults to \code{NULL};
+the current SInAS release stores FullTaxaList in \code{output_zip}.}
 
-\item{config_zip_url}{Character scalar. Direct URL for the configuration ZIP
-containing \code{AllLocations.xlsx}.}
+\item{config_zip_url}{Optional configuration-archive URL.}
 
-\item{output_zip_url}{Character scalar. Direct URL for the output ZIP
-containing \code{SInAS_3.1.1_FullTaxaList.csv} for the default record.}
+\item{output_zip_url}{Optional workflow-output archive URL.}
 }
 \value{
-A named list of normalised local file paths to the SInAS resources
-required by biofetchR native-origin evidence workflows. The list always
-contains \code{main_csv}, the local path to \code{SInAS_3.1.1.csv};
-\code{alllocations_xlsx}, the local path to \code{AllLocations.xlsx} or an equivalent
-location table found in the extracted configuration archive; \code{fulltaxa_csv},
-the local path to \code{SInAS_3.1.1_FullTaxaList.csv} or a matching FullTaxaList
-file recovered from the output archive; \code{config_zip}, the cached
-configuration archive path; and \code{config_dir}, the extracted configuration
-directory path. When FullTaxaList is recovered from
-\code{All_Output_Files_SInAS_v3.1.1.zip}, the list also contains \code{output_zip} and
-\code{output_dir}. User-supplied local paths are returned in normalised form when
-provided and valid; otherwise paths point to files downloaded or extracted
-inside \code{cache_dir}.
+Named list containing local paths \code{main_csv},
+\code{alllocations_xlsx}, \code{fulltaxa_csv}, \code{config_zip}, \code{config_dir},
+\code{output_zip}, and \code{output_dir}.
 }
 \description{
-Downloads, caches and resolves the SInAS 3.1.1 resources required by the
-biofetchR native-evidence workflow. Existing local files can be supplied to
-bypass downloading. Otherwise, the function downloads the main SInAS table,
-extracts \code{AllLocations.xlsx} from the configuration archive, and recovers
-\code{SInAS_3.1.1_FullTaxaList.csv} from the output archive for the default record.
+Downloads, caches and resolves the SInAS resources required by biofetchR's
+native-origin evidence workflow. The default is SInAS dataset 3.2
+(Zenodo record 21933976), generated with SInAS workflow v2.0.
 }
-\section{Cache behaviour}{
-
-Cached files are reused when present and above the minimum size threshold.
-Set \code{force_refresh = TRUE} to re-download archives and rebuild extracted
-directories. User-supplied local paths always take precedence over downloads.
+\details{
+The main SInAS table is downloaded directly. \code{AllLocations} is recovered from
+the configuration archive, and \code{FullTaxaList} is recovered from the workflow
+output archive unless an explicit local file or standalone URL is supplied.
 }
-
 \section{Data access and attribution}{
 
-biofetchR does not ship or redistribute SInAS resources. This function only
-downloads files into a user-managed local cache. Users should check the
-relevant SInAS/Zenodo record for licence, citation and attribution
-requirements before publishing, redistributing or archiving derived outputs.
+biofetchR does not redistribute SInAS resources. Users should cite the exact
+SInAS release used. The default release is SInAS 3.2,
+DOI \code{10.5281/zenodo.21933976}.
 }
 
 \examples{
 \donttest{
-if (interactive()) {
-  sinas_paths <- bf_download_sinas_resources(
-    cache_dir = file.path(tempdir(), "biofetchR_sinas"),
-    quiet = FALSE
-  )
-
-  names(sinas_paths)
-  sinas_paths$main_csv
-}
+sinas_paths <- bf_download_sinas_resources(
+  cache_dir = file.path(tempdir(), "biofetchR_sinas"),
+  quiet = TRUE
+)
+names(sinas_paths)
 }
 
 }
 \seealso{
-Other SInAS resource helpers: 
-\code{\link{bf_sinas_default_urls}()}
+Other SInAS resource helpers:
+\code{\link[=bf_sinas_default_urls]{bf_sinas_default_urls()}}
 }
 \concept{SInAS resource helpers}

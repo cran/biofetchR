@@ -33,8 +33,8 @@ bf_marine_overlay_canonical("iho_seas")
 
 }
 \seealso{
-Other marine overlay loaders: 
-\code{\link{bf_available_marine_overlays}()},
-\code{\link{bf_load_marine_regions_overlay}()}
+Other marine overlay loaders:
+\code{\link[=bf_available_marine_overlays]{bf_available_marine_overlays()}},
+\code{\link[=bf_load_marine_regions_overlay]{bf_load_marine_regions_overlay()}}
 }
 \concept{marine overlay loaders}

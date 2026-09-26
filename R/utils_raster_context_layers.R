@@ -80,7 +80,7 @@
 #' @param pts_sf Point `sf` object.
 #' @param buffer_m Numeric buffer radius in metres. Use `0` for point extraction.
 #' @param fun Optional summary function passed to [terra::extract()] for
-#'   buffered extraction, for example [mean()] or [terra::modal()].
+#'   buffered extraction, for example [base::mean()] or [terra::modal()].
 #' @param quiet Logical. Included for interface consistency with the other
 #'   raster helpers.
 #'

@@ -78,7 +78,7 @@ if (interactive()) {
 
 }
 \seealso{
-Other overlay loaders: 
-\code{\link{bf_load_wdpa}()}
+Other overlay loaders:
+\code{\link[=bf_load_wdpa]{bf_load_wdpa()}}
 }
 \concept{overlay loaders}

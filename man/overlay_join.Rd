@@ -97,7 +97,7 @@ if (interactive()) {
 
 }
 \seealso{
-Other marine overlay joins: 
-\code{\link{eez_join}()}
+Other marine overlay joins:
+\code{\link[=eez_join]{eez_join()}}
 }
 \concept{marine overlay joins}

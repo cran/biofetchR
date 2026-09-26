@@ -496,12 +496,12 @@
 #'   entries where supported.
 #' @param native_web_sleep_sec Numeric delay in seconds between native-web
 #'   requests.
-#' @param native_web_sinas_main_path Optional local path to `SInAS_3.1.1.csv`
+#' @param native_web_sinas_main_path Optional local path to `SInAS_3.2.csv`
 #'   when `"sinas"` is included in `native_web_sources`.
 #' @param native_web_sinas_alllocations_path Optional local path to
 #'   `AllLocations.xlsx`, `.csv` or `.tsv`.
 #' @param native_web_sinas_fulltaxa_path Optional local path to
-#'   `SInAS_3.1.1_FullTaxaList.csv`.
+#'   `SInAS_3.2_FullTaxaList.csv`.
 #' @param export_native_web_audit Logical. If `TRUE`, write native-web long,
 #'   species, unmapped and summary audit files to `output_dir`.
 #' @param native_species_col Species-name column in `native_ranges`.
@@ -1348,20 +1348,29 @@ process_gbif_terrestrial_freshwater_pipeline <- function(
     invisible(NULL)
   }
 
+
   .load_overlay_or_record <- function(src,
                                       fun,
                                       args,
                                       crop_after = FALSE,
                                       crop_tag = NULL) {
     if (is.null(fun) || !is.function(fun)) {
-      .record_overlay_load_failure(src, "Loader function is not available.", stage = "missing_loader")
+      .record_overlay_load_failure(
+        src,
+        "Loader function is not available.",
+        stage = "missing_loader"
+      )
       return(NULL)
     }
 
     out <- tryCatch(
       do.call(fun, args),
       error = function(e) {
-        .record_overlay_load_failure(src, .errmsg(e), stage = "load_overlay")
+        .record_overlay_load_failure(
+          src,
+          .errmsg(e),
+          stage = "load_overlay"
+        )
         NULL
       }
     )
@@ -1371,24 +1380,82 @@ process_gbif_terrestrial_freshwater_pipeline <- function(
     }
 
     if (!inherits(out, "sf") || !nrow(out)) {
-      .record_overlay_load_failure(src, "Loader returned no sf rows.", stage = "empty_overlay")
+      .record_overlay_load_failure(
+        src,
+        "Loader returned no sf rows.",
+        stage = "empty_overlay"
+      )
       return(NULL)
     }
 
-    out <- .make_valid(.ensure_sf_wgs84(out))
+    out <- tryCatch(
+      .make_valid(.ensure_sf_wgs84(out)),
+      error = function(e) {
+        .record_overlay_load_failure(
+          src,
+          .errmsg(e),
+          stage = "validate_overlay"
+        )
+        NULL
+      }
+    )
+
+    if (is.null(out)) {
+      return(NULL)
+    }
 
     if (isTRUE(crop_after)) {
-      out <- .crop_overlay_to_countries(out, countries, tag = if (is.null(crop_tag)) toupper(src) else crop_tag)
+      out <- .crop_overlay_to_countries(
+        out,
+        countries,
+        tag = if (is.null(crop_tag)) toupper(src) else crop_tag
+      )
     }
 
     if (!inherits(out, "sf") || !nrow(out)) {
-      .record_overlay_load_failure(src, "Overlay became empty after validation/cropping.", stage = "empty_overlay")
+      .record_overlay_load_failure(
+        src,
+        "Overlay became empty after validation/cropping.",
+        stage = "empty_overlay"
+      )
       return(NULL)
     }
 
     out
   }
 
+  .prepare_overlay_or_record <- function(src, out, fun) {
+    if (is.null(out)) {
+      return(NULL)
+    }
+
+    prepared <- tryCatch(
+      fun(out),
+      error = function(e) {
+        .record_overlay_load_failure(
+          src,
+          .errmsg(e),
+          stage = "prepare_overlay"
+        )
+        NULL
+      }
+    )
+
+    if (is.null(prepared)) {
+      return(NULL)
+    }
+
+    if (!inherits(prepared, "sf") || !nrow(prepared)) {
+      .record_overlay_load_failure(
+        src,
+        "Overlay preparation returned no sf rows.",
+        stage = "empty_overlay"
+      )
+      return(NULL)
+    }
+
+    prepared
+  }
   if (requireNamespace("countrycode", quietly = TRUE)) {
     iso2_all <- countries
     iso2_all[iso2_all == "UK"] <- "GB"
@@ -1832,78 +1899,179 @@ process_gbif_terrestrial_freshwater_pipeline <- function(
       }
     }
 
+
     if ("teow" %in% sources) {
-      if (is.null(load_teow_fun)) .msg("biofetchR: bf_load_teow() not available; skipping TEOW.") else {
-        overlay_teow <- tryCatch(load_teow_fun(cache_dir=teow_cache_dir, method=teow_method, source_url=teow_url, force_refresh=teow_force_refresh, quiet=TRUE), error=function(e) NULL)
-        if (inherits(overlay_teow, "sf") && nrow(overlay_teow)) {
-          if (!"geoname" %in% names(overlay_teow)) {
-            nm <- intersect(c("ECO_NAME", "eco_name", "ECOREGION", "ecoregion"), names(overlay_teow))
-            overlay_teow$geoname <- if (length(nm)) as.character(overlay_teow[[nm[1]]]) else paste0("ECO_", seq_len(nrow(overlay_teow)))
+      overlay_teow <- .load_overlay_or_record(
+        src = "teow",
+        fun = load_teow_fun,
+        args = list(
+          cache_dir = teow_cache_dir,
+          method = teow_method,
+          source_url = teow_url,
+          force_refresh = teow_force_refresh,
+          quiet = TRUE
+        ),
+        crop_after = isTRUE(teow_clip_to_countries),
+        crop_tag = "TEOW"
+      )
+
+      overlay_teow <- .prepare_overlay_or_record(
+        "teow",
+        overlay_teow,
+        function(x) {
+          if (!"geoname" %in% names(x)) {
+            nm <- intersect(
+              c("ECO_NAME", "eco_name", "ECOREGION", "ecoregion"),
+              names(x)
+            )
+            x$geoname <- if (length(nm)) {
+              as.character(x[[nm[[1L]]]])
+            } else {
+              paste0("ECO_", seq_len(nrow(x)))
+            }
           }
-          names(overlay_teow)[names(overlay_teow) == "geoname"] <- "geoname_teow"
-          gcol <- .geom_name(overlay_teow)
-          overlay_teow <- overlay_teow[, c("geoname_teow", gcol), drop=FALSE]
-          overlay_teow <- .make_valid(.ensure_sf_wgs84(overlay_teow))
-          if (isTRUE(teow_clip_to_countries)) overlay_teow <- .crop_overlay_to_countries(overlay_teow, countries, tag="TEOW")
-        } else overlay_teow <- NULL
-      }
+
+          names(x)[names(x) == "geoname"] <- "geoname_teow"
+          gcol <- .geom_name(x)
+          x[, c("geoname_teow", gcol), drop = FALSE]
+        }
+      )
     }
 
     if ("feow" %in% sources) {
-      if (is.null(load_feow_fun)) .msg("biofetchR: bf_load_feow() not available; skipping FEOW.") else {
-        overlay_feow <- tryCatch(load_feow_fun(cache_dir=feow_cache_dir, method=feow_method_resolved, source_url=feow_url, force_refresh=feow_force_refresh, quiet=TRUE), error=function(e) NULL)
-        if (inherits(overlay_feow, "sf") && nrow(overlay_feow)) {
-          if (!"geoname" %in% names(overlay_feow)) {
-            nm <- intersect(c("ecoregion", "ECOREGION", "ECO_NAME", "FEOW_NAME", "NAME"), names(overlay_feow))
-            overlay_feow$geoname <- if (length(nm)) as.character(overlay_feow[[nm[1]]]) else paste0("FEOW_", seq_len(nrow(overlay_feow)))
+      overlay_feow <- .load_overlay_or_record(
+        src = "feow",
+        fun = load_feow_fun,
+        args = list(
+          cache_dir = feow_cache_dir,
+          method = feow_method_resolved,
+          source_url = feow_url,
+          force_refresh = feow_force_refresh,
+          quiet = TRUE
+        ),
+        crop_after = isTRUE(feow_clip_to_countries),
+        crop_tag = "FEOW"
+      )
+
+      overlay_feow <- .prepare_overlay_or_record(
+        "feow",
+        overlay_feow,
+        function(x) {
+          if (!"geoname" %in% names(x)) {
+            nm <- intersect(
+              c("ecoregion", "ECOREGION", "ECO_NAME", "FEOW_NAME", "NAME"),
+              names(x)
+            )
+            x$geoname <- if (length(nm)) {
+              as.character(x[[nm[[1L]]]])
+            } else {
+              paste0("FEOW_", seq_len(nrow(x)))
+            }
           }
-          names(overlay_feow)[names(overlay_feow) == "geoname"] <- "geoname_feow"
-          gcol <- .geom_name(overlay_feow)
-          overlay_feow <- overlay_feow[, c("geoname_feow", gcol), drop=FALSE]
-          overlay_feow <- .make_valid(.ensure_sf_wgs84(overlay_feow))
-          if (isTRUE(feow_clip_to_countries)) overlay_feow <- .crop_overlay_to_countries(overlay_feow, countries, tag="FEOW")
-        } else overlay_feow <- NULL
-      }
+
+          names(x)[names(x) == "geoname"] <- "geoname_feow"
+          gcol <- .geom_name(x)
+          x[, c("geoname_feow", gcol), drop = FALSE]
+        }
+      )
     }
 
     if ("lakes" %in% sources) {
-      if (is.null(load_lakes_fun)) .msg("biofetchR: bf_load_lakes() not available; skipping LAKES.") else {
-        overlay_lakes <- tryCatch(load_lakes_fun(cache_dir=lakes_cache_dir, force_refresh=lakes_force_refresh, lakes_only=lakes_only, min_area_km2=lakes_min_area_km2, quiet=TRUE), error=function(e) NULL)
-        if (inherits(overlay_lakes, "sf") && nrow(overlay_lakes)) {
-          nm <- intersect(c("name", "Lake_name", "lake_name"), names(overlay_lakes))
-          overlay_lakes$geoname_lakes <- if (length(nm)) as.character(overlay_lakes[[nm[1]]]) else paste0("LAKE_", seq_len(nrow(overlay_lakes)))
-          gcol <- .geom_name(overlay_lakes)
-          overlay_lakes <- overlay_lakes[, c("geoname_lakes", gcol), drop=FALSE]
-          overlay_lakes <- .make_valid(.ensure_sf_wgs84(overlay_lakes))
-          overlay_lakes <- .crop_overlay_to_countries(overlay_lakes, countries, tag="LAKES")
-        } else overlay_lakes <- NULL
-      }
+      overlay_lakes <- .load_overlay_or_record(
+        src = "lakes",
+        fun = load_lakes_fun,
+        args = list(
+          cache_dir = lakes_cache_dir,
+          force_refresh = lakes_force_refresh,
+          lakes_only = lakes_only,
+          min_area_km2 = lakes_min_area_km2,
+          quiet = TRUE
+        ),
+        crop_after = TRUE,
+        crop_tag = "LAKES"
+      )
+
+      overlay_lakes <- .prepare_overlay_or_record(
+        "lakes",
+        overlay_lakes,
+        function(x) {
+          nm <- intersect(c("name", "Lake_name", "lake_name"), names(x))
+          x$geoname_lakes <- if (length(nm)) {
+            as.character(x[[nm[[1L]]]])
+          } else {
+            paste0("LAKE_", seq_len(nrow(x)))
+          }
+
+          gcol <- .geom_name(x)
+          x[, c("geoname_lakes", gcol), drop = FALSE]
+        }
+      )
     }
 
     if ("rivers" %in% sources) {
-      if (is.null(load_rivers_fun)) .msg("biofetchR: bf_load_rivers() not available; skipping RIVERS.") else {
-        overlay_rivers <- tryCatch(load_rivers_fun(cache_dir=rivers_cache_dir, cache=rivers_cache, cache_format=rivers_cache_format, force_refresh=rivers_force_refresh, regions=rivers_regions, min_strahler=rivers_min_strahler, min_discharge_cms=rivers_min_discharge_cms, quiet=TRUE), error=function(e) NULL)
-        if (inherits(overlay_rivers, "sf") && nrow(overlay_rivers)) {
-          if (!"hyriv_id" %in% names(overlay_rivers) && "HYRIV_ID" %in% names(overlay_rivers)) overlay_rivers$hyriv_id <- overlay_rivers$HYRIV_ID
-          gcol <- .geom_name(overlay_rivers)
-          overlay_rivers <- overlay_rivers[, c("hyriv_id", gcol), drop=FALSE]
-          overlay_rivers <- .make_valid(.ensure_sf_wgs84(overlay_rivers))
-          overlay_rivers <- .crop_overlay_to_countries(overlay_rivers, countries, tag="RIVERS")
-        } else overlay_rivers <- NULL
-      }
+      overlay_rivers <- .load_overlay_or_record(
+        src = "rivers",
+        fun = load_rivers_fun,
+        args = list(
+          cache_dir = rivers_cache_dir,
+          cache = rivers_cache,
+          cache_format = rivers_cache_format,
+          force_refresh = rivers_force_refresh,
+          regions = rivers_regions,
+          min_strahler = rivers_min_strahler,
+          min_discharge_cms = rivers_min_discharge_cms,
+          quiet = TRUE
+        ),
+        crop_after = TRUE,
+        crop_tag = "RIVERS"
+      )
+
+      overlay_rivers <- .prepare_overlay_or_record(
+        "rivers",
+        overlay_rivers,
+        function(x) {
+          if (!"hyriv_id" %in% names(x) && "HYRIV_ID" %in% names(x)) {
+            x$hyriv_id <- x$HYRIV_ID
+          }
+          if (!"hyriv_id" %in% names(x)) {
+            stop("HydroRIVERS overlay lacks `hyriv_id`/`HYRIV_ID`.", call. = FALSE)
+          }
+
+          gcol <- .geom_name(x)
+          x[, c("hyriv_id", gcol), drop = FALSE]
+        }
+      )
     }
 
     if ("basins" %in% sources) {
-      if (is.null(load_basins_fun)) .msg("biofetchR: bf_load_basins() not available; skipping BASINS.") else {
-        overlay_basins <- tryCatch(load_basins_fun(level=basins_level, with_lakes=basins_with_lakes, cache_dir=basins_cache_dir, quiet=TRUE), error=function(e) NULL)
-        if (inherits(overlay_basins, "sf") && nrow(overlay_basins)) {
-          if (!"hybas_id" %in% names(overlay_basins) && "HYBAS_ID" %in% names(overlay_basins)) overlay_basins$hybas_id <- overlay_basins$HYBAS_ID
-          gcol <- .geom_name(overlay_basins)
-          overlay_basins <- overlay_basins[, c("hybas_id", gcol), drop=FALSE]
-          overlay_basins <- .make_valid(.ensure_sf_wgs84(overlay_basins))
-          if (isTRUE(basins_clip_to_countries)) overlay_basins <- .crop_overlay_to_countries(overlay_basins, countries, tag="BASINS")
-        } else overlay_basins <- NULL
-      }
+      overlay_basins <- .load_overlay_or_record(
+        src = "basins",
+        fun = load_basins_fun,
+        args = list(
+          level = basins_level,
+          with_lakes = basins_with_lakes,
+          cache_dir = basins_cache_dir,
+          quiet = TRUE
+        ),
+        crop_after = isTRUE(basins_clip_to_countries),
+        crop_tag = "BASINS"
+      )
+
+      overlay_basins <- .prepare_overlay_or_record(
+        "basins",
+        overlay_basins,
+        function(x) {
+          if (!"hybas_id" %in% names(x) && "HYBAS_ID" %in% names(x)) {
+            x$hybas_id <- x$HYBAS_ID
+          }
+          if (!"hybas_id" %in% names(x)) {
+            stop("HydroBASINS overlay lacks `hybas_id`/`HYBAS_ID`.", call. = FALSE)
+          }
+
+          gcol <- .geom_name(x)
+          x[, c("hybas_id", gcol), drop = FALSE]
+        }
+      )
     }
 
     if ("gmba" %in% sources) {
@@ -1930,51 +2098,88 @@ process_gbif_terrestrial_freshwater_pipeline <- function(
       )
     }
 
+
     if ("ne_urban" %in% sources) {
-      if (is.null(load_ne_urban_fun)) .msg("biofetchR: bf_load_ne_urban() not available; skipping NE_URBAN.") else {
-        overlay_ne_urban <- tryCatch(load_ne_urban_fun(cache_dir=ne_cache_dir, scale="10m", force_refresh=ne_force_refresh, clip_to_countries=TRUE, iso2c=countries, quiet=TRUE), error=function(e) NULL)
-        if (inherits(overlay_ne_urban, "sf") && nrow(overlay_ne_urban)) {
-          overlay_ne_urban <- .make_valid(.ensure_sf_wgs84(overlay_ne_urban))
-          overlay_ne_urban <- .crop_overlay_to_countries(overlay_ne_urban, countries, tag="NE_URBAN")
-        } else overlay_ne_urban <- NULL
-      }
+      overlay_ne_urban <- .load_overlay_or_record(
+        src = "ne_urban",
+        fun = load_ne_urban_fun,
+        args = list(
+          cache_dir = ne_cache_dir,
+          scale = "10m",
+          force_refresh = ne_force_refresh,
+          clip_to_countries = TRUE,
+          iso2c = countries,
+          quiet = TRUE
+        ),
+        crop_after = TRUE,
+        crop_tag = "NE_URBAN"
+      )
     }
 
     if ("ne_admin1" %in% sources) {
-      if (is.null(load_ne_admin1_fun)) .msg("biofetchR: bf_load_ne_admin1() not available; skipping NE_ADMIN1.") else {
-        overlay_ne_admin1 <- tryCatch(load_ne_admin1_fun(cache_dir=ne_cache_dir, scale=ne_admin1_scale, force_refresh=ne_force_refresh, clip_to_countries=TRUE, iso2c=countries, quiet=TRUE), error=function(e) NULL)
-        if (inherits(overlay_ne_admin1, "sf") && nrow(overlay_ne_admin1)) overlay_ne_admin1 <- .make_valid(.ensure_sf_wgs84(overlay_ne_admin1)) else overlay_ne_admin1 <- NULL
-      }
+      overlay_ne_admin1 <- .load_overlay_or_record(
+        src = "ne_admin1",
+        fun = load_ne_admin1_fun,
+        args = list(
+          cache_dir = ne_cache_dir,
+          scale = ne_admin1_scale,
+          force_refresh = ne_force_refresh,
+          clip_to_countries = TRUE,
+          iso2c = countries,
+          quiet = TRUE
+        )
+      )
     }
 
     if ("resolve2017" %in% sources) {
-      if (is.null(load_resolve2017_fun)) .msg("biofetchR: bf_load_resolve2017() not available; skipping RESOLVE2017.") else {
-        overlay_resolve2017 <- tryCatch(load_resolve2017_fun(cache_dir=resolve_cache_dir, iso2c=countries, force_refresh=resolve_force_refresh, clip_to_countries=resolve_clip_to_countries, quiet=TRUE), error=function(e) NULL)
-        if (inherits(overlay_resolve2017, "sf") && nrow(overlay_resolve2017)) {
-          overlay_resolve2017 <- .make_valid(.ensure_sf_wgs84(overlay_resolve2017))
-          if (isTRUE(resolve_clip_to_countries)) overlay_resolve2017 <- .crop_overlay_to_countries(overlay_resolve2017, countries, tag="RESOLVE2017")
-        } else overlay_resolve2017 <- NULL
-      }
+      overlay_resolve2017 <- .load_overlay_or_record(
+        src = "resolve2017",
+        fun = load_resolve2017_fun,
+        args = list(
+          cache_dir = resolve_cache_dir,
+          iso2c = countries,
+          force_refresh = resolve_force_refresh,
+          clip_to_countries = resolve_clip_to_countries,
+          quiet = TRUE
+        ),
+        crop_after = isTRUE(resolve_clip_to_countries),
+        crop_tag = "RESOLVE2017"
+      )
     }
 
     if ("wdpa" %in% sources) {
-      if (is.null(load_wdpa_fun)) .msg("biofetchR: bf_load_wdpa() not available; skipping WDPA.") else {
-        overlay_wdpa <- tryCatch(load_wdpa_fun(iso2c=countries, cache_dir=wdpa_cache_dir, force_refresh=wdpa_force_refresh, quiet=TRUE, exclude_marine=wdpa_exclude_marine, require_opt_in=wdpa_require_opt_in, opt_in=wdpa_opt_in), error=function(e) NULL)
-        if (inherits(overlay_wdpa, "sf") && nrow(overlay_wdpa)) {
-          overlay_wdpa <- .make_valid(.ensure_sf_wgs84(overlay_wdpa))
-          overlay_wdpa <- .crop_overlay_to_countries(overlay_wdpa, countries, tag="WDPA")
-        } else overlay_wdpa <- NULL
-      }
+      overlay_wdpa <- .load_overlay_or_record(
+        src = "wdpa",
+        fun = load_wdpa_fun,
+        args = list(
+          iso2c = countries,
+          cache_dir = wdpa_cache_dir,
+          force_refresh = wdpa_force_refresh,
+          quiet = TRUE,
+          exclude_marine = wdpa_exclude_marine,
+          require_opt_in = wdpa_require_opt_in,
+          opt_in = wdpa_opt_in
+        ),
+        crop_after = TRUE,
+        crop_tag = "WDPA"
+      )
     }
 
     if ("ramsar" %in% sources) {
-      if (is.null(load_ramsar_fun)) .msg("biofetchR: bf_load_ramsar() not available; skipping RAMSAR.") else {
-        overlay_ramsar <- tryCatch(load_ramsar_fun(iso2c=countries, cache_dir=ramsar_cache_dir, force_refresh=ramsar_force_refresh, quiet=TRUE, require_opt_in=ramsar_require_opt_in, opt_in=ramsar_opt_in), error=function(e) NULL)
-        if (inherits(overlay_ramsar, "sf") && nrow(overlay_ramsar)) {
-          overlay_ramsar <- .make_valid(.ensure_sf_wgs84(overlay_ramsar))
-          overlay_ramsar <- .crop_overlay_to_countries(overlay_ramsar, countries, tag="RAMSAR")
-        } else overlay_ramsar <- NULL
-      }
+      overlay_ramsar <- .load_overlay_or_record(
+        src = "ramsar",
+        fun = load_ramsar_fun,
+        args = list(
+          iso2c = countries,
+          cache_dir = ramsar_cache_dir,
+          force_refresh = ramsar_force_refresh,
+          quiet = TRUE,
+          require_opt_in = ramsar_require_opt_in,
+          opt_in = ramsar_opt_in
+        ),
+        crop_after = TRUE,
+        crop_tag = "RAMSAR"
+      )
     }
 
     if ("gdw_barriers" %in% sources) {

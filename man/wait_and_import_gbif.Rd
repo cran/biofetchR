@@ -113,8 +113,8 @@ if (interactive() && exists("keys")) {
 
 }
 \seealso{
-Other GBIF helpers: 
-\code{\link{check_gbif_presence}()},
-\code{\link{get_taxon_key}()}
+Other GBIF helpers:
+\code{\link[=check_gbif_presence]{check_gbif_presence()}},
+\code{\link[=get_taxon_key]{get_taxon_key()}}
 }
 \concept{GBIF helpers}

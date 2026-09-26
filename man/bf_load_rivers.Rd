@@ -48,10 +48,10 @@ Downloads + standardizes HydroRIVERS. If \code{cache="disk"}, writes an RDS cach
 Filters (\code{min_strahler}, \code{min_discharge_cms}) are applied on read, not baked into cache.
 }
 \seealso{
-Other freshwater overlay loaders: 
-\code{\link{bf_load_basins}()},
-\code{\link{bf_load_feow}()},
-\code{\link{bf_load_lakes}()},
-\code{\link{bf_name_rivers_osm}()}
+Other freshwater overlay loaders:
+\code{\link[=bf_load_basins]{bf_load_basins()}},
+\code{\link[=bf_load_feow]{bf_load_feow()}},
+\code{\link[=bf_load_lakes]{bf_load_lakes()}},
+\code{\link[=bf_name_rivers_osm]{bf_name_rivers_osm()}}
 }
 \concept{freshwater overlay loaders}

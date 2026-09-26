@@ -74,8 +74,8 @@ if (interactive()) {
 
 }
 \seealso{
-Other remote overlay loaders: 
-\code{\link{bf_load_biosphere_reserve}()},
-\code{\link{bf_load_gdw_barriers}()}
+Other remote overlay loaders:
+\code{\link[=bf_load_biosphere_reserve]{bf_load_biosphere_reserve()}},
+\code{\link[=bf_load_gdw_barriers]{bf_load_gdw_barriers()}}
 }
 \concept{remote overlay loaders}

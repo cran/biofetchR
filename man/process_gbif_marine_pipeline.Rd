@@ -156,14 +156,14 @@ entries where supported.}
 \item{native_web_sleep_sec}{Numeric delay in seconds between native-web
 requests.}
 
-\item{native_web_sinas_main_path}{Optional local path to \code{SInAS_3.1.1.csv}
+\item{native_web_sinas_main_path}{Optional local path to \code{SInAS_3.2.csv}
 when \code{"sinas"} is included in \code{native_web_sources}.}
 
 \item{native_web_sinas_alllocations_path}{Optional local path to
 \code{AllLocations.xlsx}, \code{.csv} or \code{.tsv}.}
 
 \item{native_web_sinas_fulltaxa_path}{Optional local path to
-\code{SInAS_3.1.1_FullTaxaList.csv}.}
+\code{SInAS_3.2_FullTaxaList.csv}.}
 
 \item{export_native_web_audit}{Logical; if \code{TRUE}, write native-web long,
 species, unmapped and summary audit files to \code{output_dir}.}
@@ -355,7 +355,7 @@ if (interactive() && all(nzchar(Sys.getenv(gbif_env)))) {
 \code{\link[=download_gbif_batch]{download_gbif_batch()}}, \code{\link[=wait_and_import_gbif_safe]{wait_and_import_gbif_safe()}},
 \code{\link[=thin_spatial_points]{thin_spatial_points()}}, \code{\link[=bf_load_marine_regions_overlay]{bf_load_marine_regions_overlay()}}
 
-Other marine processing pipelines: 
-\code{\link{process_gbif_eez_pipeline}()}
+Other marine processing pipelines:
+\code{\link[=process_gbif_eez_pipeline]{process_gbif_eez_pipeline()}}
 }
 \concept{marine processing pipelines}
